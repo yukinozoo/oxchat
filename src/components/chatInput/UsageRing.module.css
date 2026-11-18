@@ -1,0 +1,54 @@
+.ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 17px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.track {
+  fill: none;
+  stroke: var(--dsw-alias-border-l2);
+  stroke-width: 2.4;
+}
+
+.value {
+  fill: none;
+  stroke: var(--dsw-alias-brand-text);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 50% 起琥珀色，80% 起红色：颜色同步到环与百分比 */
+.warn .value {
+  stroke: var(--dsw-static-amber-500);
+}
+
+.warn .percent {
+  color: var(--dsw-static-amber-600);
+}
+
+.danger .value {
+  stroke: var(--dsw-alias-state-error-primary);
+}
+
+.danger .percent {
+  color: var(--dsw-alias-state-error-primary);
+}

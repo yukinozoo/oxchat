@@ -1,0 +1,66 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  /* 不再压暗页面：面板把输入区顶上去，内容保持可读 */
+  background: transparent;
+}
+
+.sheet {
+  box-sizing: border-box;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--dsw-alias-bg-base);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  animation: sheetIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tiles {
+  display: flex;
+  gap: 10px;
+}
+
+.tile {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 100px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-s-strong-14);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background-color 0.12s ease;
+
+  &:active {
+    transform: scale(0.97);
+    background: var(--dsw-alias-interactive-bg-active);
+  }
+}
+
+.label {
+  font: var(--dsw-font-s-strong-14);
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    transform: translateY(100%);
+  }
+}

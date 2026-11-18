@@ -1,0 +1,49 @@
+.overlay {
+  z-index: 1300;
+}
+
+.dialog {
+  width: 420px;
+  max-height: calc(100dvh - 48px);
+}
+
+.main {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.intro {
+  margin: 0 0 12px;
+  color: var(--dsw-alias-label-primary);
+  line-height: 24px;
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+
+  li + li {
+    margin-top: 12px;
+  }
+}
+
+.meta {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+
+  a {
+    color: var(--dsw-alias-brand-text);
+    text-decoration: none;
+  }
+}
+
+.confirm {
+  min-width: 96px;
+}

@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 12px 10px 4px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* 黑体：加粗、靠左，过长自动省略 */
+  font-family: var(--dsw-font-family);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  text-align: left;
+  color: var(--dsw-alias-label-primary);
+}

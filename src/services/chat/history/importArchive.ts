@@ -1,0 +1,271 @@
+import * as db from '../db.js'
+import type { Session } from '../types.js'
+import { BackupError, fail } from './errors.js'
+import type { SessionIndexEntry } from './format.js'
+import { INDEX_PATH, MANIFEST_PATH, USER_PATH, parseSessionPath } from './paths.js'
+import { checkManifest, readSessionIndex } from './schema.js'
+import { parseSessionAsync } from './sessionParser.js'
+import {
+  ArchiveError,
+  isZipFile,
+  readArchive,
+  readEntry,
+  skipEntry,
+  type ArchiveEntry,
+} from './zipReader.js'
+
+/** 批量落库的阈值：一次事务写一批，摊掉每批的提交开销，同时限制峰值内存 */
+const SESSION_BATCH = 20
+const FILE_BATCH_COUNT = 12
+const FILE_BATCH_BYTES = 24 * 1024 * 1024
+
+/** 从原件字节补充图片 MIME；无法识别时为空字符串，图片身份仍由归档的 is_image 决定。 */
+const imageType = (bytes: Uint8Array): string => {
+  const startsWith = (...prefix: number[]) => prefix.every((byte, index) => bytes[index] === byte)
+  const header = new TextDecoder('ascii').decode(bytes.subarray(0, 12))
+  if (startsWith(0xff, 0xd8, 0xff)) {
+    return 'image/jpeg'
+  }
+  if (startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    return 'image/png'
+  }
+  if (header.startsWith('GIF87a') || header.startsWith('GIF89a')) {
+    return 'image/gif'
+  }
+  if (header.startsWith('RIFF') && header.slice(8, 12) === 'WEBP') {
+    return 'image/webp'
+  }
+  if (startsWith(0x42, 0x4d)) {
+    return 'image/bmp'
+  }
+  if (startsWith(0x49, 0x49, 0x2a, 0) || startsWith(0x4d, 0x4d, 0, 0x2a)) {
+    return 'image/tiff'
+  }
+  if (header.slice(4, 8) === 'ftyp' && ['avif', 'avis'].includes(header.slice(8, 12))) {
+    return 'image/avif'
+  }
+  return ''
+}
+
+const readJson = async (entry: ArchiveEntry): Promise<unknown> => {
+  const text = await (await readEntry(entry)).text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    return fail('backupInvalidJson')
+  }
+}
+
+/**
+ * 检查 ZIP 格式、首个 manifest 条目及格式版本。
+ * 校验失败时保留正在生成的回答和现有暂存数据。
+ */
+export const checkArchiveFormat = async (file: File): Promise<void> => {
+  if (!(await isZipFile(file))) {
+    fail('backupUnrecognized')
+  }
+  try {
+    for await (const entry of readArchive(file)) {
+      if (entry.path !== MANIFEST_PATH) {
+        fail('backupUnrecognized')
+      }
+      checkManifest(await readJson(entry))
+      return
+    }
+  } catch (error) {
+    throw error instanceof ArchiveError ? new BackupError('backupIncomplete') : error
+  }
+  fail('backupUnrecognized')
+}
+
+/** 用户点了「停止导入」：在下一个条目边界抛出停止错误，已写入暂存的数据由调用方清理。 */
+let cancelRequested = false
+
+export const requestImportCancel = (): void => {
+  cancelRequested = true
+}
+
+export type ImportOptions = {
+  /** 本地已存在的会话 ID：同 ID 会话跳过，保留现有对话与续聊内容 */
+  existingIds?: ReadonlySet<string>
+  /** 预扫描得到的会话总数，用于「N / M 个对话」进度 */
+  totalSessions?: number
+  onProgress?: (done: number, total: number) => void
+}
+
+/**
+ * 流式导入：manifest → user（不导入）→ 全部会话 JSON → index → 全部图片。
+ * 也支持会话与图片交错排列、index 位于末尾的条目顺序。
+ * 与本地已有会话同 ID 的条目跳过，保留现有对话；index 校验按「已见过的会话」统计。
+ * 会话读完立即暂存，只保留图片路径映射；图片全部读完后逐会话回填 MIME，不改变图片身份。
+ * 写入导入暂存存储；调用方负责先清空暂存，成功后提交，失败时清理暂存。
+ */
+export const importArchive = async (
+  file: File,
+  options: ImportOptions = {}
+): Promise<{ imported: number; skipped: number }> => {
+  cancelRequested = false
+  if (!(await isZipFile(file))) {
+    fail('backupUnrecognized')
+  }
+  const existing = options.existingIds ?? new Set<string>()
+  const total = options.totalSessions ?? 0
+  const imported = new Set<string>()
+  /** 已见过的会话（导入 + 跳过），用于图片路由与 index 校验 */
+  const known = new Set<string>()
+  let skipped = 0
+  let done = 0
+  let lastReportAt = 0
+  /**
+   * 进度回调：100ms 节流。每次更新都会让设置页重渲染，逐条刷新在手机上明显拖慢导入。
+   * 总数未知（预扫描失败）时传 0，界面按「已处理 N 个」展示。
+   */
+  const report = (force = false) => {
+    const now = performance.now()
+    if (force || now - lastReportAt >= 100) {
+      lastReportAt = now
+      options.onProgress?.(done, total)
+    }
+  }
+  const images = new Map<string, string>()
+  /** 已保存的原件：文件 ID → MIME。同一图片出现在多个会话目录时只保存一次。 */
+  const stored = new Map<string, string>()
+  let manifest = false
+  let index: SessionIndexEntry[] | undefined
+
+  /** 待写入的会话与图片：攒够一批再发事务，避免一条一次提交 */
+  const pendingSessions: Session[] = []
+  const pendingFiles: db.StoredFile[] = []
+  /** 引用了图片的会话，回填 MIME 时只扫这些，不用全表重读 */
+  const sessionsWithFiles = new Set<string>()
+  let pendingBytes = 0
+
+  const flushSessions = async () => {
+    if (pendingSessions.length > 0) {
+      await db.addStagingSessions(pendingSessions.splice(0))
+    }
+  }
+
+  const flushFiles = async () => {
+    if (pendingFiles.length > 0) {
+      await db.saveStagingFiles(pendingFiles.splice(0))
+      pendingBytes = 0
+    }
+  }
+
+  const saveImage = async (entry: ArchiveEntry, id: string) => {
+    if (stored.has(id)) {
+      await skipEntry(entry)
+      return
+    }
+    const data = await readEntry(entry)
+    const type = imageType(new Uint8Array(await data.slice(0, 16).arrayBuffer()))
+    pendingFiles.push({ id, blob: new Blob([data], { type }) })
+    pendingBytes += data.size
+    stored.set(id, type)
+    if (pendingFiles.length >= FILE_BATCH_COUNT || pendingBytes >= FILE_BATCH_BYTES) {
+      await flushFiles()
+    }
+  }
+
+  report(true)
+
+  try {
+    for await (const entry of readArchive(file)) {
+      if (cancelRequested) {
+        fail('historyImportCancelled')
+      }
+      const { path } = entry
+      const sessionId = parseSessionPath(path)
+      /** 图片条目所属会话；非图片条目为 undefined */
+      const filesOwner = /^chat_sessions\/([^/]+)_files\//.exec(path)?.[1]
+      if (!manifest) {
+        if (path !== MANIFEST_PATH) {
+          fail('backupUnrecognized')
+        }
+        checkManifest(await readJson(entry))
+        manifest = true
+      } else if (path === MANIFEST_PATH) {
+        // manifest 只能有一个且必须在最前
+        fail('backupIncomplete')
+      } else if (path === USER_PATH) {
+        // 账号信息（已脱敏）不导入；文件可能缺失，位置不作要求。
+        await skipEntry(entry)
+      } else if (sessionId !== null) {
+        // 会话条目与 index 的先后顺序不作要求：先出现的都按会话处理。
+        if (existing.has(sessionId) || imported.has(sessionId)) {
+          if (imported.has(sessionId)) {
+            // 同一归档内出现两次同 ID 会话：格式损坏。
+            fail('backupIncomplete')
+          }
+          // 本地已有同 ID 会话：跳过，保留现有对话与续聊内容。
+          await skipEntry(entry)
+          skipped += 1
+        } else {
+          // 解析在 Worker 里跑：大对话的 JSON.parse、校验与树构建不再阻塞界面
+          const parsed = await parseSessionAsync(await (await readEntry(entry)).text())
+          if (parsed.session.id !== sessionId) {
+            fail('backupIncomplete')
+          }
+          imported.add(sessionId)
+          for (const [imagePath, id] of parsed.images) {
+            images.set(imagePath, id)
+          }
+          if (parsed.hasFiles) {
+            sessionsWithFiles.add(sessionId)
+          }
+          pendingSessions.push(parsed.session)
+          if (pendingSessions.length >= SESSION_BATCH) {
+            await flushSessions()
+          }
+        }
+        known.add(sessionId)
+        done += 1
+        report()
+      } else if (path === INDEX_PATH && !index) {
+        index = readSessionIndex(await readJson(entry))
+      } else if (filesOwner !== undefined && known.has(filesOwner)) {
+        // 没有被引用的条目不保存，引用了但缺失的图片只展示文件名。
+        const id = images.get(path)
+        await (id === undefined ? skipEntry(entry) : saveImage(entry, id))
+      } else {
+        fail('backupIncomplete')
+      }
+    }
+  } catch (error) {
+    if (error instanceof BackupError) {
+      throw error
+    }
+    // 存储或运行时错误：换成可读文案，界面提示才能指向具体问题
+    throw new BackupError(
+      error instanceof ArchiveError ? 'backupIncomplete' : 'historyImportStorageFailed'
+    )
+  }
+  try {
+    await flushSessions()
+    await flushFiles()
+  } catch {
+    fail('historyImportStorageFailed')
+  }
+  if (!manifest) {
+    fail('backupUnrecognized')
+  }
+  // index 列出归档内全部会话，与「已见过的会话」一一对应（含跳过的）。
+  const listed = new Set(index?.map((entry) => entry.id))
+  if (
+    !index ||
+    listed.size !== index.length ||
+    listed.size !== known.size ||
+    [...known].some((id) => !listed.has(id))
+  ) {
+    fail('backupIncomplete')
+  }
+  try {
+    await db.updateStagingFileTypes(stored, sessionsWithFiles)
+  } catch {
+    fail('historyImportStorageFailed')
+  }
+  // 收尾时强制刷新一次，避免节流把最后的 100% 吞掉
+  report(true)
+  return { imported: imported.size, skipped }
+}
