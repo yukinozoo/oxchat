@@ -43,13 +43,9 @@
   width: calc(var(--message-list-max-width) - 64px);
   max-width: calc(100% - 32px);
   margin: auto auto 0;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 30%,
-    var(--dsw-alias-bg-base) 30%,
-    var(--dsw-alias-bg-base) 100%
-  );
+  /* 与页面同色：分段渐变里的 transparent 在 iOS Safari 会渲染出浅灰色带，
+     导致开关按钮下方出现一块多余的背景 */
+  background: var(--dsw-alias-bg-base);
 }
 
 .caveat {
