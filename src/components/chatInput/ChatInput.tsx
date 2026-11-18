@@ -38,6 +38,12 @@ import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import styles from './ChatInput.module.css'
 
+/** 是否运行在 Capacitor 原生壳里：网页版直接用系统文件选择器 */
+const isNativeShell = (): boolean => {
+  const capacitor = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return Boolean(capacitor?.isNativePlatform?.())
+}
+
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
 export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: string | null }) {
   // 切换目标时释放录音、转写和 DOM 状态；文字与附件由草稿服务保留。
@@ -260,8 +266,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               if (!ensureApiKey()) {
                 return
               }
-              // 移动端先给「拍照/相册/文件」三个入口，桌面端直接开文件选择
-              if (isMobile) {
+              // 原生壳给「拍照/相册/文件」三个入口；网页版直接开系统文件选择器，
+              // 浏览器自带的选择器已包含拍照、相册与文件
+              if (isMobile && isNativeShell()) {
                 setAttachSheetOpen(true)
               } else {
                 fileInputRef.current?.click()
