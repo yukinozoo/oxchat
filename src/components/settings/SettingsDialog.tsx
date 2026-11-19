@@ -134,7 +134,17 @@ const SettingsContent = () => {
 
   return (
     <>
-      <div className={styles.page} data-fullscreen-overlay>
+      <div
+        className={styles.page}
+        data-fullscreen-overlay
+        onMouseDown={(event) => {
+          // 桌面端的遮罩点击关闭；移动端整屏铺满，点不到这里
+          if (event.target === event.currentTarget) {
+            goBack()
+          }
+        }}
+      >
+        <div className={styles.pagePanel}>
         <div className={styles.pageHead}>
           <button type="button" className={styles.pageBack} aria-label={t('back')} onClick={goBack}>
             <span className={styles.backChevron}>
@@ -307,6 +317,7 @@ const SettingsContent = () => {
               <div className={styles.settingDesc}>{t('personalizeAutoCollapseThinkingDesc')}</div>
             </>
           ) : null}
+        </div>
         </div>
       </div>
       {dialog === 'locale' ? (

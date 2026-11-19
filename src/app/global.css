@@ -43,12 +43,10 @@ body.change-theme *::after {
   transition: none !important;
 }
 
-@media not all and (min-width: 768px) {
-  html,
-  body,
-  #root {
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior-y: none;
-  }
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: none;
 }

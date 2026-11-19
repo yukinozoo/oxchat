@@ -1,12 +1,22 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
 /**
- * 只支持手机端：布局恒定走移动分支。
- * 之前按 768px 断点切换桌面布局，现在平板/横屏也统一用手机布局。
+ * 断点与 CSS 保持一致（CSS 里是 `@media not all and (min-width: 768px)`）：
+ * 小于 768px 走手机布局（抽屉侧栏、吸底输入框），以上走桌面布局（常驻侧栏、居中内容列）。
  */
-const MOBILE_ONLY = true
+const MOBILE_QUERY = '(max-width: 767.98px)'
 
-export const useIsMobile = () => MOBILE_ONLY
+const mobileQuery = typeof window === 'undefined' ? null : window.matchMedia(MOBILE_QUERY)
+
+const subscribeMobile = (listener: () => void) => {
+  mobileQuery?.addEventListener('change', listener)
+  return () => mobileQuery?.removeEventListener('change', listener)
+}
+
+const getIsMobile = () => mobileQuery?.matches ?? false
+
+/** 响应式断点：窗口宽度变化时重新渲染，桌面/手机布局都可用 */
+export const useIsMobile = () => useSyncExternalStore(subscribeMobile, getIsMobile, () => false)
 
 const preventPageScroll = (event: TouchEvent) => {
   if (event.touches.length !== 1) {
