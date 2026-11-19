@@ -30,6 +30,7 @@ import { UsageRing } from './UsageRing.js'
 import { UsageSheet } from './UsageSheet.js'
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
+import { requestPersistentStorage } from '../../services/storage.js'
 import { ACCEPT, useUploads } from '../../services/attachments.js'
 import { DraftAttachments } from './DraftAttachments.js'
 import { useVoiceInput } from './useVoiceInput.js'
@@ -37,6 +38,9 @@ import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import styles from './ChatInput.module.css'
+
+/** 持久化存储只申请一次，避免每次发送都打扰浏览器 */
+let persistRequested = false
 
 /** 是否运行在 Capacitor 原生壳里：网页版直接用系统文件选择器 */
 const isNativeShell = (): boolean => {
@@ -157,6 +161,11 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
     if (!ensureApiKey() || !sendMessage(sessionId)) {
       return
+    }
+    // 首次发送时顺手申请持久化存储：放在用户手势里成功率最高
+    if (!persistRequested) {
+      persistRequested = true
+      void requestPersistentStorage()
     }
     stopReadAloud()
     if (isMobile) {

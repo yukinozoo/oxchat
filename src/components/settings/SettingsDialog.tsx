@@ -55,6 +55,16 @@ import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import {
+  BACKUP_REMINDER_DAYS,
+  daysSinceBackup,
+  formatBytes,
+  markBackupDone,
+  requestPersistentStorage,
+  storageStatus,
+  type StorageStatus,
+} from '../../services/storage.js'
+import { pruneFiles } from '../../services/chat/db.js'
+import {
   checkForUpdate,
   updateAvailable,
   type CurrentVersion,
@@ -325,6 +335,7 @@ const SettingsContent = () => {
             </>
           ) : section === 'data' ? (
             <>
+              <StorageCard />
               <WebsiteImportEntry disabled={historyBusy} />
               <LinkImportEntry disabled={historyBusy} />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
@@ -666,6 +677,110 @@ const NavRow = ({
   </button>
 )
 
+/** 本地存储健康度：用量、持久化申请、残留附件清理与备份提醒 */
+const StorageCard = () => {
+  const t = useTranslate()
+  const [status, setStatus] = useState<StorageStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [cleanStatus, setCleanStatus] = useState<Status>(null)
+  const sessionCount = useChatStore((state) => state.sessions.length)
+  const missingDays = daysSinceBackup()
+
+  useEffect(() => {
+    void storageStatus().then(setStatus)
+  }, [])
+
+  const persist = async () => {
+    setBusy(true)
+    try {
+      const granted = await requestPersistentStorage()
+      showToast(t(granted ? 'storagePersistGranted' : 'storagePersistDenied'))
+      setStatus(await storageStatus())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cleanup = async () => {
+    setBusy(true)
+    try {
+      const result = await pruneFiles()
+      setCleanStatus(
+        result.removed > 0
+          ? {
+              key: 'storageCleanupDone',
+              params: { count: result.removed, size: formatBytes(result.bytes) },
+            }
+          : { key: 'storageCleanupNone' }
+      )
+      setStatus(await storageStatus())
+    } catch {
+      setCleanStatus({ key: 'historyDeleteFailed', error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remind =
+    sessionCount > 0
+      ? missingDays === null
+        ? t('backupReminderNever')
+        : missingDays >= BACKUP_REMINDER_DAYS
+          ? t('backupReminderDays', { days: missingDays })
+          : null
+      : null
+
+  return (
+    <div className={styles.card}>
+      <SettingCell
+        label={t('storageTitle')}
+        description={
+          status
+            ? t('storageUsage', {
+                used: formatBytes(status.usage),
+                quota: status.quota > 0 ? formatBytes(status.quota) : '—',
+              })
+            : undefined
+        }
+        status={null}
+        action={
+          status?.supported && !status.persisted ? (
+            <Button
+              variant="outlined"
+              size="m"
+              className={styles.cellButton}
+              disabled={busy}
+              onClick={() => void persist()}
+            >
+              {t('storagePersistAction')}
+            </Button>
+          ) : null
+        }
+      />
+      <div className={styles.settingDesc}>
+        {status?.persisted ? t('storagePersisted') : t('storageNotPersisted')}
+      </div>
+      <SettingCell
+        label={t('storageCleanup')}
+        description={t('storageCleanupDesc')}
+        status={cleanStatus}
+        action={
+          <Button
+            variant="outlined"
+            size="m"
+            className={styles.cellButton}
+            disabled={busy}
+            onClick={() => void cleanup()}
+          >
+            {t('delete')}
+          </Button>
+        }
+      />
+      {remind ? <div className={styles.settingDesc}>{remind}</div> : null}
+    </div>
+  )
+}
+
 const SettingCell = ({
   label,
   description,
@@ -820,6 +935,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 10_000)
       }
+      markBackupDone()
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       // 用户在分享面板取消不算失败

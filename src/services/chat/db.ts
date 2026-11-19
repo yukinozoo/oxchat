@@ -2,7 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { toSessionSummary, type Session, type SessionSummary } from './types.js'
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
-const DB_VERSION = 11
+const DB_VERSION = 12
 
 /** 文件原件按附件的本地 id 存储，所有引用同一 id 的消息共用一份；用于缩略图、打开查看，以及没有 serverId 时补传。 */
 export type StoredFile = {
@@ -29,6 +29,8 @@ interface ChatDB extends DBSchema {
    */
   sessionsStaging: { key: string; value: Session }
   filesStaging: { key: string; value: StoredFile }
+  /** 少量大设置项（如背景图 base64），避免和 API Key 抢 localStorage 的 5MB */
+  settings: { key: string; value: string }
 }
 
 let dbPromise: Promise<IDBPDatabase<ChatDB>> | null = null
@@ -57,7 +59,13 @@ const getDB = () =>
   (dbPromise ??= openDB<ChatDB>('oxchat', DB_VERSION, {
     upgrade(db, _oldVersion, _newVersion, tx) {
       // 初始化当前格式需要的存储与索引，不迁移旧消息。
-      for (const name of ['sessions', 'files', 'sessionsStaging', 'filesStaging'] as const) {
+      for (const name of [
+        'sessions',
+        'files',
+        'sessionsStaging',
+        'filesStaging',
+        'settings',
+      ] as const) {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(name, { keyPath: 'id' })
         }
@@ -69,6 +77,28 @@ const getDB = () =>
         summaries.createIndex('fileIds', 'fileIds', { multiEntry: true })
       }
     },
+    /**
+     * 另一个标签页要用更高版本打开数据库：主动断开自己，别把它卡在 blocked。
+     * 不加的话，用户同时开着两个标签页时，新版本页面会一直停在「正在加载对话…」。
+     */
+    blocking() {
+      void dbPromise
+        ?.then((db) => db.close())
+        .catch(() => undefined)
+      dbPromise = null
+    },
+    // 自己这个连接收到版本变更请求时同样让路
+    terminated() {
+      dbPromise = null
+    },
+    /** 升级被别的标签页挡住：旧版本页面没有让路逻辑，只能等它关闭 */
+    blocked() {
+      // eslint-disable-next-line no-console
+      console.warn('[storage] 数据库升级被其他标签页占用，关闭其他页面后刷新即可')
+    },
+  }).then((db) => {
+    db.addEventListener('versionchange', () => db.close())
+    return db
   }).catch((error: unknown) => {
     // 打开失败后允许界面重试，避免一直复用已拒绝的 Promise。
     dbPromise = null
@@ -312,4 +342,40 @@ export const commitStaging = async (merge = false): Promise<SessionSummary[]> =>
 export const reportStorageError = (action: string) => (error: unknown) => {
   // eslint-disable-next-line no-console
   console.error(`[storage] ${action} failed`, error)
+}
+
+/** 大设置项读写（背景图等）：value 直接存字符串 */
+export const getSetting = async (key: string): Promise<string | undefined> =>
+  (await getDB()).get('settings', key)
+
+export const setSetting = async (key: string, value: string): Promise<void> => {
+  await (await getDB()).put('settings', value, key)
+}
+
+export const deleteSetting = async (key: string): Promise<void> => {
+  await (await getDB()).delete('settings', key)
+}
+
+/** 清理没有被任何会话引用的附件原件；返回清理数量与释放的字节数 */
+export const pruneFiles = async (): Promise<{ removed: number; bytes: number }> => {
+  const db = await getDB()
+  const tx = db.transaction(['files', 'sessionSummaries'], 'readwrite')
+  const summaries = tx.objectStore('sessionSummaries')
+  const files = tx.objectStore('files')
+  let removed = 0
+  let bytes = 0
+  await Promise.all([
+    (async () => {
+      for (let cursor = await files.openCursor(); cursor; cursor = await cursor.continue()) {
+        const id = String(cursor.key)
+        if ((await summaries.index('fileIds').count(id)) === 0) {
+          bytes += cursor.value.blob.size
+          await cursor.delete()
+          removed += 1
+        }
+      }
+    })(),
+    tx.done,
+  ])
+  return { removed, bytes }
 }

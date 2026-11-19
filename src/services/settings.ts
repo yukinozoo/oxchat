@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
 import { DEFAULT_MODEL, type ChatModel } from './api/types.js'
 import { normalizeLocation, type UserLocation } from './location.js'
+import * as db from './chat/db.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -243,7 +244,8 @@ export const useSettings = create<Settings>(() => {
     globalPrompt: initialGlobalPrompt(),
     themeAccent: initialColor(KEYS.themeAccent),
     themeBackground: initialColor(KEYS.themeBackground),
-    bgImage: read(KEYS.bgImage) ?? '',
+    // 背景图体积大，放在 IndexedDB，启动后异步载入（见 loadBackgroundImage）
+    bgImage: '',
     bgImageOpacity: initialBgImageOpacity(),
     bgImageBlur: read(KEYS.bgImageBlur) === 'true',
     fontSize: initialFontSize(),
@@ -359,9 +361,41 @@ export const setThemeBackground = (themeBackground: string) => {
 }
 
 export const setBgImage = (bgImage: string) => {
-  write(KEYS.bgImage, bgImage || null)
   useSettings.setState({ bgImage })
+  write(KEYS.bgImage, null)
+  if (bgImage) {
+    void db.setSetting(BG_IMAGE_STORAGE_KEY, bgImage).catch(() => undefined)
+  } else {
+    void db.deleteSetting(BG_IMAGE_STORAGE_KEY).catch(() => undefined)
+  }
 }
+
+/** 背景图在 IndexedDB 里的键 */
+const BG_IMAGE_STORAGE_KEY = 'oxchat:bg-image'
+
+/**
+ * 启动后异步载入背景图；顺手把旧版本存在 localStorage 里的 base64 迁到 IndexedDB，
+ * 免得继续和 API Key 抢那 5MB 配额。
+ */
+const loadBackgroundImage = async () => {
+  try {
+    const stored = await db.getSetting(BG_IMAGE_STORAGE_KEY)
+    if (stored) {
+      useSettings.setState({ bgImage: stored })
+      return
+    }
+    const legacy = read(KEYS.bgImage)
+    if (legacy) {
+      await db.setSetting(BG_IMAGE_STORAGE_KEY, legacy)
+      write(KEYS.bgImage, null)
+      useSettings.setState({ bgImage: legacy })
+    }
+  } catch {
+    // 没有可用的 IndexedDB（隐私模式等）：背景图功能不可用，其它设置不受影响
+  }
+}
+
+void loadBackgroundImage()
 
 export const setBgImageOpacity = (bgImageOpacity: number) => {
   const value = Math.min(100, Math.max(10, Math.round(bgImageOpacity)))

@@ -28,11 +28,19 @@ fi
 git remote remove origin 2>/dev/null || true
 git remote add origin "https://${AUTH}github.com/${USER_NAME}/${REPO}.git"
 if ! git push -u origin main 2>&1 | sed "s/${GITHUB_TOKEN:-__none__}/***/g"; then
+  # git push 走不通（国内常见）：改用 GitHub API 推送同一个提交
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
+    echo "git push 失败，改用 GitHub API 推送…"
+    python3 scripts/push-api.py "${USER_NAME}/${REPO}"
+  else
+    git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
+    echo "推送失败：检查 token 权限（需要 Contents: Read and write）" >&2
+    exit 1
+  fi
+else
   git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
-  echo "推送失败：检查 token 权限（需要 Contents: Read and write）" >&2
-  exit 1
 fi
-git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
 
 echo
 echo "已推送。GitHub Actions 会自动构建并发布："
