@@ -168,6 +168,7 @@ export const zh = {
   exportSelectTitle: '选择要导出的对话',
   exportSelectLead: '默认已选中全部对话，可取消不需要的；导出文件包含选中对话及其图片原件。',
   exportSelectConfirm: '导出所选（{count}）',
+  exportWithoutImages: '不包含图片原件（体积更小）',
   websiteLater: '稍后再说',
   replyRateLimited: '请求过于频繁，请稍后再试',
   replyContentRisk: '内容未通过服务端安全审核，请调整后重试（请求 ID：{requestId}）',

@@ -9,6 +9,7 @@ import { setSiderCollapsed } from '../../services/settings.js'
 import { IconButton } from '../base/IconButton.js'
 import { IconMenuOutline20, IconNewChatOutline20 } from '../base/icons.js'
 import styles from './Welcome.module.css'
+import whaleUrl from '../../assets/whale-alpha.png'
 
 /** 新对话：问候语 + 输入框。桌面端居中；移动端输入框吸底 */
 export const Welcome = () => {
@@ -47,6 +48,11 @@ export const Welcome = () => {
         </div>
       )}
       <div className={styles.welcome}>
+        <span
+          className={styles.logo}
+          aria-hidden="true"
+          style={{ maskImage: `url(${whaleUrl})`, WebkitMaskImage: `url(${whaleUrl})` }}
+        />
         <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
         {needsApiKey ? (
           <button

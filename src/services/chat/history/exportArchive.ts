@@ -16,25 +16,32 @@ const json = (value: unknown) => new Blob([JSON.stringify(value)], { type: 'appl
  */
 export async function* archiveEntries(
   sessions: Iterable<Session> | AsyncIterable<Session>,
-  loadImage: (id: string) => Promise<Blob | undefined> = db.loadFile
+  loadImage: (id: string) => Promise<Blob | undefined> = db.loadFile,
+  options: { includeImages?: boolean } = {}
 ): AsyncGenerator<ArchiveEntryInput> {
+  const includeImages = options.includeImages !== false
   const manifest: Manifest = { export_format_version: EXPORT_FORMAT_VERSION }
   yield { name: MANIFEST_PATH, blob: json(manifest) }
   const index: SessionIndexEntry[] = []
   for await (const session of sessions) {
-    // 先取本会话引用的图片原件，会话写完即释放
+    // 先取本会话引用的图片原件，会话写完即释放；不导出图片时完全不读原件
     const originals = new Map<string, Blob | undefined>()
-    for (const message of session.messages) {
-      if (message.role === 'user') {
-        for (const file of message.files) {
-          if (file.isImage && !originals.has(file.id)) {
-            originals.set(file.id, await loadImage(file.id))
+    if (includeImages) {
+      for (const message of session.messages) {
+        if (message.role === 'user') {
+          for (const file of message.files) {
+            if (file.isImage && !originals.has(file.id)) {
+              originals.set(file.id, await loadImage(file.id))
+            }
           }
         }
       }
     }
     const images = new Map<string, Blob>()
     const data = toSessionFile(session, ({ id, name, isImage }) => {
+      if (!includeImages) {
+        return null
+      }
       const blob = originals.get(id)
       if (!blob || !isImage) {
         return null

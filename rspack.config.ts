@@ -92,6 +92,8 @@ export const createConfig = ({
         type: 'javascript/auto',
       },
       { test: /\.(woff2?|ttf)$/, type: 'asset/resource' },
+      // 图片资源：欢迎页的鲸鱼剪影等
+      { test: /\.(png|svg|jpe?g|webp)$/, type: 'asset/resource' },
     ],
   },
   plugins: [

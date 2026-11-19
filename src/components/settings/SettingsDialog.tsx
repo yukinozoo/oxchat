@@ -943,7 +943,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
   const [selecting, setSelecting] = useState(false)
   const writtenRef = useRef(0)
 
-  const onExport = async (only?: Set<string>) => {
+  const onExport = async (only?: Set<string>, includeImages = true) => {
     const native = nativeBackupPlugins()
     setBusy(true)
     setStatus(null)
@@ -951,9 +951,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     writtenRef.current = 0
     try {
       if (native) {
-        await exportNative(native, only)
+        await exportNative(native, only, { includeImages })
       } else {
-        const { name, blob } = await exportHistory(only)
+        const { name, blob } = await exportHistory(only, { includeImages })
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
@@ -977,7 +977,11 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
    * 分片写入应用缓存：先把小分片攒到 512KB 再写一次。
    * 每次写入都要跨进程转 base64，攒批能把文件接口调用次数降到 1/8。
    */
-  const exportNative = async (native: NativeBackup, only?: Set<string>) => {
+  const exportNative = async (
+    native: NativeBackup,
+    only?: Set<string>,
+    options: { includeImages?: boolean } = {}
+  ) => {
     const FLUSH_BYTES = 512 * 1024
     let pending: Uint8Array[] = []
     let pendingBytes = 0
@@ -1026,7 +1030,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
       if (pendingBytes >= FLUSH_BYTES) {
         await flush()
       }
-    })
+    }, options)
     await flush()
     setWritten(bytes)
     const { uri } = await native.filesystem.getUri({ path: name, directory: 'CACHE' })
@@ -1038,9 +1042,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
       {selecting ? (
         <ExportSelectDialog
           onClose={() => setSelecting(false)}
-          onConfirm={(ids) => {
+          onConfirm={(ids, includeImages) => {
             setSelecting(false)
-            void onExport(ids)
+            void onExport(ids, includeImages)
           }}
         />
       ) : null}

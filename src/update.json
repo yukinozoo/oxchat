@@ -1,9 +1,9 @@
 {
-  "versionCode": 63,
-  "versionName": "0.1.63",
-  "size": 5142661,
-  "sha256": "0c4b36b2754c4bca37c2a3fe05ed36c059f17fa1b4371196473dd56445bd9d4d",
-  "notes": "0.1.63：小包整块读入内存，导入 270KB/200 条基本秒进",
+  "versionCode": 64,
+  "versionName": "0.1.64",
+  "size": 5161753,
+  "sha256": "a2471b69bc4f6c50f1aa5e4556f6a03b94bc1b23c7ea0dcfd70fac9e97667cac",
+  "notes": "0.1.64：欢迎页换鲸鱼剪影（白鲸变蓝、随主题色）；导出新增「不含图片原件」选项（默认不含=不勾选）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

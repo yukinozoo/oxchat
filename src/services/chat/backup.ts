@@ -39,11 +39,18 @@ const readSessions = async function* (only?: ReadonlySet<string>): AsyncGenerato
  * 网页端导出：分片拼成 Blob 一次性下载。
  * 原生端请用 exportHistoryStream，避免大库整包进内存。
  */
-export const exportHistory = (only?: ReadonlySet<string>): Promise<{ name: string; blob: Blob }> =>
+export type ExportOptions = { includeImages?: boolean }
+
+export const exportHistory = (
+  only?: ReadonlySet<string>,
+  options: ExportOptions = {}
+): Promise<{ name: string; blob: Blob }> =>
   enqueueBackup(async () => {
     const { archiveEntries } = await import('./history/exportArchive.js')
     const { streamArchive, chunksToBlob } = await import('./history/zipWriter.js')
-    const blob = await chunksToBlob(streamArchive(archiveEntries(readSessions(only))))
+    const blob = await chunksToBlob(
+      streamArchive(archiveEntries(readSessions(only), undefined, options))
+    )
     return { name: backupFileName(new Date()), blob }
   })
 
@@ -53,13 +60,16 @@ export const exportHistory = (only?: ReadonlySet<string>): Promise<{ name: strin
  */
 export const exportHistoryStream = (
   only: ReadonlySet<string> | undefined,
-  onChunk: (chunk: Uint8Array) => Promise<void>
+  onChunk: (chunk: Uint8Array) => Promise<void>,
+  options: ExportOptions = {}
 ): Promise<{ bytes: number }> =>
   enqueueBackup(async () => {
     const { archiveEntries } = await import('./history/exportArchive.js')
     const { streamArchive } = await import('./history/zipWriter.js')
     let bytes = 0
-    for await (const chunk of streamArchive(archiveEntries(readSessions(only)))) {
+    for await (const chunk of streamArchive(
+      archiveEntries(readSessions(only), undefined, options)
+    )) {
       bytes += chunk.byteLength
       await onChunk(chunk)
     }

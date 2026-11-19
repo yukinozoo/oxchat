@@ -14,7 +14,7 @@ export const ExportSelectDialog = ({
   onConfirm,
 }: {
   onClose: () => void
-  onConfirm: (ids: Set<string>) => void
+  onConfirm: (ids: Set<string>, includeImages: boolean) => void
 }) => {
   const t = useTranslate()
   const sessions = useChatStore((state) => state.sessions)
@@ -22,6 +22,8 @@ export const ExportSelectDialog = ({
     () => new Set(sessions.map((session) => session.id))
   )
   const [keyword, setKeyword] = useState('')
+  /** 「不包含图片原件」默认不勾选，保持原来的导出内容 */
+  const [withoutImages, setWithoutImages] = useState(false)
 
   const titleOf = (session: (typeof sessions)[number]) => session.title || t('newChat')
   const filtered = sessions.filter(
@@ -69,7 +71,11 @@ export const ExportSelectDialog = ({
           <Button variant="outlined" size="m" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button size="m" disabled={selected.size === 0} onClick={() => onConfirm(selected)}>
+          <Button
+            size="m"
+            disabled={selected.size === 0}
+            onClick={() => onConfirm(selected, !withoutImages)}
+          >
             {t('exportSelectConfirm', { count: selected.size })}
           </Button>
         </div>
@@ -100,6 +106,17 @@ export const ExportSelectDialog = ({
         ))}
         {filtered.length === 0 ? <div className={styles.empty}>{t('websiteEmpty')}</div> : null}
       </div>
+      <label className={styles.skip}>
+        <input
+          type="checkbox"
+          className={styles.skipCheck}
+          checked={withoutImages}
+          onChange={() => setWithoutImages((value) => !value)}
+        />
+        <span className={styles.skipText}>
+          <span className={styles.skipTitle}>{t('exportWithoutImages')}</span>
+        </span>
+      </label>
     </Modal>
   )
 }
