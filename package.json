@@ -1,6 +1,6 @@
 {
   "name": "oxchat",
-  "version": "0.1.1",
+  "version": "0.1.58",
   "description": "基于 DeepSeek API 的静态聊天示例。",
   "license": "MIT",
   "private": true,

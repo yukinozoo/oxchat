@@ -7,9 +7,28 @@ import { rspack, type Configuration } from '@rspack/core'
 const dev = process.env.NODE_ENV !== 'production'
 const targets = ['chrome >= 90', 'edge >= 90', 'safari >= 15', 'firefox >= 102']
 const root = path.dirname(fileURLToPath(import.meta.url))
-const { version } = JSON.parse(
-  readFileSync(new URL('./package.json', import.meta.url), 'utf8')
-) as { version: string }
+/**
+ * 版本号来源：优先 src/update.json（每次发布由 make-update.mjs 写入，与 APK 同步），
+ * 没有时退回 package.json。网页版「关于 → 当前版本」读的就是这里注入的 meta。
+ */
+const readVersion = (): string => {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(new URL('./src/update.json', import.meta.url), 'utf8')
+    ) as { versionName?: string }
+    if (manifest.versionName) {
+      return manifest.versionName
+    }
+  } catch {
+    // 首次构建还没有清单时退回 package.json
+  }
+  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+    version: string
+  }
+  return pkg.version
+}
+
+const version = readVersion()
 
 const cssLoader = {
   loader: 'builtin:lightningcss-loader',
