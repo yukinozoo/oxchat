@@ -13,7 +13,35 @@ const subscribeMobile = (listener: () => void) => {
   return () => mobileQuery?.removeEventListener('change', listener)
 }
 
-const getIsMobile = () => mobileQuery?.matches ?? false
+/**
+ * 手机上把浏览器切到「桌面版网站」时，布局视口会变成 980px 左右，
+ * 只按宽度判断会误判成桌面布局——于是顶栏的侧边栏按钮和新建对话按钮都不见了。
+ * 这里再补一层设备判断：手机 UA 仍然走手机布局。
+ */
+const PHONE_UA = /iPhone|iPod|Android.*Mobile|HarmonyOS|MiuiBrowser|MicroMessenger/i
+
+const isPhoneUserAgent = (): boolean => {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+  const agent = navigator.userAgent
+  return PHONE_UA.test(agent) && !/iPad|Tablet/i.test(agent)
+}
+
+/**
+ * 触屏设备 + 视口不宽，也按手机布局处理：WebView 在个别情况下会先按桌面宽度布局
+ * （980px 左右），此时单看媒体查询会落到桌面分支，顶栏的侧栏与新建按钮就消失了。
+ */
+const isTouchNarrow = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  const touch = (navigator.maxTouchPoints ?? 0) > 0
+  return touch && window.innerWidth < 1024
+}
+
+const getIsMobile = () =>
+  (mobileQuery?.matches ?? false) || isPhoneUserAgent() || isTouchNarrow()
 
 /** 响应式断点：窗口宽度变化时重新渲染，桌面/手机布局都可用 */
 export const useIsMobile = () => useSyncExternalStore(subscribeMobile, getIsMobile, () => false)

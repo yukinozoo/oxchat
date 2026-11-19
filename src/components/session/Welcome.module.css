@@ -89,3 +89,24 @@
     user-select: none;
   }
 }
+
+/* 桌面分支的欢迎页顶栏：与手机顶栏同一套操作（开侧栏 / 新建对话） */
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 60px;
+  padding: 0 14px;
+}
+
+.appTitle {
+  flex: 1 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
