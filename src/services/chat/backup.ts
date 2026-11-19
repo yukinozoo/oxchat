@@ -88,6 +88,39 @@ export const importHistory = (
     return result as { imported: number; skipped: number }
   })
 
+/**
+ * 只导入勾选的会话：与本地文件导入共用同一条链路——
+ * 先校验 ZIP 与 manifest，再从归档流式写入暂存，100ms 节流进度，可中途取消。
+ * 未勾选的条目只跳过字节，不占内存。
+ */
+export const importSelectedSessions = (
+  file: File,
+  ids: ReadonlySet<string>,
+  options: {
+    onProgress?: (done: number, total: number) => void
+    skipFiles?: boolean
+    cleanMissing?: boolean
+  } = {}
+): Promise<{ imported: number; skipped: number }> =>
+  enqueueBackup(async () => {
+    const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
+    await checkArchiveFormat(file)
+    const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
+    const result = await replaceHistory(
+      () =>
+        importArchive(file, {
+          existingIds,
+          onlyIds: ids,
+          totalSessions: ids.size,
+          skipFiles: options.skipFiles ?? false,
+          cleanMissing: options.cleanMissing ?? false,
+          onProgress: options.onProgress,
+        }),
+      'merge'
+    )
+    return result as { imported: number; skipped: number }
+  })
+
 /** 读第三方整包的会话索引（官网导出包）：只解析索引条目，其余跳过 */
 export const readArchiveIndex = async (
   file: File
@@ -105,79 +138,10 @@ export const readArchiveIndex = async (
   return []
 }
 
-/** 从第三方整包里按 id 提取会话并转成本地格式 */
-export const readArchiveSessions = async (
-  file: File,
-  ids: ReadonlySet<string>,
-  onProgress?: (done: number, total: number) => void
-): Promise<Session[]> => {
-  const { readArchiveSelected } = await import('./history/zipReader.js')
-  const { parseSessionPath } = await import('./history/paths.js')
-  const { parseSessionAsync } = await import('./history/sessionParser.js')
-  const sessions: Session[] = []
-  let done = 0
-  for await (const { blob } of readArchiveSelected(file, (path) => {
-    const id = parseSessionPath(path)
-    return id !== null && ids.has(id)
-  })) {
-    const parsed = await parseSessionAsync(await blob.text())
-    if (parsed.session.messages.length > 0) {
-      sessions.push(parsed.session)
-    }
-    done += 1
-    onProgress?.(done, ids.size)
-  }
-  return sessions
-}
-
 /** 确认删除后调用：以空历史原子替换全部本地会话与附件，保留 API Key 和其他设置。 */
 export const clearHistory = (): Promise<void> =>
   enqueueBackup(async () => {
     await replaceHistory(async () => {})
   })
 
-/** 会话里是否有可展示的助手正文 */
-const hasAssistantText = (session: Session | undefined) =>
-  session?.messages.some(
-    (message) =>
-      message.role === 'assistant' &&
-      message.blocks.some((block) => block.type === 'text' && block.text.trim().length > 0)
-  ) ?? false
-
-/**
- * 官网导入：把已转换好的本地会话并入现有数据。
- * - 本地没有的会话：新增
- * - 本地已有但助手正文为空（例如早期解析失败）：用官网数据覆盖补全
- * - 本地已有且内容完整：保留本地（含续聊）
- * 返回实际写入的会话数。
- */
-export const importSessions = (sessions: Session[]): Promise<number> =>
-  enqueueBackup(async () => {
-    if (sessions.length === 0) {
-      return 0
-    }
-    const existing = new Set(useChatStore.getState().sessions.map((session) => session.id))
-    const writable: Session[] = []
-    for (const session of sessions) {
-      if (!existing.has(session.id)) {
-        writable.push(session)
-        continue
-      }
-      if (!hasAssistantText(session)) {
-        continue
-      }
-      const local = await db.loadSession(session.id)
-      if (!hasAssistantText(local)) {
-        // 本地这条是空壳，用官网内容补全
-        writable.push(session)
-      }
-    }
-    if (writable.length === 0) {
-      return 0
-    }
-    const result = await replaceHistory(async () => {
-      await db.addStagingSessions(writable)
-      return writable.length
-    }, 'merge')
-    return result as number
-  })
+/** 读第三方整包的会话索引（官网导出包）：只解析索引条目，其余跳过 */

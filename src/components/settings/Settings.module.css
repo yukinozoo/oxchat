@@ -857,3 +857,39 @@
     padding: 8px 24px 28px;
   }
 }
+
+/* ---------- 链接导入 ---------- */
+.linkImport {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.linkInput {
+  flex: 1 0 0;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+}
+
+.linkInput::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.linkInput:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-text);
+}

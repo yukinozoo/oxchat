@@ -50,6 +50,7 @@ import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { WebsiteImportEntry } from './WebsiteImportEntry.js'
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
 import { ChatSettings } from './ChatSettings.js'
+import { LinkImportEntry } from './LinkImportEntry.js'
 import { FontSizeSettings, fontSizeLabel } from './FontSizeSettings.js'
 import { ThemeSettings } from './ThemeSettings.js'
 import { ExportSelectDialog } from './ExportSelectDialog.js'
@@ -269,6 +270,7 @@ const SettingsContent = () => {
           ) : section === 'data' ? (
             <>
               <WebsiteImportEntry disabled={historyBusy} />
+              <LinkImportEntry disabled={historyBusy} />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell

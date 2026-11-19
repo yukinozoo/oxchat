@@ -261,6 +261,12 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
  */
 const directoryCache = new WeakMap<File, Promise<{ entries: Entry[]; offset: number }>>()
 
+/** 只读中央目录列出条目名：判断引用是否还有对应文件时用，不解压任何数据 */
+export const listArchivePaths = async (file: File): Promise<Set<string>> => {
+  const { entries } = await readDirectoryCached(file)
+  return new Set(entries.map((entry) => entry.path.normalize('NFC')))
+}
+
 const readDirectoryCached = (file: File): Promise<{ entries: Entry[]; offset: number }> => {
   const cached = directoryCache.get(file)
   if (cached) {

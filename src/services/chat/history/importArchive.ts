@@ -8,6 +8,7 @@ import { parseSessionAsync } from './sessionParser.js'
 import {
   ArchiveError,
   isZipFile,
+  listArchivePaths,
   readArchive,
   readEntry,
   skipEntry,
@@ -45,6 +46,38 @@ const imageType = (bytes: Uint8Array): string => {
     return 'image/avif'
   }
   return ''
+}
+
+/**
+ * 引用指向的图片在包里不存在时：把该附件从消息里移除，正文补一行占位。
+ * 这样长对话不会因为一张丢了的图被判定为坏数据。
+ */
+const dropMissingFiles = (
+  session: Session,
+  images: [string, string][],
+  available: ReadonlySet<string>
+): Session => {
+  const missing = new Set(
+    images.filter(([path]) => !available.has(path)).map(([, id]) => id)
+  )
+  if (missing.size === 0) {
+    return session
+  }
+  return {
+    ...session,
+    messages: session.messages.map((message) => {
+      if (message.role !== 'user' || !message.files.some((file) => missing.has(file.id))) {
+        return message
+      }
+      const lost = message.files.filter((file) => missing.has(file.id))
+      const placeholders = lost.map((file) => `[附件不可用：${file.name}]`).join('')
+      return {
+        ...message,
+        content: [message.content, placeholders].filter(Boolean).join('\n\n'),
+        files: message.files.filter((file) => !missing.has(file.id)),
+      }
+    }),
+  }
 }
 
 const readJson = async (entry: ArchiveEntry): Promise<unknown> => {
@@ -90,6 +123,15 @@ export type ImportOptions = {
   existingIds?: ReadonlySet<string>
   /** 预扫描得到的会话总数，用于「N / M 个对话」进度 */
   totalSessions?: number
+  /** 跳过图片等附件条目：只导入对话文字，图片在消息里显示为文件名 */
+  skipFiles?: boolean
+  /** 导入前清理失效附件：引用找不到对应条目的图片会被移除，正文补一行占位说明 */
+  cleanMissing?: boolean
+  /**
+   * 只导入这些会话：未勾选的条目直接跳过字节，但仍计入整包完整性校验。
+   * 与 localIds 的去重独立：同一 id 既在 onlyIds 里又已存在于本地时按「跳过」计数。
+   */
+  onlyIds?: ReadonlySet<string>
   onProgress?: (done: number, total: number) => void
 }
 
@@ -109,6 +151,9 @@ export const importArchive = async (
     fail('backupUnrecognized')
   }
   const existing = options.existingIds ?? new Set<string>()
+  const only = options.onlyIds
+  /** 只在开启清理时读一次中央目录（不解压数据），用来判断引用是否还有文件 */
+  const available = options.cleanMissing ? await listArchivePaths(file) : undefined
   const total = options.totalSessions ?? 0
   const imported = new Set<string>()
   /** 已见过的会话（导入 + 跳过），用于图片路由与 index 校验 */
@@ -193,6 +238,12 @@ export const importArchive = async (
         await skipEntry(entry)
       } else if (sessionId !== null) {
         // 会话条目与 index 的先后顺序不作要求：先出现的都按会话处理。
+        if (only !== undefined && !only.has(sessionId)) {
+          // 没勾选的会话：跳过内容但仍算「已见过」，索引校验要靠它
+          await skipEntry(entry)
+          known.add(sessionId)
+          continue
+        }
         if (existing.has(sessionId) || imported.has(sessionId)) {
           if (imported.has(sessionId)) {
             // 同一归档内出现两次同 ID 会话：格式损坏。
@@ -214,7 +265,9 @@ export const importArchive = async (
           if (parsed.hasFiles) {
             sessionsWithFiles.add(sessionId)
           }
-          pendingSessions.push(parsed.session)
+          pendingSessions.push(
+            available === undefined ? parsed.session : dropMissingFiles(parsed.session, parsed.images, available)
+          )
           if (pendingSessions.length >= SESSION_BATCH) {
             await flushSessions()
           }
@@ -227,7 +280,7 @@ export const importArchive = async (
       } else if (filesOwner !== undefined && known.has(filesOwner)) {
         // 没有被引用的条目不保存，引用了但缺失的图片只展示文件名。
         const id = images.get(path)
-        await (id === undefined ? skipEntry(entry) : saveImage(entry, id))
+        await (id === undefined || options.skipFiles ? skipEntry(entry) : saveImage(entry, id))
       } else {
         fail('backupIncomplete')
       }

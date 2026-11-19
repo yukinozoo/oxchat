@@ -303,12 +303,13 @@ export const toLocalSession = (file: SessionFile): LocalSession => {
         if (path === undefined) {
           continue
         }
-        // 图片只能在本会话目录下，同一条目不能对应不同文件。
+        // 图片只能在本会话目录下，同一条目不能对应不同文件；不合规的引用跳过，
+        // 消息里仍保留文件名，不因此让整条会话导入失败。
         if (
           !path.startsWith(sessionFilesDir(file.id)) ||
           (images.get(path) ?? entry.id) !== entry.id
         ) {
-          fail('backupInvalidFiles')
+          continue
         }
         images.set(path, entry.id)
       }

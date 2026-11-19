@@ -1,7 +1,11 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { importSessions, readArchiveIndex, readArchiveSessions } from '../../services/chat/backup.js'
+import {
+  importSelectedSessions,
+  readArchiveIndex,
+  requestImportCancel,
+} from '../../services/chat/backup.js'
 import { fromBase64 } from '../../utils/base64.js'
 import { useChatStore } from '../../services/chat/store.js'
 import {
@@ -36,6 +40,10 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   /** 已下载的整包：选择导入时从这里按 id 取会话 */
   const [archive, setArchive] = useState<File | null>(null)
+  /** 默认跳过图片附件：整包里图片通常占绝大部分 */
+  const [skipFiles, setSkipFiles] = useState(true)
+  /** 默认开启：失效的图片引用清理并补占位 */
+  const [cleanMissing, setCleanMissing] = useState(true)
 
   const existing = useMemo(() => new Set(localIds ? localIds.split(',') : []), [localIds])
   const localIdOf = (id: string) => `website-${id}`
@@ -182,13 +190,15 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
     resetWebsiteCancel()
     try {
       const ids = new Set(targets.map((item) => item.id))
-      const converted = await readArchiveSessions(archive, ids, (done, total) =>
-        setProgress({ done, total })
-      )
-      const count = await importSessions(converted)
+      // 与本地/链接导入同一条流式链路：暂存写入、节流进度、可取消、附件一并导入
+      const result = await importSelectedSessions(archive, ids, {
+        onProgress: (done, total) => setProgress({ done, total }),
+        skipFiles,
+        cleanMissing,
+      })
       showToast(
-        count > 0
-          ? { key: 'websiteImported', params: { count } }
+        result.imported > 0
+          ? { key: 'websiteImported', params: { count: result.imported } }
           : { key: 'websiteImportedNothing' }
       )
       onClose()
@@ -208,6 +218,7 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
       title={t('websiteImportTitle')}
       className={styles.dialog}
       overlayClassName={styles.overlay}
+      mainClassName={styles.body}
       closable
       onClose={stage === 'importing' ? () => undefined : onClose}
       footer={
@@ -216,7 +227,14 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
             {t('websiteLater')}
           </Button>
           {stage === 'importing' ? (
-            <Button variant="dangerOutlined" size="m" onClick={cancelWebsiteImport}>
+            <Button
+              variant="dangerOutlined"
+              size="m"
+              onClick={() => {
+                cancelWebsiteImport()
+                requestImportCancel()
+              }}
+            >
               {t('historyImportStop')}
             </Button>
           ) : stage === 'login' ? (
@@ -312,7 +330,32 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
             ) : null}
           </div>
           {error ? <div className={styles.error}>{error}</div> : null}
-
+          <label className={styles.skip}>
+            <input
+              type="checkbox"
+              className={styles.skipCheck}
+              checked={skipFiles}
+              disabled={stage === 'importing'}
+              onChange={() => setSkipFiles((value) => !value)}
+            />
+            <span className={styles.skipText}>
+              <span className={styles.skipTitle}>{t('importSkipFiles')}</span>
+              <span className={styles.skipDesc}>{t('importSkipFilesDesc')}</span>
+            </span>
+          </label>
+          <label className={styles.skip}>
+            <input
+              type="checkbox"
+              className={styles.skipCheck}
+              checked={cleanMissing}
+              disabled={stage === 'importing'}
+              onChange={() => setCleanMissing((value) => !value)}
+            />
+            <span className={styles.skipText}>
+              <span className={styles.skipTitle}>{t('importCleanMissing')}</span>
+              <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
+            </span>
+          </label>
         </>
       ) : null}
     </Modal>

@@ -1,6 +1,17 @@
 .dialog {
+  display: flex;
+  flex-direction: column;
   width: 480px;
   max-height: calc(100dvh - 48px);
+}
+
+/* 主体单独滚动：列表和两个勾选项变高时，底部按钮不会被挤出屏幕 */
+.body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .overlay {
@@ -40,6 +51,7 @@
 }
 
 .row {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -82,7 +94,7 @@
 }
 
 .list {
-  max-height: 42vh;
+  max-height: 30vh;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -173,4 +185,53 @@
     white-space: pre-wrap;
     word-break: break-all;
   }
+}
+
+/* 跳过图片附件：勾选项 + 两行说明 */
+.skip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  cursor: pointer;
+}
+
+.skipCheck {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--dsw-alias-brand-text);
+  cursor: pointer;
+}
+
+.skipText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skipTitle {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.skipDesc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 搜索框独占一行：三个按钮挤在一行时它只剩几十像素，占位文字被切掉 */
+.row .search {
+  flex: 1 1 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }

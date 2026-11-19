@@ -10,7 +10,8 @@
     "build": "rm -rf dist && NODE_ENV=production rspack build -c rspack.config.ts",
     "type": "tsc -p tsconfig.json",
     "lint": "oxlint src rspack.config.ts",
-    "format": "oxfmt --write ."
+    "format": "oxfmt --write .",
+    "clean:archive": "node scripts/shrink-export.mjs"
   },
   "dependencies": {
     "@types/katex": "^0.16.5",

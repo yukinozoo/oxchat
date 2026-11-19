@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import {
-  importSessions,
+  importSelectedSessions,
   readArchiveIndex,
-  readArchiveSessions,
+  requestImportCancel,
 } from '../../services/chat/backup.js'
 import { useChatStore } from '../../services/chat/store.js'
+import { BackupError } from '../../services/chat/history/errors.js'
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
@@ -34,6 +35,10 @@ export const ArchiveImportDialog = ({
   const [keyword, setKeyword] = useState('')
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** 默认跳过图片附件：几百兆的整包里图片通常占绝大部分 */
+  const [skipFiles, setSkipFiles] = useState(true)
+  /** 默认开启：失效的图片引用直接清理并补占位，避免整条会话失败 */
+  const [cleanMissing, setCleanMissing] = useState(true)
 
   const localIdOf = (id: string) => `website-${id}`
   const existing = new Set(localIds ? localIds.split(',') : [])
@@ -101,21 +106,28 @@ export const ArchiveImportDialog = ({
     setProgress({ done: 0, total: ids.size })
     setError(null)
     try {
-      const converted = await readArchiveSessions(file, ids, (done, total) =>
-        setProgress({ done, total })
-      )
-      const count = await importSessions(converted)
-      const skipped = sessions.length - count
+      // 走与本地文件导入同一条流式链路：暂存区写入、100ms 节流进度、可取消
+      const result = await importSelectedSessions(file, ids, {
+        onProgress: (done, total) => setProgress({ done, total }),
+        skipFiles,
+        cleanMissing,
+      })
       showToast(
-        count > 0
-          ? { key: 'historyImported', params: { count } }
+        result.imported > 0
+          ? { key: 'historyImported', params: { count: result.imported } }
           : { key: 'websiteImportedNothing' }
       )
-      onDone?.({ imported: count, skipped: Math.max(0, skipped) })
+      onDone?.({ imported: result.imported, skipped: result.skipped })
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
       setStage('list')
+      // 用户主动停止：保留列表与勾选，允许重新导入
+      if (e instanceof BackupError && e.key === 'historyImportCancelled') {
+        setError(null)
+        showToast({ key: 'historyImportCancelled' })
+      } else {
+        setError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
       setProgress(null)
     }
@@ -128,6 +140,7 @@ export const ArchiveImportDialog = ({
       title={t('archiveImportTitle')}
       className={styles.dialog}
       overlayClassName={styles.overlay}
+      mainClassName={styles.body}
       closable
       onClose={stage === 'importing' ? () => undefined : onClose}
       footer={
@@ -136,9 +149,14 @@ export const ArchiveImportDialog = ({
             {t('websiteLater')}
           </Button>
           {stage === 'importing' ? (
-            <Button size="m" disabled>
-              {progress ? t('historyImportCount', progress) : t('historyImport')}
-            </Button>
+            <>
+              <Button size="m" disabled>
+                {progress ? t('historyImportCount', progress) : t('historyImport')}
+              </Button>
+              <Button variant="dangerOutlined" size="m" onClick={requestImportCancel}>
+                {t('historyImportStop')}
+              </Button>
+            </>
           ) : (
             <Button size="m" disabled={stage !== 'list' || selected.size === 0} onClick={() => void runImport()}>
               {t('websiteImportAll', { count: selected.size })}
@@ -201,6 +219,32 @@ export const ArchiveImportDialog = ({
             {visible.length === 0 ? <div className={styles.empty}>{t('websiteEmpty')}</div> : null}
           </div>
           {error ? <div className={styles.error}>{error}</div> : null}
+          <label className={styles.skip}>
+            <input
+              type="checkbox"
+              className={styles.skipCheck}
+              checked={skipFiles}
+              disabled={stage === 'importing'}
+              onChange={() => setSkipFiles((value) => !value)}
+            />
+            <span className={styles.skipText}>
+              <span className={styles.skipTitle}>{t('importSkipFiles')}</span>
+              <span className={styles.skipDesc}>{t('importSkipFilesDesc')}</span>
+            </span>
+          </label>
+          <label className={styles.skip}>
+            <input
+              type="checkbox"
+              className={styles.skipCheck}
+              checked={cleanMissing}
+              disabled={stage === 'importing'}
+              onChange={() => setCleanMissing((value) => !value)}
+            />
+            <span className={styles.skipText}>
+              <span className={styles.skipTitle}>{t('importCleanMissing')}</span>
+              <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
+            </span>
+          </label>
         </>
       ) : null}
     </Modal>
