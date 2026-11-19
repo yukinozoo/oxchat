@@ -2,11 +2,14 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import {
+  IconChevronDownOutline14,
   IconCloseOutline16,
   IconPersonOutline20,
   IconEditOutline16,
   IconPanelLeftOutline16,
   IconPinOutline16,
+  IconFolderOutline16,
+  IconFolderPlusOutline16,
   IconTrashOutline16,
   IconSearchOutline16,
   IconSettingsOutline16,
@@ -27,6 +30,7 @@ import {
 import type { SessionSummary } from '../../services/chat/types.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
+import { Menu } from '../base/Menu.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
@@ -40,6 +44,16 @@ import {
   setDrawerOffset,
 } from './drawerGesture.js'
 import { SessionItem } from './SessionItem.js'
+import {
+  assignSessionFolder,
+  createFolder,
+  pruneAssignments,
+  removeFolder,
+  renameFolder,
+  toggleFolder,
+  useFolders,
+  type SessionFolder,
+} from '../../services/chat/folders.js'
 import { SessionSearch } from './SessionSearch.js'
 import styles from './Sider.module.css'
 
@@ -49,7 +63,40 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
   const [now, setNow] = useState(Date.now)
-  const groups = useMemo(() => groupSessions(sessions, now, t), [sessions, now, t])
+  /** 分组相关的浮层状态 */
+  const folders = useFolders((state) => state.folders)
+  const assignments = useFolders((state) => state.assignments)
+  const collapsed = useFolders((state) => state.collapsed)
+  const [folderMenu, setFolderMenu] = useState<string | null>(null)
+  const [folderPrompt, setFolderPrompt] = useState<
+    { mode: 'create'; name: string } | { mode: 'rename'; id: string; name: string } | null
+  >(null)
+  const [folderDelete, setFolderDelete] = useState<SessionFolder | null>(null)
+  const [moving, setMoving] = useState<SessionSummary | null>(null)
+  /** 未分组会话按时间分组（置顶与已归组的会话不重复出现） */
+  const ungrouped = useMemo(
+    () => groupSessions(sessions.filter((item) => !item.pinned && !assignments[item.id]), now, t),
+    [sessions, now, t, assignments]
+  )
+  const pinned = useMemo(() => sessions.filter((item) => item.pinned), [sessions])
+  const folderSessions = useMemo(() => {
+    const map = new Map<string, SessionSummary[]>()
+    for (const session of sessions) {
+      const folderId = assignments[session.id]
+      if (!folderId || session.pinned) {
+        continue
+      }
+      const list = map.get(folderId) ?? []
+      list.push(session)
+      map.set(folderId, list)
+    }
+    return map
+  }, [sessions, assignments])
+
+  // 会话被删除后清掉指向它的分组映射
+  useEffect(() => {
+    pruneAssignments(new Set(sessions.map((session) => session.id)))
+  }, [sessions])
   const [searching, setSearching] = useState(false)
   useAndroidBackHandler(mobile && searching, () => setSearching(false))
   const [editing, setEditing] = useState(false)
@@ -114,6 +161,35 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       window.removeEventListener('focus', refresh)
     }
   }, [])
+
+  /** 分组头长按计时器 */
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current)
+      }
+    },
+    []
+  )
+
+  const renderSession = (session: SessionSummary) => (
+    <SessionItem
+      key={session.id}
+      session={session}
+      active={session.id === activeId}
+      onDelete={() => setDeleting(session)}
+      selectable={editing}
+      selected={selected.has(session.id)}
+      onToggleSelect={() => toggleSelected(session.id)}
+      onPin={() => void pinSession(session.id, !session.pinned)}
+      onMultiSelect={() => {
+        setEditing(true)
+        setSelected(new Set([session.id]))
+      }}
+      onMove={() => setMoving(session)}
+    />
+  )
 
   if (searching) {
     // 搜索是独立界面：不再渲染侧边栏列表，避免两层内容叠在一起
@@ -189,25 +265,99 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       )}
       <div className={styles.listWrap}>
         <div className={styles.list}>
-          {groups.map((group) => (
+          {editing ? null : (
+            <button
+              type="button"
+              className={styles.newFolder}
+              onClick={() => setFolderPrompt({ mode: 'create', name: '' })}
+            >
+              <IconFolderPlusOutline16 />
+              <span>{t('folderNew')}</span>
+            </button>
+          )}
+          {pinned.length > 0 ? (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>{t('pinnedSessions')}</div>
+              {pinned.map((session) => renderSession(session))}
+            </div>
+          ) : null}
+          {folders.map((folder) => {
+            const items = folderSessions.get(folder.id) ?? []
+            const isCollapsed = Boolean(collapsed[folder.id])
+            return (
+              <div key={folder.id} className={styles.section}>
+                <Menu
+                  open={folderMenu === folder.id}
+                  onOpenChange={(open) => setFolderMenu(open ? folder.id : null)}
+                  options={[
+                    {
+                      key: 'rename',
+                      label: t('folderRename'),
+                      icon: <IconEditOutline16 />,
+                      onSelect: () =>
+                        setFolderPrompt({ mode: 'rename', id: folder.id, name: folder.name }),
+                    },
+                    {
+                      key: 'delete',
+                      label: t('delete'),
+                      icon: <IconTrashOutline16 />,
+                      danger: true,
+                      onSelect: () => setFolderDelete(folder),
+                    },
+                  ]}
+                >
+                  {() => (
+                    <div
+                      className={styles.folderRow}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleFolder(folder.id)}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        setFolderMenu(folder.id)
+                      }}
+                      onTouchStart={() => {
+                        const timer = setTimeout(() => setFolderMenu(folder.id), 480)
+                        longPressTimer.current = timer
+                      }}
+                      onTouchEnd={() => {
+                        if (longPressTimer.current) {
+                          clearTimeout(longPressTimer.current)
+                          longPressTimer.current = null
+                        }
+                      }}
+                      onTouchMove={() => {
+                        if (longPressTimer.current) {
+                          clearTimeout(longPressTimer.current)
+                          longPressTimer.current = null
+                        }
+                      }}
+                    >
+                      <span className={styles.folderIcon}>
+                        <IconFolderOutline16 />
+                      </span>
+                      <span className={styles.folderName}>{folder.name}</span>
+                      <span className={styles.folderCount}>{items.length}</span>
+                      <span
+                        className={clsx(styles.folderChevron, isCollapsed && styles.folderChevronFolded)}
+                      >
+                        <IconChevronDownOutline14 />
+                      </span>
+                    </div>
+                  )}
+                </Menu>
+                {isCollapsed ? null : items.length > 0 ? (
+                  items.map((session) => renderSession(session))
+                ) : (
+                  <div className={styles.folderEmpty}>{t('folderEmpty')}</div>
+                )}
+              </div>
+            )
+          })}
+          {ungrouped.map((group) => (
             <div key={group.key} className={styles.section}>
               <div className={styles.sectionHeader}>{group.label}</div>
-              {group.sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  active={session.id === activeId}
-                  onDelete={() => setDeleting(session)}
-                  selectable={editing}
-                  selected={selected.has(session.id)}
-                  onToggleSelect={() => toggleSelected(session.id)}
-                  onPin={() => void pinSession(session.id, !session.pinned)}
-                  onMultiSelect={() => {
-                    setEditing(true)
-                    setSelected(new Set([session.id]))
-                  }}
-                />
-              ))}
+              {group.sessions.map((session) => renderSession(session))}
             </div>
           ))}
         </div>
@@ -326,6 +476,122 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
           }
         >
           {t('deleteSessionsConfirmDescription', { count: selectedIds.length })}
+        </Modal>
+      ) : null}
+      {folderPrompt ? (
+        <Modal
+          title={folderPrompt.mode === 'create' ? t('folderNew') : t('folderRename')}
+          onClose={() => setFolderPrompt(null)}
+          footer={
+            <>
+              <Button variant="outlined" onClick={() => setFolderPrompt(null)}>
+                {t('cancel')}
+              </Button>
+              <Button
+                disabled={!folderPrompt.name.trim()}
+                onClick={() => {
+                  if (folderPrompt.mode === 'create') {
+                    createFolder(folderPrompt.name)
+                  } else {
+                    renameFolder(folderPrompt.id, folderPrompt.name)
+                  }
+                  setFolderPrompt(null)
+                }}
+              >
+                {t('confirm')}
+              </Button>
+            </>
+          }
+        >
+          <input
+            className={styles.folderInput}
+            autoFocus
+            value={folderPrompt.name}
+            placeholder={t('folderNamePlaceholder')}
+            aria-label={t('folderNamePlaceholder')}
+            onChange={(event) =>
+              setFolderPrompt((current) => (current ? { ...current, name: event.target.value } : current))
+            }
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && folderPrompt.name.trim()) {
+                event.preventDefault()
+                if (folderPrompt.mode === 'create') {
+                  createFolder(folderPrompt.name)
+                } else {
+                  renameFolder(folderPrompt.id, folderPrompt.name)
+                }
+                setFolderPrompt(null)
+              }
+            }}
+          />
+        </Modal>
+      ) : null}
+      {folderDelete ? (
+        <Modal
+          title={t('folderDeleteTitle')}
+          onClose={() => setFolderDelete(null)}
+          footer={
+            <>
+              <Button variant="outlined" onClick={() => setFolderDelete(null)}>
+                {t('cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  removeFolder(folderDelete.id)
+                  showToast({ key: 'folderDeleted' })
+                  setFolderDelete(null)
+                }}
+              >
+                {t('delete')}
+              </Button>
+            </>
+          }
+        >
+          {t('folderDeleteDesc')}
+        </Modal>
+      ) : null}
+      {moving ? (
+        <Modal
+          title={t('folderMoveTitle')}
+          onClose={() => setMoving(null)}
+          footer={
+            <Button variant="outlined" onClick={() => setMoving(null)}>
+              {t('cancel')}
+            </Button>
+          }
+        >
+          <div className={styles.folderPicker}>
+            <button
+              type="button"
+              className={clsx(
+                styles.folderPickerRow,
+                !assignments[moving.id] && styles.folderPickerRowActive
+              )}
+              onClick={() => {
+                assignSessionFolder(moving.id, null)
+                setMoving(null)
+              }}
+            >
+              {t('folderUngrouped')}
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                className={clsx(
+                  styles.folderPickerRow,
+                  assignments[moving.id] === folder.id && styles.folderPickerRowActive
+                )}
+                onClick={() => {
+                  assignSessionFolder(moving.id, folder.id)
+                  setMoving(null)
+                }}
+              >
+                {folder.name}
+              </button>
+            ))}
+          </div>
         </Modal>
       ) : null}
     </div>

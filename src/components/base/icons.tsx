@@ -746,3 +746,26 @@ export const IconCostOutline16 = () => (
     />
   </svg>
 )
+
+export const IconFolderOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M1.8 4.6c0-.66.54-1.2 1.2-1.2h3l1.4 1.6h5.6c.66 0 1.2.54 1.2 1.2v5.6c0 .66-.54 1.2-1.2 1.2H3c-.66 0-1.2-.54-1.2-1.2V4.6Z"
+      stroke="currentColor"
+      strokeWidth={1.25}
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+export const IconFolderPlusOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M1.8 4.6c0-.66.54-1.2 1.2-1.2h3l1.4 1.6h5.6c.66 0 1.2.54 1.2 1.2v5.6c0 .66-.54 1.2-1.2 1.2H3c-.66 0-1.2-.54-1.2-1.2V4.6Z"
+      stroke="currentColor"
+      strokeWidth={1.25}
+      strokeLinejoin="round"
+    />
+    <path d="M8 7.2v3.2M6.4 8.8h3.2" stroke="currentColor" strokeWidth={1.25} strokeLinecap="round" />
+  </svg>
+)

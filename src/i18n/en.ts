@@ -438,4 +438,15 @@ export const en = {
   replyInputTooLong:
     'This message is about {tokens} tokens, over the {limit}-token per-request limit of {model}. Split it or switch to a model with a larger context.',
   uploadUnsupportedImage: 'Unsupported image format — convert it to JPG or PNG first',
+  folderNew: 'New folder',
+  folderNamePlaceholder: 'Folder name',
+  folderRename: 'Rename folder',
+  folderDeleteTitle: 'Delete folder',
+  folderDeleteDesc: 'Only the folder is removed — its chats stay and move back to Ungrouped.',
+  folderEmpty: 'No chats in this folder yet',
+  folderMove: 'Move to folder',
+  folderMoveTitle: 'Move to folder',
+  folderUngrouped: 'Ungrouped',
+  folderMoveOut: 'Remove from folder',
+  folderDeleted: 'Folder deleted — its chats are back in Ungrouped',
 } satisfies Record<keyof typeof zh, string>

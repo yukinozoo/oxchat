@@ -5,6 +5,7 @@ import {
   IconCheckOutline16,
   IconEditOutline16,
   IconEllipsisOutline16,
+  IconFolderOutline16,
   IconMultiSelectOutline16,
   IconPinOutline16,
   IconTrashOutline16,
@@ -25,6 +26,7 @@ export const SessionItem = memo(function SessionItem({
   onToggleSelect,
   onPin,
   onMultiSelect,
+  onMove,
 }: {
   session: SessionSummary
   active: boolean
@@ -33,6 +35,8 @@ export const SessionItem = memo(function SessionItem({
   onPin?: () => void
   /** 长按菜单：进入多选并选中本条 */
   onMultiSelect?: () => void
+  /** 长按菜单：移动到分组 */
+  onMove?: () => void
   /** 选择模式下整行变成勾选，不再跳转会话 */
   selectable?: boolean
   selected?: boolean
@@ -165,6 +169,16 @@ export const SessionItem = memo(function SessionItem({
                       label: t('sessionItemMenuMultiSelect'),
                       icon: <IconMultiSelectOutline16 />,
                       onSelect: onMultiSelect,
+                    },
+                  ]
+                : []),
+              ...(onMove
+                ? [
+                    {
+                      key: 'move',
+                      label: t('folderMove'),
+                      icon: <IconFolderOutline16 />,
+                      onSelect: onMove,
                     },
                   ]
                 : []),
