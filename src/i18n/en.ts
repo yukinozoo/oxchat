@@ -435,4 +435,7 @@ export const en = {
   storageBackup: 'Backup reminder',
   storagePersistHint: 'Add this site to your home screen and retry — Chrome usually grants it then. It is optional.',
   storagePersistDenied: 'The browser declined for now — you can retry later',
+  replyInputTooLong:
+    'This message is about {tokens} tokens, over the {limit}-token per-request limit of {model}. Split it or switch to a model with a larger context.',
+  uploadUnsupportedImage: 'Unsupported image format — convert it to JPG or PNG first',
 } satisfies Record<keyof typeof zh, string>

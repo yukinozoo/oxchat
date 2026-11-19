@@ -1,9 +1,9 @@
 {
-  "versionCode": 60,
-  "versionName": "0.1.60",
-  "size": 5139377,
-  "sha256": "ccb6d5eaae03c47ac818f12d077a156b6fc57832c9eacc76b0c2efffe159a261",
-  "notes": "0.1.60：App 内隐藏网页专属的存储卡；超过 4096px 的图片上传前自动降采样，历史大图错误自动重发",
+  "versionCode": 61,
+  "versionName": "0.1.61",
+  "size": 5140041,
+  "sha256": "4f9a49a0fa4a09a5cc91c8775150142e6a81e49fd910bc579122bbd88741e086",
+  "notes": "0.1.61：模型能力表（v4-pro 不再发 latest_reminder、单轮超限提前拦截）；图片自动转码为 JPEG/PNG",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

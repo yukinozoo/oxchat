@@ -62,6 +62,10 @@ export const validateFiles = (files: File[], currentCount: number): TranslationM
  * 服务端原文多为英文且较长，不直接展示。
  */
 export const describeUploadError = (error: unknown): TranslationMessage => {
+  // 图片解码失败/格式不支持：不是网络问题，重试也不会成功
+  if (error instanceof Error && error.message === 'unsupported image') {
+    return { key: 'uploadUnsupportedImage' }
+  }
   if (classifyApiError(error) === 'serverBusy') {
     return { key: 'uploadServerBusy' }
   }
@@ -117,40 +121,50 @@ const next = () => {
 }
 
 /** 排队上传，最多同时上传 MAX_CONCURRENT 个；排队期间中止的任务不会发出请求 */
-/** 服务端要求图片宽高各不超过 4096：超限的先按比例缩小再上传 */
+/** 服务端只接受 JPEG/PNG，且宽高各不超过 4096：不合规的图片先转码/缩放 */
 const MAX_IMAGE_EDGE = 4096
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png'])
 
-export const shrinkImage = async (blob: Blob, name: string): Promise<{ blob: Blob; name: string }> => {
+/**
+ * 归一化图片：格式不支持就转码（HEIC、webp、扩展名与内容不符等），
+ * 尺寸超限就等比缩小。解码失败说明文件本身有问题，返回 null 表示跳过这张图。
+ */
+export const prepareImage = async (
+  blob: Blob,
+  name: string
+): Promise<{ blob: Blob; name: string } | null> => {
   if (!blob.type.startsWith('image/') || typeof createImageBitmap !== 'function') {
-    return { blob, name }
+    return null
   }
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(blob)
   } catch {
-    return { blob, name }
+    // 浏览器都解不开（典型是损坏文件或浏览器不支持的 HEIC）
+    return null
   }
   try {
-    if (bitmap.width <= MAX_IMAGE_EDGE && bitmap.height <= MAX_IMAGE_EDGE) {
+    const oversized = Math.max(bitmap.width, bitmap.height) > MAX_IMAGE_EDGE
+    const needsTranscode = !SUPPORTED_IMAGE_TYPES.has(blob.type)
+    if (!oversized && !needsTranscode) {
       return { blob, name }
     }
-    const scale = MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height)
+    const scale = oversized ? MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height) : 1
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(bitmap.width * scale))
     canvas.height = Math.max(1, Math.round(bitmap.height * scale))
     const context = canvas.getContext('2d')
     if (!context) {
-      return { blob, name }
+      return null
     }
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    const type =
-      blob.type === 'image/png' || blob.type === 'image/webp' ? blob.type : 'image/jpeg'
-    const shrunk = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
-    if (!shrunk) {
-      return { blob, name }
+    const type = blob.type === 'image/png' ? 'image/png' : 'image/jpeg'
+    const encoded = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
+    if (!encoded) {
+      return null
     }
-    const ext = type === 'image/png' ? '.png' : type === 'image/webp' ? '.webp' : '.jpg'
-    return { blob: shrunk, name: `${name.replace(/\.[^.]+$/, '')}${ext}` }
+    const ext = type === 'image/png' ? '.png' : '.jpg'
+    return { blob: encoded, name: `${name.replace(/\.[^.]+$/, '')}${ext}` }
   } finally {
     bitmap.close?.()
   }
@@ -170,8 +184,11 @@ const enqueueUpload = (
         return
       }
       try {
-        // 历史导入的图片可能远超服务端限制（宽高 ≤ 4096），上传前统一降采样
-        const prepared = isImage ? await shrinkImage(file, name) : { blob: file, name }
+        // 历史导入的图片可能格式不支持或尺寸超限：上传前统一归一化
+        const prepared = isImage ? await prepareImage(file, name) : { blob: file, name }
+        if (!prepared) {
+          throw new Error('unsupported image')
+        }
         const body =
           prepared.blob instanceof File
             ? prepared.blob

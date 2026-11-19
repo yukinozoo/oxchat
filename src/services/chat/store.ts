@@ -8,7 +8,8 @@ import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from 
 import { currentSystemPrompt, effortOfDepth, useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import { canCompact, getCompactPlan } from './compact.js'
-import { prepareContext, summarizeMessages } from './context.js'
+import { modelCaps } from '../modelCaps.js'
+import { messageTokens, prepareContext, summarizeMessages } from './context.js'
 import * as db from './db.js'
 import {
   clearAllDrafts,
@@ -1187,9 +1188,13 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
-        const latestReminder = prepared.prefix
-          ? prepared.prefix.latestReminder
-          : createLatestReminder(useSettings.getState())
+        const caps = modelCaps(initial.model ?? currentModel())
+        // v4-pro 不接受 latest_reminder，发了会 400：这类模型直接不带快照
+        const latestReminder = caps.supportsReminder
+          ? prepared.prefix
+            ? prepared.prefix.latestReminder
+            : createLatestReminder(useSettings.getState())
+          : undefined
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
@@ -1203,6 +1208,30 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           initial.thinking ?? false,
           latestReminder
         )
+        if (caps.inputLimit !== null) {
+          const budget =
+            context.reduce((total, message) => total + messageTokens(message), 0) +
+            messageTokens(prepared.question) +
+            prepared.question.files.reduce(
+              (total, file) => total + Math.ceil(file.size / 4),
+              0
+            )
+          if (budget > caps.inputLimit) {
+            reply = settleReply(reply, 'error', Date.now(), {
+              kind: 'protocol',
+              message: '',
+              localMessage: {
+                key: 'replyInputTooLong',
+                params: {
+                  tokens: budget,
+                  limit: caps.inputLimit,
+                  model: initial.model ?? currentModel(),
+                },
+              },
+            })
+            break
+          }
+        }
         const events = streamMessage(
           apiKey,
           {

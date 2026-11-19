@@ -417,4 +417,6 @@ export const zh = {
   storageBackup: '备份提醒',
   storagePersistHint: '把本站「添加到主屏幕」后再来申请，Chrome 通常会自动授予；不授予也不影响使用。',
   storagePersistDenied: '浏览器暂未授予，可稍后再试',
+  replyInputTooLong: '这条消息约 {tokens} token，超过当前模型的单轮上限 {limit}（{model}）。请拆分内容或改用上下文更大的模型后再发。',
+  uploadUnsupportedImage: '该图片格式不受支持，请转成 JPG/PNG 后再试',
 } as const
