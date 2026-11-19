@@ -8,10 +8,11 @@ import { parseSessionAsync } from './sessionParser.js'
 import {
   ArchiveError,
   isZipFile,
+  listArchiveEntries,
   listArchivePaths,
   readArchive,
   readEntry,
-  skipEntry,
+  readEntryByPath,
   type ArchiveEntry,
 } from './zipReader.js'
 
@@ -152,8 +153,8 @@ export const importArchive = async (
   }
   const existing = options.existingIds ?? new Set<string>()
   const only = options.onlyIds
-  /** 只在开启清理时读一次中央目录（不解压数据），用来判断引用是否还有文件 */
   const available = options.cleanMissing ? await listArchivePaths(file) : undefined
+  const skipFiles = options.skipFiles ?? false
   const total = options.totalSessions ?? 0
   const imported = new Set<string>()
   /** 已见过的会话（导入 + 跳过），用于图片路由与 index 校验 */
@@ -175,7 +176,6 @@ export const importArchive = async (
   const images = new Map<string, string>()
   /** 已保存的原件：文件 ID → MIME。同一图片出现在多个会话目录时只保存一次。 */
   const stored = new Map<string, string>()
-  let manifest = false
   let index: SessionIndexEntry[] | undefined
 
   /** 待写入的会话与图片：攒够一批再发事务，避免一条一次提交 */
@@ -198,12 +198,11 @@ export const importArchive = async (
     }
   }
 
-  const saveImage = async (entry: ArchiveEntry, id: string) => {
-    if (stored.has(id)) {
-      await skipEntry(entry)
+  const saveImage = async (path: string, id: string) => {
+    const data = await readEntryByPath(file, path)
+    if (!data) {
       return
     }
-    const data = await readEntry(entry)
     const type = imageType(new Uint8Array(await data.slice(0, 16).arrayBuffer()))
     pendingFiles.push({ id, blob: new Blob([data], { type }) })
     pendingBytes += data.size
@@ -214,111 +213,131 @@ export const importArchive = async (
   }
 
   report(true)
+  const entries = await listArchiveEntries(file).catch(
+    (): { path: string; size: number }[] => []
+  )
+  if (entries.length === 0) {
+    fail('backupUnrecognized')
+  }
 
   try {
-    for await (const entry of readArchive(file)) {
+    // manifest 必须是归档里的第一个条目
+    if (entries[0].path !== MANIFEST_PATH) {
+      fail('backupUnrecognized')
+    }
+    const manifest = (await readEntryByPath(file, MANIFEST_PATH)) ?? fail('backupUnrecognized')
+    checkManifest(JSON.parse(await manifest.text()))
+
+    /**
+     * 第一遍只处理清单、会话与索引：图片条目直接跳过、一个字节都不读，
+     * 这是「几百兆的包也能秒进」的关键（以前为了 CRC 校验会把图片全读一遍）。
+     */
+    for (const entry of entries) {
       if (cancelRequested) {
         fail('historyImportCancelled')
       }
       const { path } = entry
+      if (path === MANIFEST_PATH) {
+        continue
+      }
+      if (path === USER_PATH) {
+        continue
+      }
       const sessionId = parseSessionPath(path)
-      /** 图片条目所属会话；非图片条目为 undefined */
-      const filesOwner = /^chat_sessions\/([^/]+)_files\//.exec(path)?.[1]
-      if (!manifest) {
-        if (path !== MANIFEST_PATH) {
-          fail('backupUnrecognized')
-        }
-        checkManifest(await readJson(entry))
-        manifest = true
-      } else if (path === MANIFEST_PATH) {
-        // manifest 只能有一个且必须在最前
-        fail('backupIncomplete')
-      } else if (path === USER_PATH) {
-        // 账号信息（已脱敏）不导入；文件可能缺失，位置不作要求。
-        await skipEntry(entry)
-      } else if (sessionId !== null) {
-        // 会话条目与 index 的先后顺序不作要求：先出现的都按会话处理。
+      if (sessionId !== null) {
+        known.add(sessionId)
         if (only !== undefined && !only.has(sessionId)) {
-          // 没勾选的会话：跳过内容但仍算「已见过」，索引校验要靠它
-          await skipEntry(entry)
-          known.add(sessionId)
           continue
         }
-        if (existing.has(sessionId) || imported.has(sessionId)) {
-          if (imported.has(sessionId)) {
-            // 同一归档内出现两次同 ID 会话：格式损坏。
-            fail('backupIncomplete')
-          }
-          // 本地已有同 ID 会话：跳过，保留现有对话与续聊内容。
-          await skipEntry(entry)
-          skipped += 1
-        } else {
-          // 解析在 Worker 里跑：大对话的 JSON.parse、校验与树构建不再阻塞界面
-          const parsed = await parseSessionAsync(await (await readEntry(entry)).text())
-          if (parsed.session.id !== sessionId) {
-            fail('backupIncomplete')
-          }
-          imported.add(sessionId)
-          for (const [imagePath, id] of parsed.images) {
-            images.set(imagePath, id)
-          }
-          if (parsed.hasFiles) {
-            sessionsWithFiles.add(sessionId)
-          }
-          pendingSessions.push(
-            available === undefined ? parsed.session : dropMissingFiles(parsed.session, parsed.images, available)
-          )
-          if (pendingSessions.length >= SESSION_BATCH) {
-            await flushSessions()
-          }
+        if (imported.has(sessionId)) {
+          fail('backupIncomplete')
         }
-        known.add(sessionId)
+        if (existing.has(sessionId)) {
+          skipped += 1
+          done += 1
+          report()
+          continue
+        }
+        const blob = (await readEntryByPath(file, path)) ?? fail('backupIncomplete')
+        const parsed = await parseSessionAsync(await blob.text())
+        if (parsed.session.id !== sessionId) {
+          fail('backupIncomplete')
+        }
+        imported.add(sessionId)
+        for (const [imagePath, id] of parsed.images) {
+          images.set(imagePath, id)
+        }
+        if (parsed.hasFiles) {
+          sessionsWithFiles.add(sessionId)
+        }
+        pendingSessions.push(
+          available === undefined
+            ? parsed.session
+            : dropMissingFiles(parsed.session, parsed.images, available)
+        )
+        if (pendingSessions.length >= SESSION_BATCH) {
+          await flushSessions()
+        }
         done += 1
         report()
-      } else if (path === INDEX_PATH && !index) {
-        index = readSessionIndex(await readJson(entry))
-      } else if (filesOwner !== undefined && known.has(filesOwner)) {
-        // 没有被引用的条目不保存，引用了但缺失的图片只展示文件名。
-        const id = images.get(path)
-        await (id === undefined || options.skipFiles ? skipEntry(entry) : saveImage(entry, id))
-      } else {
-        fail('backupIncomplete')
+        continue
+      }
+      if (path === INDEX_PATH && !index) {
+        const blob = (await readEntryByPath(file, path)) ?? fail('backupIncomplete')
+        index = readSessionIndex(JSON.parse(await blob.text()))
+        continue
+      }
+      // 图片条目留到第二遍处理，其余未知条目视为损坏
+      if (/^chat_sessions\/[^/]+_files\//.test(path)) {
+        continue
+      }
+      fail('backupIncomplete')
+    }
+
+    // index 列出归档内全部会话，与「已见过的会话」一一对应（含跳过的）。
+    const listed = new Set(index?.map((entry) => entry.id))
+    if (
+      !index ||
+      listed.size !== index.length ||
+      listed.size !== known.size ||
+      [...known].some((id) => !listed.has(id))
+    ) {
+      fail('backupIncomplete')
+    }
+
+    await flushSessions()
+
+    // 第二遍：需要时按偏移读图片原件（跳过图片时这一遍完全不读）
+    if (!skipFiles) {
+      for (const entry of entries) {
+        if (cancelRequested) {
+          fail('historyImportCancelled')
+        }
+        const owner = /^chat_sessions\/([^/]+)_files\//.exec(entry.path)?.[1]
+        if (owner === undefined || !known.has(owner)) {
+          continue
+        }
+        const id = images.get(entry.path)
+        if (id === undefined || stored.has(id)) {
+          continue
+        }
+        await saveImage(entry.path, id)
       }
     }
+    await flushFiles()
   } catch (error) {
     if (error instanceof BackupError) {
       throw error
     }
-    // 存储或运行时错误：换成可读文案，界面提示才能指向具体问题
     throw new BackupError(
       error instanceof ArchiveError ? 'backupIncomplete' : 'historyImportStorageFailed'
     )
-  }
-  try {
-    await flushSessions()
-    await flushFiles()
-  } catch {
-    fail('historyImportStorageFailed')
-  }
-  if (!manifest) {
-    fail('backupUnrecognized')
-  }
-  // index 列出归档内全部会话，与「已见过的会话」一一对应（含跳过的）。
-  const listed = new Set(index?.map((entry) => entry.id))
-  if (
-    !index ||
-    listed.size !== index.length ||
-    listed.size !== known.size ||
-    [...known].some((id) => !listed.has(id))
-  ) {
-    fail('backupIncomplete')
   }
   try {
     await db.updateStagingFileTypes(stored, sessionsWithFiles)
   } catch {
     fail('historyImportStorageFailed')
   }
-  // 收尾时强制刷新一次，避免节流把最后的 100% 吞掉
   report(true)
   return { imported: imported.size, skipped }
 }

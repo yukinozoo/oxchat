@@ -1,4 +1,4 @@
-import { Inflate } from 'fflate'
+import { Inflate, inflateSync } from 'fflate'
 import { parseSessionPath } from './paths.js'
 
 const READ_CHUNK_BYTES = 256 * 1024
@@ -260,6 +260,70 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
  * 失败不缓存，允许后续重试。
  */
 const directoryCache = new WeakMap<File, Promise<{ entries: Entry[]; offset: number }>>()
+
+/**
+ * 按中央目录的偏移直接读一个条目，不线性扫描整个归档。
+ * 只取 index 这类小文件时，几百兆的包也只读几千字节。
+ */
+export const readEntryByPath = async (file: File, target: string): Promise<Blob | null> => {
+  const { entries } = await readDirectoryCached(file)
+  const wanted = target.normalize('NFC')
+  const entry = entries.find((item) => item.path.normalize('NFC') === wanted)
+  if (!entry) {
+    return null
+  }
+  const head = await readBytes(
+    file,
+    entry.offset,
+    Math.min(META_READ_BYTES, Math.max(0, file.size - entry.offset))
+  )
+  if (head.length < 30) {
+    invalid()
+  }
+  const view = viewOf(head)
+  if (view.getUint32(0, true) !== 0x04034b50) {
+    invalid()
+  }
+  const start = entry.offset + 30 + view.getUint16(26, true) + view.getUint16(28, true)
+  const parts: Uint8Array[] = []
+  for (let offset = 0; offset < entry.compressedSize; offset += READ_CHUNK_BYTES) {
+    parts.push(
+      await readBytes(
+        file,
+        start + offset,
+        Math.min(READ_CHUNK_BYTES, entry.compressedSize - offset)
+      )
+    )
+  }
+  const compressed = new Uint8Array(entry.compressedSize)
+  let written = 0
+  for (const part of parts) {
+    compressed.set(part, written)
+    written += part.length
+  }
+  const data = entry.method === 8 ? inflateSync(compressed) : compressed
+  if (data.length !== entry.size || crc32(data) !== entry.crc) {
+    invalid()
+  }
+  return new Blob([data])
+}
+
+/** 与归档里一致的 CRC32 校验 */
+const crc32 = (bytes: Uint8Array): number => {
+  let value = 0xffffffff
+  for (let index = 0; index < bytes.length; index++) {
+    value = (value >>> 8) ^ crcTable[(value ^ bytes[index]) & 0xff]
+  }
+  return (value ^ 0xffffffff) >>> 0
+}
+
+/** 只读中央目录列出条目：导入时按偏移跳读，不再顺序扫描整个归档 */
+export const listArchiveEntries = async (
+  file: File
+): Promise<{ path: string; size: number }[]> => {
+  const { entries } = await readDirectoryCached(file)
+  return entries.map((entry) => ({ path: entry.path.normalize('NFC'), size: entry.size }))
+}
 
 /** 只读中央目录列出条目名：判断引用是否还有对应文件时用，不解压任何数据 */
 export const listArchivePaths = async (file: File): Promise<Set<string>> => {

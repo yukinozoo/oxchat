@@ -125,17 +125,16 @@ export const importSelectedSessions = (
 export const readArchiveIndex = async (
   file: File
 ): Promise<{ id: string; title: string }[]> => {
-  const { readArchiveSelected } = await import('./history/zipReader.js')
+  const { readEntryByPath } = await import('./history/zipReader.js')
   const { readSessionIndex } = await import('./history/schema.js')
   const { INDEX_PATH } = await import('./history/paths.js')
-  for await (const { path, blob } of readArchiveSelected(file, (item) => item === INDEX_PATH)) {
-    if (path !== INDEX_PATH) {
-      continue
-    }
-    const list = readSessionIndex(JSON.parse(await blob.text()))
-    return list.map((entry) => ({ id: entry.id, title: entry.title ?? '' }))
+  // 只读索引这一个条目：不再线性扫描整个归档，几百兆的包也是毫秒级
+  const blob = await readEntryByPath(file, INDEX_PATH)
+  if (!blob) {
+    return []
   }
-  return []
+  const list = readSessionIndex(JSON.parse(await blob.text()))
+  return list.map((entry) => ({ id: entry.id, title: entry.title ?? '' }))
 }
 
 /** 确认删除后调用：以空历史原子替换全部本地会话与附件，保留 API Key 和其他设置。 */
