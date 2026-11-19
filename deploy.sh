@@ -20,9 +20,19 @@ else
   echo "没有需要提交的改动，直接推送"
 fi
 
+# 有 GITHUB_TOKEN 时用它做一次推送认证；推完立刻把 token 从 remote 里去掉
+AUTH=""
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  AUTH="${GITHUB_TOKEN}@"
+fi
 git remote remove origin 2>/dev/null || true
-git remote add origin "https://github.com/${USER_NAME}/${REPO}.git"
-git push -u origin main
+git remote add origin "https://${AUTH}github.com/${USER_NAME}/${REPO}.git"
+if ! git push -u origin main 2>&1 | sed "s/${GITHUB_TOKEN:-__none__}/***/g"; then
+  git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
+  echo "推送失败：检查 token 权限（需要 Contents: Read and write）" >&2
+  exit 1
+fi
+git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
 
 echo
 echo "已推送。GitHub Actions 会自动构建并发布："

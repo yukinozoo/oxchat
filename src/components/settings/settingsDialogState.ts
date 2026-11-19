@@ -12,6 +12,7 @@ export type SettingsSection =
   | 'personalize'
   | 'chat'
   | 'fontSize'
+  | 'cost'
 
 /** 设置弹窗：侧边栏底部、没有 API Key 时的操作与 401 提示都可以打开；section 为打开时选中的分组 */
 export const useSettingsDialog = create(() => ({

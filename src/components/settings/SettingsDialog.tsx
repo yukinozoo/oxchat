@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   IconChatOutline20,
+  IconCostOutline16,
   IconCheckOutline16,
   IconChevronRightOutline14,
   IconDataOutline16,
@@ -51,6 +52,14 @@ import { WebsiteImportEntry } from './WebsiteImportEntry.js'
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
 import { ChatSettings } from './ChatSettings.js'
 import { LinkImportEntry } from './LinkImportEntry.js'
+import { CostSettings } from './CostSettings.js'
+import { UpdateDialog } from './UpdateDialog.js'
+import {
+  checkForUpdate,
+  updateAvailable,
+  type CurrentVersion,
+  type UpdateManifest,
+} from '../../services/update.js'
 import { FontSizeSettings, fontSizeLabel } from './FontSizeSettings.js'
 import { ThemeSettings } from './ThemeSettings.js'
 import { ExportSelectDialog } from './ExportSelectDialog.js'
@@ -89,6 +98,33 @@ const SettingsContent = () => {
   const [version, setVersion] = useState('—')
   /** 语言与朗读音色用对话框选择，不再跳子页 */
   const [dialog, setDialog] = useState<'locale' | 'voice' | null>(null)
+  /** 在线更新：检查发现的清单，弹窗展示 */
+  const [update, setUpdate] = useState<{ manifest: UpdateManifest; current: CurrentVersion } | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  const checkUpdate = async () => {
+    if (!updateAvailable()) {
+      showToast(t('updateUnsupported'))
+      return
+    }
+    setChecking(true)
+    try {
+      const result = await checkForUpdate()
+      if (result.status === 'available') {
+        setUpdate({ manifest: result.manifest, current: result.current })
+      } else if (result.status === 'latest') {
+        showToast(t('updateLatestToast'))
+      } else {
+        showToast(
+          t('updateFailed', {
+            message: result.status === 'error' ? result.message : t('updateUnsupported'),
+          })
+        )
+      }
+    } finally {
+      setChecking(false)
+    }
+  }
 
   // 原生壳里取 App 版本，网页端退回构建期注入的版本号
   useEffect(() => {
@@ -116,6 +152,7 @@ const SettingsContent = () => {
     personalize: 'settingsPersonalize',
     chat: 'settingsChat',
     fontSize: 'settingsFontSize',
+    cost: 'settingsCost',
   }
 
   const themeLabels: Record<ThemePreference, TranslationKey> = {
@@ -212,6 +249,11 @@ const SettingsContent = () => {
                     value={fontSizeLabel(fontSize, fontSizeFollowSystem, t)}
                     onClick={() => setSection('fontSize')}
                   />
+                  <NavRow
+                    icon={<IconCostOutline16 />}
+                    label={t('settingsCost')}
+                    onClick={() => setSection('cost')}
+                  />
                 </div>
               </div>
               <div className={styles.group}>
@@ -235,6 +277,20 @@ const SettingsContent = () => {
                     label={t('settingsVersion')}
                     value={version}
                   />
+                  {updateAvailable() ? (
+                    <NavRow
+                      icon={<IconDownloadOutline16 />}
+                      label={t('settingsCheckUpdate')}
+                      value={
+                        checking
+                          ? t('updateChecking')
+                          : update
+                            ? t('updateFound', { version: update.manifest.versionName })
+                            : ''
+                      }
+                      onClick={() => void checkUpdate()}
+                    />
+                  ) : null}
                 </div>
               </div>
               {apiKey ? (
@@ -293,6 +349,8 @@ const SettingsContent = () => {
             <ThemeSettings />
           ) : section === 'fontSize' ? (
             <FontSizeSettings />
+          ) : section === 'cost' ? (
+            <CostSettings />
           ) : section === 'chat' ? (
             <ChatSettings />
           ) : section === 'personalize' ? (
@@ -392,6 +450,13 @@ const SettingsContent = () => {
                   }
             )
           }
+        />
+      ) : null}
+      {update ? (
+        <UpdateDialog
+          manifest={update.manifest}
+          current={update.current}
+          onClose={() => setUpdate(null)}
         />
       ) : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}

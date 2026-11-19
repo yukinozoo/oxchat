@@ -93,6 +93,8 @@ export const createConfig = ({
           to: 'manifest.webmanifest',
           toType: 'file',
         },
+        // 在线更新清单：随站点发布，App 从 Pages 读取
+        { from: path.resolve(root, 'src/update.json'), to: 'update.json', toType: 'file' },
       ],
     }),
   ],

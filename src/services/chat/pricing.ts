@@ -26,7 +26,10 @@ const PRICING: Record<string, { peak: TokenPrice; offPeak: TokenPrice }> = {
 }
 
 /** 模型名归一：老名字与带版本的后缀都归到同一档价格 */
-export const priceTableFor = (model: string | null | undefined): TokenPrice | null => {
+export const priceTableFor = (
+  model: string | null | undefined,
+  at: Date = new Date()
+): TokenPrice | null => {
   if (!model) {
     return null
   }
@@ -34,7 +37,7 @@ export const priceTableFor = (model: string | null | undefined): TokenPrice | nu
   if (!key) {
     return null
   }
-  return isPeakNow() ? PRICING[key].peak : PRICING[key].offPeak
+  return isPeakNow(at) ? PRICING[key].peak : PRICING[key].offPeak
 }
 
 /** 当前是否处于高峰时段（UTC 工作日 01-04 / 06-10 点） */
@@ -60,9 +63,11 @@ export type TokenUsageLike = {
 /** 按一次请求的 token 用量估算金额（元）；模型不在价格表里时返回 null */
 export const estimateCost = (
   usage: TokenUsageLike,
-  model: string | null | undefined
+  model: string | null | undefined,
+  /** 按这一刻的时段定价（历史消息按自己的时间算高峰/空闲）；默认当前 */
+  at: Date = new Date()
 ): number | null => {
-  const price = priceTableFor(model)
+  const price = priceTableFor(model, at)
   if (!price) {
     return null
   }

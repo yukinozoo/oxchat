@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
 import { setupAndroidBack } from '../services/androidBack.js'
@@ -26,6 +26,8 @@ import { CollapsedSider } from '../components/sider/CollapsedSider.js'
 import { closeMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useEdgeSwipe } from '../components/sider/useEdgeSwipe.js'
+import { UpdateDialog } from '../components/settings/UpdateDialog.js'
+import { useSilentUpdateCheck, type CurrentVersion, type UpdateManifest } from '../services/update.js'
 import styles from './App.module.css'
 
 export const App = () => {
@@ -51,6 +53,11 @@ export const App = () => {
     state.activeId === null ? false : Object.hasOwn(state.streaming, state.activeId)
   )
   const activeId = useChatStore((state) => state.activeId)
+  /** 启动时静默检查一次更新，发现新版本才弹窗 */
+  const [update, setUpdate] = useState<{ manifest: UpdateManifest; current: CurrentVersion } | null>(
+    null
+  )
+  useSilentUpdateCheck((manifest, current) => setUpdate({ manifest, current }))
 
   usePreventPageScroll(isMobile)
   // 移动端从左边缘右滑打开侧边栏
@@ -146,6 +153,13 @@ export const App = () => {
         <SearchPanel />
       </div>
       <SettingsDialog />
+      {update ? (
+        <UpdateDialog
+          manifest={update.manifest}
+          current={update.current}
+          onClose={() => setUpdate(null)}
+        />
+      ) : null}
       <UsageDeclaration />
       <Toast />
     </>
