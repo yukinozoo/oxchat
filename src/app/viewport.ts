@@ -40,8 +40,32 @@ const isTouchNarrow = (): boolean => {
   return touch && window.innerWidth < 1024
 }
 
+/** 原生壳只服务于手机：一律走手机布局，避免任何宽度/UA 误判 */
+const isNativeShell = (): boolean =>
+  Boolean(
+    (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+      ?.isNativePlatform?.()
+  )
+
+/** 手动指定布局：?layout=mobile / ?layout=desktop，排查时不用改代码 */
+const forcedLayout = (): boolean | null => {
+  try {
+    const value = new URLSearchParams(window.location.search).get('layout')
+    if (value === 'mobile') {
+      return true
+    }
+    if (value === 'desktop') {
+      return false
+    }
+  } catch {
+    // location 不可用时忽略
+  }
+  return null
+}
+
 const getIsMobile = () =>
-  (mobileQuery?.matches ?? false) || isPhoneUserAgent() || isTouchNarrow()
+  forcedLayout() ??
+  (isNativeShell() || (mobileQuery?.matches ?? false) || isPhoneUserAgent() || isTouchNarrow())
 
 /** 响应式断点：窗口宽度变化时重新渲染，桌面/手机布局都可用 */
 export const useIsMobile = () => useSyncExternalStore(subscribeMobile, getIsMobile, () => false)

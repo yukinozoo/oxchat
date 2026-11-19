@@ -1,9 +1,9 @@
 {
-  "versionCode": 58,
-  "versionName": "0.1.58",
-  "size": 5138869,
-  "sha256": "cead43bf1dce3d83e2f90c86c214eb651c625c4986b8b2c1f18a7ea88784731f",
-  "notes": "0.1.58：修复导入大文件后顶栏缺少侧栏/新建对话按钮（布局判定兜底 + 欢迎页桌面顶栏）",
+  "versionCode": 59,
+  "versionName": "0.1.59",
+  "size": 5138993,
+  "sha256": "8565222d6f375a4a750e5dbabd868ee9b5ef18aeceeba0b85b7eecb8ffe133a5",
+  "notes": "0.1.59：原生壳强制手机布局（不再受宽度/UA 影响），并支持 ?layout=mobile|desktop 手动指定",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
