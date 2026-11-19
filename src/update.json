@@ -1,9 +1,9 @@
 {
-  "versionCode": 56,
-  "versionName": "0.1.56",
-  "size": 5132794,
-  "sha256": "fc979591221e52be1d5e208296648d641f8b5c32e88b7ff62139b86146144349",
-  "notes": "0.1.56：在线更新可用（设置→关于→检查更新），费用明细入口调整、导入体验优化",
+  "versionCode": 57,
+  "versionName": "0.1.57",
+  "size": 5138613,
+  "sha256": "0b8364e19a47806fabe048ce69e6ed4bb7050216630b342fc25cfafc49769eb3",
+  "notes": "0.1.57：修复官网导入整包过大导致 OOM（改为原生分片读取）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

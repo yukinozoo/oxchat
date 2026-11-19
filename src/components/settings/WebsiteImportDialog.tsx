@@ -6,8 +6,8 @@ import {
   readArchiveIndex,
   requestImportCancel,
 } from '../../services/chat/backup.js'
-import { fromBase64 } from '../../utils/base64.js'
 import { useChatStore } from '../../services/chat/store.js'
+import { createNativeArchiveFile } from '../../services/chat/nativeArchive.js'
 import {
   cancelWebsiteImport,
   downloadExportArchive,
@@ -49,29 +49,8 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
   const localIdOf = (id: string) => `website-${id}`
   const isExisting = (id: string) => existing.has(localIdOf(id))
 
-  /** 把下载到应用缓存的整包读成 File，供解析索引与提取会话 */
-  const readArchiveFile = async (path: string): Promise<File> => {
-    const filesystem = (
-      window as {
-        Capacitor?: {
-          Plugins?: {
-            Filesystem?: {
-              readFile: (o: { path: string; directory: string }) => Promise<{ data: string }>
-            }
-          }
-        }
-      }
-    ).Capacitor?.Plugins?.Filesystem
-    if (!filesystem) {
-      throw new Error(t('websiteNoFilesystem'))
-    }
-    const name = path.split('/').pop() ?? 'website-export.zip'
-    const { data } = await filesystem.readFile({ path: name, directory: 'CACHE' })
-    const bytes = fromBase64(data)
-    return new File([bytes as unknown as BlobPart], 'website-export.zip', {
-      type: 'application/zip',
-    })
-  }
+  /** 几百兆的整包不能整读：用原生分片读取拼成惰性 File */
+  const readArchiveFile = (path: string) => createNativeArchiveFile(path)
 
   /** 登录后自动调用官方导出接口，拿到下载链接再解析对话列表 */
   const loadList = async () => {

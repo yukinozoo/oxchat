@@ -1,27 +1,5 @@
 import { downloadExportArchive, websiteImportAvailable } from './websiteImport.js'
-import { fromBase64 } from '../../utils/base64.js'
-
-/** 原生壳把下载的文件放在缓存目录，这里读回成 File */
-const readFromCache = async (path: string): Promise<File> => {
-  const filesystem = (
-    window as {
-      Capacitor?: {
-        Plugins?: {
-          Filesystem?: {
-            readFile: (o: { path: string; directory: string }) => Promise<{ data: string }>
-          }
-        }
-      }
-    }
-  ).Capacitor?.Plugins?.Filesystem
-  if (!filesystem) {
-    throw new Error('filesystem unavailable')
-  }
-  const name = path.split('/').pop() ?? 'export.zip'
-  const { data } = await filesystem.readFile({ path: name, directory: 'CACHE' })
-  const bytes = fromBase64(data)
-  return new File([bytes as unknown as BlobPart], name, { type: 'application/zip' })
-}
+import { createNativeArchiveFile } from './nativeArchive.js'
 
 /**
  * 按下载链接取回整包：App 内交给原生插件下载（避免 WebView 跨域），
@@ -30,7 +8,7 @@ const readFromCache = async (path: string): Promise<File> => {
 export const loadArchiveFromUrl = async (url: string): Promise<File> => {
   if (websiteImportAvailable()) {
     const { path } = await downloadExportArchive(url)
-    return readFromCache(path)
+    return createNativeArchiveFile(path)
   }
   const response = await fetch(url)
   if (!response.ok) {

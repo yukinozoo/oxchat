@@ -27,7 +27,7 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 fi
 git remote remove origin 2>/dev/null || true
 git remote add origin "https://${AUTH}github.com/${USER_NAME}/${REPO}.git"
-if ! git push -u origin main 2>&1 | sed "s/${GITHUB_TOKEN:-__none__}/***/g"; then
+if ! timeout 45 git push -u origin main 2>&1 | sed "s/${GITHUB_TOKEN:-__none__}/***/g"; then
   # git push 走不通（国内常见）：改用 GitHub API 推送同一个提交
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     git remote set-url origin "https://github.com/${USER_NAME}/${REPO}.git"
