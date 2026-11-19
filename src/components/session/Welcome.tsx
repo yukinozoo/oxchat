@@ -48,12 +48,14 @@ export const Welcome = () => {
         </div>
       )}
       <div className={styles.welcome}>
-        <span
-          className={styles.logo}
-          aria-hidden="true"
-          style={{ maskImage: `url(${whaleUrl})`, WebkitMaskImage: `url(${whaleUrl})` }}
-        />
-        <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
+        <div className={styles.hero}>
+          <span
+            className={styles.logo}
+            aria-hidden="true"
+            style={{ maskImage: `url(${whaleUrl})`, WebkitMaskImage: `url(${whaleUrl})` }}
+          />
+          <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
+        </div>
         {needsApiKey ? (
           <button
             type="button"

@@ -16,10 +16,11 @@
   padding: 0 32px 64px;
 }
 
+/* 鲸鱼剪影：白鲸按 mask 染成主题色，原来的蓝底变成透明 */
 .logo {
   width: 64px;
   height: 64px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   background-color: var(--dsw-alias-brand-text);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
@@ -29,12 +30,12 @@
   mask-size: contain;
 }
 
-@media not all and (min-width: 768px) {
-  .logo {
-    width: 56px;
-    height: 56px;
-    margin-bottom: 14px;
-  }
+/* 鲸鱼与问候语成组：手机端整组居中，鲸鱼就贴在文字上方 */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto 0;
 }
 
 .greeting {
@@ -73,27 +74,12 @@
 
 @media (max-width: 439px) {
   .logo {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 18px;
-  background-color: var(--dsw-alias-brand-text);
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-}
-
-@media not all and (min-width: 768px) {
-  .logo {
     width: 56px;
     height: 56px;
     margin-bottom: 14px;
   }
-}
 
-.greeting {
+  .greeting {
     font-size: 20px;
     line-height: 28px;
     font-weight: 500;
@@ -115,30 +101,8 @@
     transition: padding-bottom 0.2s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  .logo {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 18px;
-  background-color: var(--dsw-alias-brand-text);
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-}
-
-@media not all and (min-width: 768px) {
-  .logo {
-    width: 56px;
-    height: 56px;
-    margin-bottom: 14px;
-  }
-}
-
-.greeting {
+  .greeting {
     flex-shrink: 0;
-    margin: auto 0;
   }
 
   .caveat {

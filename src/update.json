@@ -1,9 +1,9 @@
 {
-  "versionCode": 64,
-  "versionName": "0.1.64",
-  "size": 5161753,
-  "sha256": "a2471b69bc4f6c50f1aa5e4556f6a03b94bc1b23c7ea0dcfd70fac9e97667cac",
-  "notes": "0.1.64：欢迎页换鲸鱼剪影（白鲸变蓝、随主题色）；导出新增「不含图片原件」选项（默认不含=不勾选）",
+  "versionCode": 65,
+  "versionName": "0.1.65",
+  "size": 5161829,
+  "sha256": "f65b04965e337f86f22b165947df971541b45d65d3bd1af9153ca190874949e0",
+  "notes": "0.1.65：修正欢迎页鲸鱼位置（与问候语成组居中，紧贴文字上方），修复上次 CSS 被写坏导致的布局错位",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
