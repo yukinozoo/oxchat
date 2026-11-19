@@ -6,7 +6,7 @@
   box-sizing: border-box;
   /* 画到状态栏下方：这一段的底色就是页面底色，状态栏因此与应用顶栏同色 */
   padding-top: env(safe-area-inset-top);
-  background-color: var(--dsw-alias-bg-base);
+  background-color: var(--oxchat-surface-base, var(--dsw-alias-bg-base));
 }
 
 .main {

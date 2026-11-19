@@ -715,3 +715,23 @@ export const IconPersonalizeOutline16 = () => (
     />
   </svg>
 )
+
+export const IconFontSizeOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* 一大一小两个 A：字号的通用符号 */}
+    <path
+      d="M1.4 12.6 4.5 3.6h1L8.6 12.6M2.9 9.6h4.3"
+      stroke="currentColor"
+      strokeWidth={1.25}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M9.6 12.6 11.7 7.4h.8l2 5.2M10.4 10.9h3.4"
+      stroke="currentColor"
+      strokeWidth={1.1}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)

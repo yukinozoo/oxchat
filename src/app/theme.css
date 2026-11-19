@@ -253,3 +253,41 @@ body {
 
   --dsw-font-xs-13: 13px/20px var(--dsw-font-family);
 }
+
+/* 全局背景图片：图片层与遮罩层都画在 body 底色之上、内容之下 */
+body {
+  --oxchat-font-scale: 1;
+  /* 聊天区底色：有背景图片时让位给图片，设置页、面板等仍是不透明底色 */
+  --oxchat-surface-base: var(--dsw-alias-bg-base);
+}
+
+body.has-bg-image {
+  --oxchat-surface-base: transparent;
+}
+
+/* 背景图片层：夹在页面底色（背景颜色）之上、应用内容之下。
+   不透明度直接作用在图片本身，让底下的背景色透上来，而不是再压一层颜色遮罩。 */
+body.has-bg-image::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  /* 用 0 而不是 -1：body 没有形成层叠上下文，负层级会被画到 html 底色后面，
+     而 html 底色由 theme.ts 同步成不透明页面色，图片就整片看不见。
+     改为 0 + 把 #root 抬到 1，图片稳定夹在页面底色与应用内容之间。 */
+  z-index: 0;
+  pointer-events: none;
+}
+
+body.has-bg-image #root {
+  position: relative;
+  z-index: 1;
+}
+
+body.has-bg-image::before {
+  background-image: var(--oxchat-bg-image, none);
+  background-position: center;
+  background-size: cover;
+  opacity: var(--oxchat-bg-opacity, 0.4);
+  filter: blur(var(--oxchat-bg-blur, 0px));
+  transform: scale(1.04);
+}

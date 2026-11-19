@@ -185,6 +185,8 @@ export type CreateMessageRequest = {
   output_config?: { effort: 'low' | 'high' | 'max' }
   tools: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
   safety_check: { level: 'high' }
+  /** 采样温度 0–2；不传时服务端按官方默认 1.0 */
+  temperature?: number
   title?: { enabled: boolean }
 }
 

@@ -759,7 +759,12 @@
   margin-bottom: 16px;
   padding: 16px;
   border-radius: 16px;
-  background: var(--dsw-alias-button-ghost-active-fill);
+  /* 用不透明的卡片底色 + 主题色描边：原来那层半透明主题色会吃进页面背景色，
+     换背景色时整块卡片会被染成另一种颜色，教程的可读性跟着变。 */
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow:
+    inset 3px 0 0 0 var(--dsw-alias-brand-text),
+    inset 0 0 0 1px var(--dsw-alias-border-l2);
 }
 
 .tutorialTitle {

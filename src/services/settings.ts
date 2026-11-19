@@ -23,6 +23,32 @@ type Settings = {
   thinkingDepth: ThinkingDepth
   /** 思考结束后自动折叠思考内容 */
   autoCollapseThinking: boolean
+  /** 上下文窗口（token）：0 表示不限，超出后从最早的消息开始丢弃 */
+  contextWindow: number
+  /** 达到触发阈值时先把更早的对话总结成摘要，再发送本轮请求 */
+  autoCompact: boolean
+  /** 自动压缩的触发阈值：占窗口的百分比 */
+  compactThreshold: number
+  /** 自动压缩后保留最近原文的比例：占窗口的百分比 */
+  compactKeep: number
+  /** 采样温度：0–2，官方默认 1.0 */
+  temperature: number
+  /** 全局提示词：作为每次请求的 system */
+  globalPrompt: string
+  /** 主题颜色（强调色）；空字符串表示使用默认蓝 */
+  themeAccent: string
+  /** 背景颜色；空字符串表示使用默认底色 */
+  themeBackground: string
+  /** 背景图片（缩放后的 data URL）；空字符串表示没有图片 */
+  bgImage: string
+  /** 背景图片不透明度：10–100 */
+  bgImageOpacity: number
+  /** 背景图片模糊 */
+  bgImageBlur: boolean
+  /** 正文字号缩放：0.85–1.4 */
+  fontSize: number
+  /** 跟随系统字号：开启时不做额外缩放 */
+  fontSizeFollowSystem: boolean
 }
 
 /** 四档思考深度：不思考 / 低 / 中 / 高 */
@@ -44,7 +70,54 @@ const KEYS = {
   model: 'oxchat:model',
   thinkingDepth: 'oxchat:thinking-depth',
   autoCollapseThinking: 'oxchat:auto-collapse-thinking',
+  contextWindow: 'oxchat:context-window',
+  autoCompact: 'oxchat:auto-compact',
+  compactThreshold: 'oxchat:compact-threshold',
+  compactKeep: 'oxchat:compact-keep',
+  temperature: 'oxchat:temperature',
+  globalPrompt: 'oxchat:global-prompt',
+  themeAccent: 'oxchat:theme-accent',
+  themeBackground: 'oxchat:theme-background',
+  bgImage: 'oxchat:bg-image',
+  bgImageOpacity: 'oxchat:bg-image-opacity',
+  bgImageBlur: 'oxchat:bg-image-blur',
+  fontSize: 'oxchat:font-size',
+  fontSizeFollowSystem: 'oxchat:font-size-follow-system',
 } as const
+
+/** 字号缩放的可用区间与默认值 */
+export const FONT_SCALE_MIN = 0.85
+export const FONT_SCALE_MAX = 1.4
+
+/** 只接受 #rrggbb；其它值当作未设置 */
+export const normalizeColor = (value: string | null): string =>
+  value && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : ''
+
+const initialColor = (key: string): string => normalizeColor(read(key))
+
+const initialBgImageOpacity = (): number => {
+  const value = readNumber(KEYS.bgImageOpacity)
+  return Number.isFinite(value) && value >= 10 && value <= 100 ? value : 40
+}
+
+const initialFontSize = (): number => {
+  const value = readNumber(KEYS.fontSize)
+  return Number.isFinite(value) && value >= FONT_SCALE_MIN && value <= FONT_SCALE_MAX ? value : 1
+}
+
+/** 未保存过时使用应用内字号（滑杆可用），需要时再打开跟随系统 */
+const initialFontSizeFollowSystem = (): boolean =>
+  read(KEYS.fontSizeFollowSystem) === 'true'
+
+/** 全局提示词的默认值：与官方客户端一致 */
+export const DEFAULT_GLOBAL_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
+
+/** 上下文窗口的可选值（token）；0 表示不限 */
+export const CONTEXT_WINDOWS = [0, 8000, 16000, 32000, 64000, 128000, 1000000] as const
+
+/** 上下文窗口的显示文案：0 交给调用方显示「不限」，百万级用 M 表示 */
+export const formatContextWindow = (value: number): string =>
+  value <= 0 ? '' : value >= 1_000_000 ? `${value / 1_000_000}M` : `${Math.round(value / 1000)}K`
 
 const read = (key: string) => {
   try {
@@ -118,6 +191,35 @@ const initialThinkingDepth = (): ThinkingDepth => {
 /** 未保存过时默认开启：与官方客户端行为一致 */
 const initialAutoCollapseThinking = (): boolean => read(KEYS.autoCollapseThinking) !== 'false'
 
+/** 读取数字设置：没保存过时给 NaN，避免 Number(null) 被当成 0 而吃掉落默认值 */
+const readNumber = (key: string): number => {
+  const raw = read(key)
+  return raw === null || raw === '' ? Number.NaN : Number(raw)
+}
+
+/** 读取 0–100 的百分比设置，非法值回落到默认 */
+const initialPercent = (key: string, fallback: number): number => {
+  const value = readNumber(key)
+  return Number.isFinite(value) && value > 0 && value <= 100 ? value : fallback
+}
+
+/** 未保存过时默认 1M：新对话按百万级窗口起步，超出才压缩或丢弃 */
+const initialContextWindow = (): number => {
+  const value = readNumber(KEYS.contextWindow)
+  return (CONTEXT_WINDOWS as readonly number[]).includes(value) ? value : 1000000
+}
+
+/** 未保存过时默认开启自动压缩，窗口不限时不会触发 */
+const initialAutoCompact = (): boolean => read(KEYS.autoCompact) !== 'false'
+
+/** 温度：0–2，非法值回落到官方默认 1.0 */
+const initialTemperature = (): number => {
+  const value = readNumber(KEYS.temperature)
+  return Number.isFinite(value) && value >= 0 && value <= 2 ? value : 1
+}
+
+const initialGlobalPrompt = (): string => read(KEYS.globalPrompt) ?? DEFAULT_GLOBAL_PROMPT
+
 export const useSettings = create<Settings>(() => {
   // 思考开关与强度保持一致：默认高强度时开关也应为开
   const thinkingDepth = initialThinkingDepth()
@@ -133,6 +235,19 @@ export const useSettings = create<Settings>(() => {
     model: initialModel(),
     thinkingDepth,
     autoCollapseThinking: initialAutoCollapseThinking(),
+    contextWindow: initialContextWindow(),
+    autoCompact: initialAutoCompact(),
+    compactThreshold: initialPercent(KEYS.compactThreshold, 50),
+    compactKeep: initialPercent(KEYS.compactKeep, 20),
+    temperature: initialTemperature(),
+    globalPrompt: initialGlobalPrompt(),
+    themeAccent: initialColor(KEYS.themeAccent),
+    themeBackground: initialColor(KEYS.themeBackground),
+    bgImage: read(KEYS.bgImage) ?? '',
+    bgImageOpacity: initialBgImageOpacity(),
+    bgImageBlur: read(KEYS.bgImageBlur) === 'true',
+    fontSize: initialFontSize(),
+    fontSizeFollowSystem: initialFontSizeFollowSystem(),
   }
 })
 
@@ -197,4 +312,81 @@ export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
 export const setModel = (model: ChatModel) => {
   write(KEYS.model, model)
   useSettings.setState({ model })
+}
+
+export const setContextWindow = (contextWindow: number) => {
+  write(KEYS.contextWindow, String(contextWindow))
+  useSettings.setState({ contextWindow })
+}
+
+export const setAutoCompact = (autoCompact: boolean) => {
+  write(KEYS.autoCompact, String(autoCompact))
+  useSettings.setState({ autoCompact })
+}
+
+export const setCompactThreshold = (compactThreshold: number) => {
+  write(KEYS.compactThreshold, String(compactThreshold))
+  useSettings.setState({ compactThreshold })
+}
+
+export const setCompactKeep = (compactKeep: number) => {
+  write(KEYS.compactKeep, String(compactKeep))
+  useSettings.setState({ compactKeep })
+}
+
+export const setTemperature = (temperature: number) => {
+  write(KEYS.temperature, String(temperature))
+  useSettings.setState({ temperature })
+}
+
+export const setGlobalPrompt = (globalPrompt: string) => {
+  write(KEYS.globalPrompt, globalPrompt)
+  useSettings.setState({ globalPrompt })
+}
+
+/** 每次请求使用的 system：清空后回落到默认值，避免发出空提示词 */
+export const currentSystemPrompt = (): string =>
+  useSettings.getState().globalPrompt.trim() || DEFAULT_GLOBAL_PROMPT
+
+export const setThemeAccent = (themeAccent: string) => {
+  write(KEYS.themeAccent, normalizeColor(themeAccent) || null)
+  useSettings.setState({ themeAccent: normalizeColor(themeAccent) })
+}
+
+export const setThemeBackground = (themeBackground: string) => {
+  write(KEYS.themeBackground, normalizeColor(themeBackground) || null)
+  useSettings.setState({ themeBackground: normalizeColor(themeBackground) })
+}
+
+export const setBgImage = (bgImage: string) => {
+  write(KEYS.bgImage, bgImage || null)
+  useSettings.setState({ bgImage })
+}
+
+export const setBgImageOpacity = (bgImageOpacity: number) => {
+  const value = Math.min(100, Math.max(10, Math.round(bgImageOpacity)))
+  write(KEYS.bgImageOpacity, String(value))
+  useSettings.setState({ bgImageOpacity: value })
+}
+
+export const setBgImageBlur = (bgImageBlur: boolean) => {
+  write(KEYS.bgImageBlur, String(bgImageBlur))
+  useSettings.setState({ bgImageBlur })
+}
+
+export const setFontSize = (fontSize: number) => {
+  const value = Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Math.round(fontSize * 100) / 100))
+  write(KEYS.fontSize, String(value))
+  useSettings.setState({ fontSize: value })
+}
+
+export const setFontSizeFollowSystem = (fontSizeFollowSystem: boolean) => {
+  write(KEYS.fontSizeFollowSystem, String(fontSizeFollowSystem))
+  useSettings.setState({ fontSizeFollowSystem })
+}
+
+/** 当前生效的字号缩放：跟随系统时不额外缩放 */
+export const currentFontScale = (): number => {
+  const { fontSize, fontSizeFollowSystem } = useSettings.getState()
+  return fontSizeFollowSystem ? 1 : fontSize
 }

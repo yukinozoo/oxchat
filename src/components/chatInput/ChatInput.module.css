@@ -1,12 +1,12 @@
 .wrapper {
-  --line-height: 24px;
+  --line-height: calc(24px * var(--oxchat-font-scale, 1));
   --input-padding-top: 12px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   width: 100%;
   cursor: text;
-  font-size: 16px;
+  font-size: calc(16px * var(--oxchat-font-scale, 1));
   line-height: var(--line-height);
   border-radius: 24px;
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);

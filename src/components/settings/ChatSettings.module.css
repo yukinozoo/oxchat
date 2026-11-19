@@ -1,0 +1,186 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  box-sizing: border-box;
+  padding: 2px 16px;
+  border-radius: 18px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.setting {
+  padding: 14px 0;
+}
+
+.setting + .setting {
+  box-shadow: inset 0 1px 0 0 var(--dsw-alias-border-l2-darkmode-thin);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.text {
+  display: flex;
+  flex: 1 0 0;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.value {
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  padding: 0 0 14px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.disabled {
+  opacity: 0.45;
+}
+
+/* 滑杆：8px 轨道，已选部分用品牌色，滑块带白色描边 */
+.range {
+  --fill: 0%;
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--dsw-alias-brand-text) 0 var(--fill),
+    var(--dsw-alias-border-l2) var(--fill) 100%
+  );
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  margin-top: -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--dsw-alias-brand-text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.range::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.range::-moz-range-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsw-alias-brand-text);
+}
+
+.range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--dsw-alias-brand-text);
+}
+
+.range:disabled {
+  cursor: default;
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 118px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-text);
+}
+
+.reset {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.reset:disabled {
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}

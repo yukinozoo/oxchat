@@ -32,8 +32,8 @@
   box-sizing: border-box;
   padding: 10px 16px;
   border-radius: 22px;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: calc(16px * var(--oxchat-font-scale, 1));
+  line-height: calc(24px * var(--oxchat-font-scale, 1));
   color: var(--dsw-alias-label-primary);
   background-color: var(--dsw-specific-bubble);
   white-space: pre-wrap;
@@ -101,4 +101,35 @@
   justify-content: flex-end;
   gap: 8px;
   margin: 6px 10px 10px;
+}
+
+/* 压缩摘要：挂在保留段第一条提问上方，默认收起 */
+.summary {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(100% - 68px);
+  margin-bottom: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background-color: var(--dsw-alias-bg-subtle, #f5f6f8);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.summaryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.summaryText {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

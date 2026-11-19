@@ -1,12 +1,12 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  IconChatOutline20,
   IconCheckOutline16,
   IconChevronRightOutline14,
-  IconDarkOutline16,
   IconDataOutline16,
   IconDownloadOutline16,
-  IconFollowsystemOutline16,
+  IconFontSizeOutline16,
   IconLightOutline16,
   IconGlobeLanguageOutline14,
   IconInfoOutline16,
@@ -25,11 +25,17 @@ import {
 } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
-import { maskApiKey, clearAccount, formatBalance, loadBalance, useAccount } from '../../services/account.js'
+import {
+  maskApiKey,
+  clearAccount,
+  formatBalance,
+  loadBalance,
+  useAccount,
+} from '../../services/account.js'
 import { useChatStore } from '../../services/chat/store.js'
 import {
+  formatContextWindow,
   setLocale,
-  setThemePreference,
   setTtsVoice,
   setApiKey,
   setAutoCollapseThinking,
@@ -43,6 +49,9 @@ import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { WebsiteImportEntry } from './WebsiteImportEntry.js'
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
+import { ChatSettings } from './ChatSettings.js'
+import { FontSizeSettings, fontSizeLabel } from './FontSizeSettings.js'
+import { ThemeSettings } from './ThemeSettings.js'
 import { ExportSelectDialog } from './ExportSelectDialog.js'
 import { toBase64 } from '../../utils/base64.js'
 import { logoutWebsite } from '../../services/chat/websiteImport.js'
@@ -72,6 +81,9 @@ const SettingsContent = () => {
   const themePreference = useSettings((state) => state.themePreference)
   const ttsVoice = useSettings((state) => state.ttsVoice)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
+  const contextWindow = useSettings((state) => state.contextWindow)
+  const fontSize = useSettings((state) => state.fontSize)
+  const fontSizeFollowSystem = useSettings((state) => state.fontSizeFollowSystem)
   const sessionCount = useChatStore((state) => state.sessions.length)
   const [version, setVersion] = useState('—')
   /** 语言与朗读音色用对话框选择，不再跳子页 */
@@ -101,6 +113,8 @@ const SettingsContent = () => {
     locale: 'settingsLocalePreference',
     voice: 'settingsTtsVoice',
     personalize: 'settingsPersonalize',
+    chat: 'settingsChat',
+    fontSize: 'settingsFontSize',
   }
 
   const themeLabels: Record<ThemePreference, TranslationKey> = {
@@ -153,6 +167,16 @@ const SettingsContent = () => {
                 <div className={styles.groupTitle}>{t('settingsGroupApp')}</div>
                 <div className={styles.card}>
                   <NavRow
+                    icon={<IconChatOutline20 />}
+                    label={t('settingsChat')}
+                    value={
+                      contextWindow === 0
+                        ? t('chatWindowUnlimited')
+                        : formatContextWindow(contextWindow)
+                    }
+                    onClick={() => setSection('chat')}
+                  />
+                  <NavRow
                     icon={<IconGlobeLanguageOutline14 />}
                     label={t('settingsLocalePreference')}
                     value={t(
@@ -170,6 +194,12 @@ const SettingsContent = () => {
                     icon={<IconPersonalizeOutline16 />}
                     label={t('settingsPersonalize')}
                     onClick={() => setSection('personalize')}
+                  />
+                  <NavRow
+                    icon={<IconFontSizeOutline16 />}
+                    label={t('settingsFontSize')}
+                    value={fontSizeLabel(fontSize, fontSizeFollowSystem, t)}
+                    onClick={() => setSection('fontSize')}
                   />
                 </div>
               </div>
@@ -248,17 +278,11 @@ const SettingsContent = () => {
               />
             </>
           ) : section === 'theme' ? (
-            <div className={styles.card}>
-              {themeOptions.map((option) => (
-                <OptionRow
-                  key={option.value}
-                  label={t(option.label)}
-                  icon={option.icon}
-                  selected={themePreference === option.value}
-                  onSelect={() => setThemePreference(option.value)}
-                />
-              ))}
-            </div>
+            <ThemeSettings />
+          ) : section === 'fontSize' ? (
+            <FontSizeSettings />
+          ) : section === 'chat' ? (
+            <ChatSettings />
           ) : section === 'personalize' ? (
             <>
               <div className={styles.card}>
@@ -519,7 +543,6 @@ const useHistoryDelete = () => {
   }
 }
 
-
 type UnknownCapacitor = {
   Capacitor?: { Plugins?: { App?: { getInfo?: () => Promise<{ version?: string }> } } }
 }
@@ -527,23 +550,6 @@ type UnknownCapacitor = {
 /** 设置行右侧的提示：正常文案或错误（可带原因键） */
 type Status = (TranslationMessage & { error?: boolean; reason?: TranslationKey }) | null
 
-const themeOptions: { value: ThemePreference; label: TranslationKey; icon: ReactNode }[] = [
-  {
-    value: 'light',
-    label: 'avatarMenuSettingsDialogThemeSelectLightOption',
-    icon: <IconLightOutline16 />,
-  },
-  {
-    value: 'dark',
-    label: 'avatarMenuSettingsDialogThemeSelectDarkOption',
-    icon: <IconDarkOutline16 />,
-  },
-  {
-    value: 'system',
-    label: 'avatarMenuSettingsDialogThemeSelectSystemOption',
-    icon: <IconFollowsystemOutline16 />,
-  },
-]
 
 const errorStatus = (key: TranslationKey, error: unknown): Status => ({
   key,
@@ -681,7 +687,7 @@ const ImportHistory = ({
 
 /** 导入进度对话框：N / M 个对话 + 进度条，可后台继续或停止。 */
 
-/** 原生端导出用到的插件子集：文件系统分片写入 + 系统分享 */type NativeBackupFilesystem = {
+/** 原生端导出用到的插件子集：文件系统分片写入 + 系统分享 */ type NativeBackupFilesystem = {
   deleteFile: (options: { path: string; directory: string }) => Promise<unknown>
   writeFile: (options: {
     path: string
@@ -818,25 +824,25 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
           }}
         />
       ) : null}
-    <SettingCell
-      label={t('exportAllLabel')}
-      description={t('historyExportDescription')}
-      status={status}
-      action={
-        <Button
-          variant="outlined"
-          size="m"
-          className={styles.cellButton}
-          disabled={disabled || busy || empty}
-          onClick={() => setSelecting(true)}
-        >
-          <IconDownloadOutline16 />
-          {busy && written > 0
-            ? t('historyExportProgress', { size: `${(written / 1048576).toFixed(1)}MB` })
-            : t('exportAllDownload')}
-        </Button>
-      }
-    />
+      <SettingCell
+        label={t('exportAllLabel')}
+        description={t('historyExportDescription')}
+        status={status}
+        action={
+          <Button
+            variant="outlined"
+            size="m"
+            className={styles.cellButton}
+            disabled={disabled || busy || empty}
+            onClick={() => setSelecting(true)}
+          >
+            <IconDownloadOutline16 />
+            {busy && written > 0
+              ? t('historyExportProgress', { size: `${(written / 1048576).toFixed(1)}MB` })
+              : t('exportAllDownload')}
+          </Button>
+        }
+      />
     </>
   )
 }

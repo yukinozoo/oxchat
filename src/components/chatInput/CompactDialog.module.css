@@ -1,0 +1,25 @@
+/* 模型面板是 1050，确认弹窗要压在它上面；双写类名提高优先级 */
+.overlay.overlay {
+  z-index: 1300;
+}
+
+.text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-state-error-primary);
+}

@@ -38,6 +38,13 @@ export type UserMessage = MessageBranch & {
   content: string
   files: FileAttachment[]
   createdAt: number
+  /**
+   * 压缩得到的更早对话摘要：随这条提问一起进入请求，界面上单独展示。
+   * 摘要覆盖的消息已从会话中移除，只有这里保留它们的结论。
+   */
+  summary?: string
+  /** 摘要累计覆盖的消息条数（多次压缩会累加） */
+  summaryCount?: number
 }
 
 /** 思考块：thinking_delta 累积，签名随 signature_delta 到达；历史轮次的思考服务端会丢弃，不回传 */

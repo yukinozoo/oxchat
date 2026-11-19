@@ -203,14 +203,23 @@ const isUsableReply = (message: Message): message is AssistantMessage =>
   !message.blocks.some((block) => block.type === 'text' && block.isTemplate) &&
   getReplyText(message) !== ''
 
+/** 压缩摘要在请求里的包裹标记：让模型知道这是此前对话的结论，而不是用户这轮说的话 */
+const SUMMARY_HEADER = '【此前对话的压缩摘要，作为已发生的上下文】'
+const SUMMARY_FOOTER = '【摘要结束】'
+
+/** 提问正文：有压缩摘要时把摘要拼在原文之前，一起作为这条 user 消息进入上下文 */
+const toUserText = ({ content, summary }: UserMessage) =>
+  summary ? `${SUMMARY_HEADER}\n${summary}\n${SUMMARY_FOOTER}\n\n${content}` : content
+
 /** 有文件时用内容块数组：先文件后文本，文件按 Files API 的 file_id 引用 */
-const toUserParam = ({ content, files }: UserMessage): MessageParam => {
-  const blocks = toFileBlocks(files)
+const toUserParam = (message: UserMessage): MessageParam => {
+  const text = toUserText(message)
+  const blocks = toFileBlocks(message.files)
   return blocks.length === 0
-    ? { role: 'user', content }
+    ? { role: 'user', content: text }
     : {
         role: 'user',
-        content: [...blocks, ...(content ? [{ type: 'text' as const, text: content }] : [])],
+        content: [...blocks, ...(text ? [{ type: 'text' as const, text }] : [])],
       }
 }
 
@@ -319,8 +328,8 @@ export const toRequestMessages = (
     }
   }
   for (const [user, reply] of getContextRounds(history)) {
-    // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
-    if (!user.content && toFileBlocks(user.files).length === 0) {
+    // 历史提问没有文字、没有压缩摘要、附件也都没有 serverId 时，提问为空，连同回答一起省略。
+    if (!user.content && !user.summary && toFileBlocks(user.files).length === 0) {
       continue
     }
     appendReminder(reply.latestReminder)

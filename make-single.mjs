@@ -158,6 +158,9 @@ html = cssMatch ? html.replace(cssMatch[0], () => head) : html
 html = html.replace(jsMatch[0], () => '')
 html = html.replace('</body>', () => `${body}\n</body>`)
 
+// 单文件页面没有同目录图标与清单文件：去掉相关标签，避免离线打开时 404
+html = html.replace(/<link\b[^>]*\brel="[^"]*(?:icon|manifest)[^"]*"[^>]*>\s*/gi, '')
+
 if (!/<meta[^>]*charset/i.test(html)) {
   html = html.replace('<head>', () => '<head><meta charset="utf-8">')
 }

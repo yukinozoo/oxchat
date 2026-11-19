@@ -10,5 +10,8 @@ declare const styles: {
   readonly editor: string
   readonly textarea: string
   readonly editorActions: string
+  readonly summary: string
+  readonly summaryHead: string
+  readonly summaryText: string
 }
 export = styles

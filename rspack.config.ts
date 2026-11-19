@@ -84,7 +84,16 @@ export const createConfig = ({
     }),
     new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
     new rspack.CopyRspackPlugin({
-      patterns: [{ from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' }],
+      patterns: [
+        { from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' },
+        // 站点图标与 Web App 清单：放在产物根目录，index.html 用相对路径引用
+        { from: path.resolve(root, 'src/assets'), to: '.', toType: 'dir' },
+        {
+          from: path.resolve(root, 'src/manifest.webmanifest'),
+          to: 'manifest.webmanifest',
+          toType: 'file',
+        },
+      ],
     }),
   ],
   performance: { hints: false },

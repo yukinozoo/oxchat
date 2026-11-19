@@ -113,6 +113,17 @@ export const UserMessage = memo(function UserMessage({
         </div>
       ) : (
         <>
+          {message.summary ? (
+            <details className={styles.summary}>
+              <summary className={styles.summaryHead}>
+                <span>{t('compactSummaryLabel')}</span>
+                {message.summaryCount ? (
+                  <span>{t('compactSummaryCount', { count: message.summaryCount })}</span>
+                ) : null}
+              </summary>
+              <p className={styles.summaryText}>{message.summary}</p>
+            </details>
+          ) : null}
           {message.content ? (
             <div className={styles.bubble}>
               <BubbleMath content={message.content} />

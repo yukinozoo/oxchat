@@ -1,11 +1,14 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
+import { translate } from '../../i18n/index.js'
 import { ApiError, streamMessage } from '../api/client.js'
 import { DEFAULT_MODEL, type ChatModel, type CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
-import { effortOfDepth, useSettings } from '../settings.js'
+import { currentSystemPrompt, effortOfDepth, useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
+import { canCompact, getCompactPlan } from './compact.js'
+import { prepareContext, summarizeMessages } from './context.js'
 import * as db from './db.js'
 import {
   clearAllDrafts,
@@ -37,8 +40,6 @@ const currentModel = (): ChatModel => useSettings.getState().model ?? DEFAULT_MO
 
 /** 当前思考强度：深度关掉时不发送该字段 */
 const currentEffort = () => effortOfDepth(useSettings.getState().thinkingDepth)
-/** 所有生成请求统一携带的助手身份说明 */
-const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
 /** 安全审核固定开启，所有请求都走扩展模式 */
@@ -616,6 +617,96 @@ const removeSessionData = async (id: string): Promise<boolean> => {
 
 export const stopReply = (sessionId: string) => getStreamController(sessionId)?.abort()
 
+export type CompactResult =
+  /** done 的 messages 是本次压缩掉的消息条数 */
+  | { status: 'done'; messages: number }
+  /** 对话太短，没有可压缩的历史 */
+  | { status: 'short' }
+  | { status: 'missing' }
+  /** 正在生成回复，或会话正在被替换 */
+  | { status: 'busy' }
+  | { status: 'cancelled' }
+  | { status: 'error'; message: string }
+
+/**
+ * 压缩当前对话：把保留段之前的内容交给模型总结成摘要，摘要挂到保留段第一条提问上，
+ * 其余消息从会话中移除。摘要随后续请求进入上下文，界面单独展示。
+ * 生成中不压缩；压缩期间会话位置变化（有新消息、删了会话）则放弃本次结果。
+ */
+export const compactSession = async (
+  sessionId: string,
+  signal?: AbortSignal
+): Promise<CompactResult> => {
+  if (get().importingHistory || deletingSessions.has(sessionId)) {
+    return { status: 'busy' }
+  }
+  if (getStreamController(sessionId)) {
+    return { status: 'busy' }
+  }
+  const session = getSession(sessionId)
+  if (!session) {
+    return { status: 'missing' }
+  }
+  if (!canCompact(session)) {
+    return { status: 'short' }
+  }
+  const apiKey = useSettings.getState().apiKey ?? ''
+  if (!apiKey) {
+    return { status: 'error', message: translate('apiKeyStart') }
+  }
+  if (signal?.aborted) {
+    return { status: 'cancelled' }
+  }
+  const { head, tail } = getCompactPlan(session)
+  const kept = tail[0]
+  if (!kept) {
+    return { status: 'short' }
+  }
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  const previousSummary = kept.role === 'user' ? kept.summary : undefined
+  let text = ''
+  try {
+    text = await summarizeMessages(head, {
+      apiKey,
+      signal: controller.signal,
+      previousSummary,
+    })
+  } catch (error) {
+    if (controller.signal.aborted) {
+      return { status: 'cancelled' }
+    }
+    return { status: 'error', message: error instanceof Error ? error.message : String(error) }
+  } finally {
+    signal?.removeEventListener('abort', abort)
+  }
+  if (!text) {
+    return { status: 'error', message: translate('compactEmpty') }
+  }
+  const latest = getSession(sessionId)
+  if (!latest) {
+    return { status: 'missing' }
+  }
+  // 摘要期间路径变了（新提问、切换版本）就放弃，避免把摘要挂到错的位置。
+  if (getVisibleMessages(latest).at(-1)?.id !== getVisibleMessages(session).at(-1)?.id) {
+    return { status: 'busy' }
+  }
+  const count = head.length + (kept.role === 'user' ? (kept.summaryCount ?? 0) : 0)
+  updateSession(sessionId, (current) => ({
+    ...current,
+    rootMessageId: undefined,
+    messages: tail.map((message) =>
+      message.id === kept.id && message.role === 'user'
+        ? { ...message, summary: text, summaryCount: count }
+        : message
+    ),
+    updatedAt: Date.now(),
+  }))
+  persist(sessionId)
+  return { status: 'done', messages: head.length }
+}
+
 /**
  * 提交指定会话的最新草稿；null 表示新建会话。
  * 同步接收成功才清空草稿，附件原件由会话接管；保存失败仍通过保存入口重试。
@@ -738,6 +829,9 @@ export const editMessage = (sessionId: string, messageId: string, content: strin
     content: text,
     files: previous.files,
     createdAt: Date.now(),
+    // 编辑提问保留压缩摘要，否则摘要会随旧版本一起失效。
+    ...(previous.summary ? { summary: previous.summary } : {}),
+    ...(previous.summaryCount ? { summaryCount: previous.summaryCount } : {}),
   }
   const reply = createReply()
   updateSession(sessionId, (s) => ({
@@ -1064,22 +1158,26 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
+        // 发送前按「对话设置」整理历史：必要时自动压缩，再按上下文窗口裁剪
+        const apiKey = useSettings.getState().apiKey ?? ''
+        const context = await prepareContext(prepared.history, apiKey, controller.signal)
         const messages = toRequestMessages(
-          prepared.history,
+          context,
           prepared.question,
           prepared.prefix,
           initial.thinking ?? false,
           latestReminder
         )
         const events = streamMessage(
-          useSettings.getState().apiKey ?? '',
+          apiKey,
           {
             model: initial.model ?? currentModel(),
-            system: SYSTEM_PROMPT,
+            system: currentSystemPrompt(),
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             ...(initial.thinking ? { output_config: { effort: currentEffort() } } : {}),
             safety_check: SAFETY_CHECK,
+            temperature: useSettings.getState().temperature,
             tools: serverTools(initial.search ?? false),
             ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },

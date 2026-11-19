@@ -309,7 +309,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               event.target.value = ''
             }}
           />
-          <ModelBadge />
+          <ModelBadge sessionId={sessionId} />
           <div className={styles.right}>
             {sessionId ? (
               <UsageRing sessionId={sessionId} onClick={() => setUsageOpen(true)} />

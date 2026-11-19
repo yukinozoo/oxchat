@@ -3,6 +3,8 @@ declare const styles: {
   readonly sheet: string
   readonly grabber: string
   readonly title: string
+  readonly titleRow: string
+  readonly compactAction: string
   readonly groupTitle: string
   readonly card: string
   readonly row: string

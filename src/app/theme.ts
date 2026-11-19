@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { useSettings, type ThemePreference } from '../services/settings.js'
+import { applyAppearance } from './appearance.js'
 
 export type Theme = 'light' | 'dark'
 
@@ -48,6 +49,8 @@ const applyTheme = (theme: Theme) => {
   setTimeout(() => {
     body.classList.remove('change-theme')
   }, 0)
+  // 主题色与背景可能依赖深浅色，切换后重新计算
+  applyAppearance()
 }
 
 let appliedTheme: Theme | null = null
