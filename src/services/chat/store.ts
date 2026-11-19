@@ -1106,6 +1106,41 @@ const reuploadInvalidatedFiles = (sessionId: string, request: Request, error: un
   return true
 }
 
+
+/**
+ * 服务端拒绝图片尺寸（宽高需 ≤ 4096）时：把该会话图片的 serverId 清空，
+ * 下一次上传会走降采样，或用不到本地原件时自动跳过这张图。
+ */
+const resetImageServerIds = (sessionId: string): boolean => {
+  const session = getSession(sessionId)
+  if (!session) {
+    return false
+  }
+  const cleared: string[] = []
+  const messages = session.messages.map((message) => {
+    if (message.role !== 'user') {
+      return message
+    }
+    let changed = false
+    const files = message.files.map((file) => {
+      if (!file.serverId || !file.isImage) {
+        return file
+      }
+      cleared.push(file.id)
+      changed = true
+      return { ...file, serverId: null }
+    })
+    return changed ? { ...message, files } : message
+  })
+  if (cleared.length === 0) {
+    return false
+  }
+  updateSession(sessionId, (current) => ({ ...current, messages }))
+  cleared.forEach(cancelUpload)
+  persist(sessionId)
+  return true
+}
+
 /** 重传前的退避等待；停止生成时立即返回，由调用方按已停止收尾 */
 const waitForRetry = (attempt: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -1232,6 +1267,16 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             reply = settleReply(reply, 'stopped', Date.now())
             break
           }
+          continue
+        }
+        // 历史图片超过服务端尺寸限制：清掉 serverId 重发一次，上传时会自动降采样
+        if (
+          attempt < 1 &&
+          !receivedContent &&
+          error instanceof Error &&
+          /image is too large/i.test(error.message) &&
+          resetImageServerIds(sessionId)
+        ) {
           continue
         }
         if (error instanceof ApiError && error.kind === 'interrupted' && reply.stopReason) {

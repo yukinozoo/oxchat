@@ -117,6 +117,45 @@ const next = () => {
 }
 
 /** 排队上传，最多同时上传 MAX_CONCURRENT 个；排队期间中止的任务不会发出请求 */
+/** 服务端要求图片宽高各不超过 4096：超限的先按比例缩小再上传 */
+const MAX_IMAGE_EDGE = 4096
+
+export const shrinkImage = async (blob: Blob, name: string): Promise<{ blob: Blob; name: string }> => {
+  if (!blob.type.startsWith('image/') || typeof createImageBitmap !== 'function') {
+    return { blob, name }
+  }
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(blob)
+  } catch {
+    return { blob, name }
+  }
+  try {
+    if (bitmap.width <= MAX_IMAGE_EDGE && bitmap.height <= MAX_IMAGE_EDGE) {
+      return { blob, name }
+    }
+    const scale = MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return { blob, name }
+    }
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const type =
+      blob.type === 'image/png' || blob.type === 'image/webp' ? blob.type : 'image/jpeg'
+    const shrunk = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
+    if (!shrunk) {
+      return { blob, name }
+    }
+    const ext = type === 'image/png' ? '.png' : type === 'image/webp' ? '.webp' : '.jpg'
+    return { blob: shrunk, name: `${name.replace(/\.[^.]+$/, '')}${ext}` }
+  } finally {
+    bitmap.close?.()
+  }
+}
+
 const enqueueUpload = (
   apiKey: string,
   file: Blob,
@@ -131,8 +170,15 @@ const enqueueUpload = (
         return
       }
       try {
-        const body = file instanceof File ? file : new File([file], name, { type: file.type })
-        resolve((await uploadFile(apiKey, body, getUploadPurpose(name, isImage), signal)).id)
+        // 历史导入的图片可能远超服务端限制（宽高 ≤ 4096），上传前统一降采样
+        const prepared = isImage ? await shrinkImage(file, name) : { blob: file, name }
+        const body =
+          prepared.blob instanceof File
+            ? prepared.blob
+            : new File([prepared.blob], prepared.name, { type: prepared.blob.type })
+        resolve(
+          (await uploadFile(apiKey, body, getUploadPurpose(prepared.name, isImage), signal)).id
+        )
       } catch (error) {
         reject(error)
       }

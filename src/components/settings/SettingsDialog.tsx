@@ -65,6 +65,7 @@ import {
   type StorageStatus,
 } from '../../services/storage.js'
 import { pruneFiles } from '../../services/chat/db.js'
+import { isNativePlatform } from '../../utils/platform.js'
 import {
   checkForUpdate,
   updateAvailable,
@@ -336,7 +337,7 @@ const SettingsContent = () => {
             </>
           ) : section === 'data' ? (
             <>
-              <StorageCard />
+              {isNativePlatform() ? null : <StorageCard />}
               <WebsiteImportEntry disabled={historyBusy} />
               <LinkImportEntry disabled={historyBusy} />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
