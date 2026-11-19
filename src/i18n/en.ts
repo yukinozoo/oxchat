@@ -164,6 +164,9 @@ export const en = {
   archiveParsing: 'Reading the backup file…',
   archiveCount: '{total} chats in the backup, {addable} are new.',
   importAllLabel: 'Import all ({count})',
+  exportSelectTitle: 'Choose chats to export',
+  exportSelectLead: 'All chats are selected by default. Uncheck any you do not need.',
+  exportSelectConfirm: 'Export selected ({count})',
   websiteLater: 'Later',
   replyRateLimited: 'Too many requests. Please try again later.',
   replyContentRisk:

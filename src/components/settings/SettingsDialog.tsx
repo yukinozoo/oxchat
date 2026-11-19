@@ -43,6 +43,7 @@ import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { WebsiteImportEntry } from './WebsiteImportEntry.js'
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
+import { ExportSelectDialog } from './ExportSelectDialog.js'
 import { toBase64 } from '../../utils/base64.js'
 import { logoutWebsite } from '../../services/chat/websiteImport.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
@@ -706,16 +707,18 @@ const nativeBackupPlugins = (): NativeBackup | null => {
   return filesystem && share ? { filesystem, share } : null
 }
 
-/** 将全部会话及图片导出为 ZIP：原生端分片写入缓存后调起分享，网页端整包下载 */
+/** 导出历史：先选对话，原生端分片写缓存后分享，网页端整包下载 */
 const ExportHistory = ({ disabled }: { disabled: boolean }) => {
   const t = useTranslate()
   const empty = useChatStore((state) => state.sessions.length === 0)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<Status>(null)
   const [written, setWritten] = useState(0)
+  /** 打开选择对话框，确认后带着选中的 id 开始导出 */
+  const [selecting, setSelecting] = useState(false)
   const writtenRef = useRef(0)
 
-  const onExport = async () => {
+  const onExport = async (only?: Set<string>) => {
     const native = nativeBackupPlugins()
     setBusy(true)
     setStatus(null)
@@ -723,9 +726,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     writtenRef.current = 0
     try {
       if (native) {
-        await exportNative(native)
+        await exportNative(native, only)
       } else {
-        const { name, blob } = await exportHistory()
+        const { name, blob } = await exportHistory(only)
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
@@ -744,8 +747,14 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     }
   }
 
-  /** 分片写入应用缓存：首片建文件，后续追加；超过 1MB 才刷新一次进度 */
-  const exportNative = async (native: NativeBackup) => {
+  /**
+   * 分片写入应用缓存：先把小分片攒到 512KB 再写一次。
+   * 每次写入都要跨进程转 base64，攒批能把文件接口调用次数降到 1/8。
+   */
+  const exportNative = async (native: NativeBackup, only?: Set<string>) => {
+    const FLUSH_BYTES = 512 * 1024
+    let pending: Uint8Array[] = []
+    let pendingBytes = 0
     const name = backupFileName(new Date())
     try {
       await native.filesystem.deleteFile({ path: name, directory: 'CACHE' })
@@ -754,13 +763,20 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     }
     let first = true
     let lastReport = 0
-    const { bytes } = await exportHistoryStream(async (chunk) => {
-      writtenRef.current += chunk.byteLength
-      if (writtenRef.current - lastReport >= 1_048_576) {
-        lastReport = writtenRef.current
-        setWritten(writtenRef.current)
+    /** 把攒下的分片拼成一块写盘 */
+    const flush = async () => {
+      if (pendingBytes === 0) {
+        return
       }
-      const data = toBase64(chunk)
+      const merged = new Uint8Array(pendingBytes)
+      let offset = 0
+      for (const piece of pending) {
+        merged.set(piece, offset)
+        offset += piece.byteLength
+      }
+      pending = []
+      pendingBytes = 0
+      const data = toBase64(merged)
       if (first) {
         first = false
         await native.filesystem.writeFile({
@@ -772,13 +788,36 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
       } else {
         await native.filesystem.appendFile({ path: name, data, directory: 'CACHE' })
       }
+    }
+    const { bytes } = await exportHistoryStream(only, async (chunk) => {
+      writtenRef.current += chunk.byteLength
+      if (writtenRef.current - lastReport >= 1_048_576) {
+        lastReport = writtenRef.current
+        setWritten(writtenRef.current)
+      }
+      pending.push(chunk)
+      pendingBytes += chunk.byteLength
+      if (pendingBytes >= FLUSH_BYTES) {
+        await flush()
+      }
     })
+    await flush()
     setWritten(bytes)
     const { uri } = await native.filesystem.getUri({ path: name, directory: 'CACHE' })
     await native.share.share({ title: name, url: uri, dialogTitle: t('exportShareTitle') })
   }
 
   return (
+    <>
+      {selecting ? (
+        <ExportSelectDialog
+          onClose={() => setSelecting(false)}
+          onConfirm={(ids) => {
+            setSelecting(false)
+            void onExport(ids)
+          }}
+        />
+      ) : null}
     <SettingCell
       label={t('exportAllLabel')}
       description={t('historyExportDescription')}
@@ -789,7 +828,7 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
           size="m"
           className={styles.cellButton}
           disabled={disabled || busy || empty}
-          onClick={() => void onExport()}
+          onClick={() => setSelecting(true)}
         >
           <IconDownloadOutline16 />
           {busy && written > 0
@@ -798,5 +837,6 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
         </Button>
       }
     />
+    </>
   )
 }

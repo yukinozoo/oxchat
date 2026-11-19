@@ -18,9 +18,12 @@ const enqueueBackup = <T>(run: () => Promise<T>): Promise<T> => {
 export const backupFileName = (date: Date) => `deepseek_data-${formatDate(date)}.zip`
 
 /** 会话快照：列表和已加载内容保留导出开始时的状态；未打开的会话逐条读取。 */
-const readSessions = async function* (): AsyncGenerator<Session> {
+const readSessions = async function* (only?: ReadonlySet<string>): AsyncGenerator<Session> {
   const { sessions, sessionCache } = useChatStore.getState()
   for (const summary of sessions) {
+    if (only && !only.has(summary.id)) {
+      continue
+    }
     const session = Object.hasOwn(sessionCache, summary.id)
       ? sessionCache[summary.id]
       : await db.loadSession(summary.id)
@@ -36,11 +39,11 @@ const readSessions = async function* (): AsyncGenerator<Session> {
  * 网页端导出：分片拼成 Blob 一次性下载。
  * 原生端请用 exportHistoryStream，避免大库整包进内存。
  */
-export const exportHistory = (): Promise<{ name: string; blob: Blob }> =>
+export const exportHistory = (only?: ReadonlySet<string>): Promise<{ name: string; blob: Blob }> =>
   enqueueBackup(async () => {
     const { archiveEntries } = await import('./history/exportArchive.js')
     const { streamArchive, chunksToBlob } = await import('./history/zipWriter.js')
-    const blob = await chunksToBlob(streamArchive(archiveEntries(readSessions())))
+    const blob = await chunksToBlob(streamArchive(archiveEntries(readSessions(only))))
     return { name: backupFileName(new Date()), blob }
   })
 
@@ -49,13 +52,14 @@ export const exportHistory = (): Promise<{ name: string; blob: Blob }> =>
  * 文件名由调用方生成（写盘与分享都用它），返回归档总字节数供界面展示。
  */
 export const exportHistoryStream = (
+  only: ReadonlySet<string> | undefined,
   onChunk: (chunk: Uint8Array) => Promise<void>
 ): Promise<{ bytes: number }> =>
   enqueueBackup(async () => {
     const { archiveEntries } = await import('./history/exportArchive.js')
     const { streamArchive } = await import('./history/zipWriter.js')
     let bytes = 0
-    for await (const chunk of streamArchive(archiveEntries(readSessions()))) {
+    for await (const chunk of streamArchive(archiveEntries(readSessions(only)))) {
       bytes += chunk.byteLength
       await onChunk(chunk)
     }

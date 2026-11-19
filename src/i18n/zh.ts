@@ -157,6 +157,9 @@ export const zh = {
   archiveParsing: '正在解析备份文件…',
   archiveCount: '备份共 {total} 个对话，可新增 {addable} 个。',
   importAllLabel: '全部导入（{count}）',
+  exportSelectTitle: '选择要导出的对话',
+  exportSelectLead: '默认已选中全部对话，可取消不需要的；导出文件包含选中对话及其图片原件。',
+  exportSelectConfirm: '导出所选（{count}）',
   websiteLater: '稍后再说',
   replyRateLimited: '请求过于频繁，请稍后再试',
   replyContentRisk: '内容未通过服务端安全审核，请调整后重试（请求 ID：{requestId}）',
@@ -223,7 +226,7 @@ export const zh = {
   historyExportProgress: '导出中 {size}',
   exportShareTitle: '保存或分享',
   historyExportDescription:
-    '包含所有历史对话及本地图片原件；其他附件仅保留文件信息，不包含 API Key。',
+    '可选择要导出的对话，包含对应图片原件；其他附件仅保留文件信息，不包含 API Key。',
   exportAllDownload: '下载',
   deleteAllSessions: '删除所有对话',
   deleteAllSessionsModalTitle: '删除后，所有对话都将被清空且无法找回',
