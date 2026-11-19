@@ -107,9 +107,25 @@ const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
   return crc >>> 0
 })
 
+/** 小文件整块缓存：手机 WebView 里每次 slice() 都是跨进程调用，270KB 的包整读一次最划算 */
+const SMALL_FILE_LIMIT = 4 * 1024 * 1024
+const wholeFileCache = new WeakMap<File, Uint8Array>()
+
 const readBytes = async (file: File, start: number, length: number) => {
   if (start < 0 || length < 0 || start + length > file.size) {
     invalid()
+  }
+  let cached = wholeFileCache.get(file)
+  if (!cached && file.size <= SMALL_FILE_LIMIT) {
+    const all = new Uint8Array(await file.slice(0, file.size).arrayBuffer())
+    if (all.length !== file.size) {
+      invalid()
+    }
+    wholeFileCache.set(file, all)
+    cached = all
+  }
+  if (cached) {
+    return cached.subarray(start, start + length)
   }
   const bytes = new Uint8Array(await file.slice(start, start + length).arrayBuffer())
   if (bytes.length !== length) {

@@ -1,9 +1,9 @@
 {
-  "versionCode": 62,
-  "versionName": "0.1.62",
-  "size": 5142613,
-  "sha256": "cc9f605f71c80875b95f7595ea97d90b49f4ade8f8cd298c8eccbe42c97e087d",
-  "notes": "0.1.62：导入改为按偏移跳读（大包秒开、只导选中的会话）、图片自动转码、模型能力表预校验",
+  "versionCode": 63,
+  "versionName": "0.1.63",
+  "size": 5142661,
+  "sha256": "0c4b36b2754c4bca37c2a3fe05ed36c059f17fa1b4371196473dd56445bd9d4d",
+  "notes": "0.1.63：小包整块读入内存，导入 270KB/200 条基本秒进",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
