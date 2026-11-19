@@ -56,6 +56,7 @@ import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import {
   BACKUP_REMINDER_DAYS,
+  shouldRetryPersist,
   daysSinceBackup,
   formatBytes,
   markBackupDone,
@@ -683,19 +684,32 @@ const StorageCard = () => {
   const [status, setStatus] = useState<StorageStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [cleanStatus, setCleanStatus] = useState<Status>(null)
+  const [denied, setDenied] = useState(false)
   const sessionCount = useChatStore((state) => state.sessions.length)
   const missingDays = daysSinceBackup()
 
+  const refresh = async () => setStatus(await storageStatus())
+
   useEffect(() => {
-    void storageStatus().then(setStatus)
+    void (async () => {
+      const current = await storageStatus()
+      setStatus(current)
+      // 被拒过就一天后再静默重试一次：添加到主屏幕后 Chrome 往往就授了
+      if (current.supported && !current.persisted && shouldRetryPersist()) {
+        const granted = await requestPersistentStorage()
+        setDenied(!granted)
+        await refresh()
+      }
+    })()
   }, [])
 
   const persist = async () => {
     setBusy(true)
     try {
       const granted = await requestPersistentStorage()
+      setDenied(!granted)
       showToast(t(granted ? 'storagePersistGranted' : 'storagePersistDenied'))
-      setStatus(await storageStatus())
+      await refresh()
     } finally {
       setBusy(false)
     }
@@ -713,7 +727,7 @@ const StorageCard = () => {
             }
           : { key: 'storageCleanupNone' }
       )
-      setStatus(await storageStatus())
+      await refresh()
     } catch {
       setCleanStatus({ key: 'historyDeleteFailed', error: true })
     } finally {
@@ -736,7 +750,7 @@ const StorageCard = () => {
         label={t('storageTitle')}
         description={
           status
-            ? t('storageUsage', {
+            ? t('storageQuota', {
                 used: formatBytes(status.usage),
                 quota: status.quota > 0 ? formatBytes(status.quota) : '—',
               })
@@ -757,9 +771,18 @@ const StorageCard = () => {
           ) : null
         }
       />
-      <div className={styles.settingDesc}>
-        {status?.persisted ? t('storagePersisted') : t('storageNotPersisted')}
-      </div>
+      <SettingCell
+        label={t('storagePersistState')}
+        description={
+          status?.persisted
+            ? t('storagePersisted')
+            : denied
+              ? `${t('storageNotPersisted')} · ${t('storagePersistHint')}`
+              : t('storageNotPersisted')
+        }
+        status={null}
+        action={null}
+      />
       <SettingCell
         label={t('storageCleanup')}
         description={t('storageCleanupDesc')}
@@ -776,7 +799,9 @@ const StorageCard = () => {
           </Button>
         }
       />
-      {remind ? <div className={styles.settingDesc}>{remind}</div> : null}
+      {remind ? (
+        <SettingCell label={t('storageBackup')} description={remind} status={null} action={null} />
+      ) : null}
     </div>
   )
 }

@@ -4,6 +4,9 @@
  */
 
 const PERSISTED_KEY = 'oxchat:storage-persisted'
+const PERSIST_ATTEMPT_KEY = 'oxchat:persist-attempt-at'
+/** 被拒后隔一天再自动重试，避免每次打开都打扰浏览器 */
+const PERSIST_RETRY_MS = 24 * 60 * 60 * 1000
 const BACKUP_KEY = 'oxchat:last-backup-at'
 
 const read = (key: string): string | null => {
@@ -36,6 +39,7 @@ export const requestPersistentStorage = async (): Promise<boolean> => {
   if (typeof navigator === 'undefined' || !navigator.storage?.persist) {
     return false
   }
+  write(PERSIST_ATTEMPT_KEY, String(Date.now()))
   try {
     if (await navigator.storage.persisted?.()) {
       write(PERSISTED_KEY, 'true')
@@ -66,6 +70,12 @@ export const storageStatus = async (): Promise<StorageStatus> => {
     // 拿不到估算值时只显示申请状态
   }
   return { usage, quota, persisted, supported }
+}
+
+/** 是否适合自动再申请一次持久化（一天一次） */
+export const shouldRetryPersist = (): boolean => {
+  const last = Number(read(PERSIST_ATTEMPT_KEY) ?? 0) || 0
+  return Date.now() - last > PERSIST_RETRY_MS
 }
 
 export const lastBackupAt = (): number => Number(read(BACKUP_KEY) ?? 0) || 0

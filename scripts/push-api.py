@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""用 GitHub API 推送本地 HEAD 提交：git push 走不通时的备用通道。
+"""用 GitHub API 推送本地 HEAD：git push 走不通时（国内常见）的备用通道。
 
-用法：GITHUB_TOKEN=ghp_xxx node 不适用——直接 python3 scripts/push-api.py [repo]
+与远端做全量树对比，只上传有差异的文件；远端历史被 API 重写过也能正确续上。
 
-前提：远端 main 正好是本地 HEAD 的父提交（push 被网络卡住时通常成立）。
+用法：GITHUB_TOKEN=ghp_xxx python3 scripts/push-api.py [owner/repo]
 """
 import base64
 import json
@@ -38,7 +38,7 @@ def call(method, path, payload=None):
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=60) as response:
             body = response.read()
             return json.loads(body) if body else {}
     except urllib.error.HTTPError as error:
@@ -46,43 +46,63 @@ def call(method, path, payload=None):
         sys.exit(f"{method} {path} 失败: {error.code} {detail}")
 
 
-def git(*args):
-    return subprocess.check_output(["git", *args])
+def git(*args, binary=False):
+    return subprocess.check_output(["git", *args], text=not binary)
 
 
-head = git("rev-parse", "HEAD").decode().strip()
-parent = git("rev-parse", "HEAD^").decode().strip()
-message = git("log", "-1", "--pretty=%B").decode().strip()
+head = git("rev-parse", "HEAD").strip()
+message = git("log", "-1", "--pretty=%B").strip() or "deploy"
 
-remote = call("GET", f"/git/ref/heads/{BRANCH}")["object"]["sha"]
-if remote == head:
+remote_sha = call("GET", f"/git/ref/heads/{BRANCH}")["object"]["sha"]
+if remote_sha == head:
     sys.exit("远端已经是最新提交，无需推送")
-if remote != parent:
-    sys.exit(f"远端 main 是 {remote[:8]}，不是本地父提交 {parent[:8]}，先手动同步再试")
 
-changes = [
-    line.split("\t")
-    for line in git("diff", "--name-status", "HEAD^", "HEAD").decode().splitlines()
-    if line.strip()
-]
-print(f"提交 {head[:8]}，变更 {len(changes)} 个文件")
+remote_tree = call("GET", f"/git/trees/{remote_sha}?recursive=1")
+remote_files = {
+    item["path"]: item["sha"]
+    for item in remote_tree.get("tree", [])
+    if item["type"] == "blob"
+}
+
+# 本地 HEAD 的完整文件清单：blob sha 由内容决定，可以直接与远端比对
+local_files = {}
+for line in git("ls-tree", "-r", "HEAD").splitlines():
+    meta, path = line.split("\t", 1)
+    mode, kind, sha = meta.split()
+    if kind == "blob":
+        local_files[path] = (mode, sha)
+
+changed = [path for path, (_, sha) in local_files.items() if remote_files.get(path) != sha]
+removed = [path for path in remote_files if path not in local_files]
+if not changed and not removed:
+    sys.exit("内容与远端一致，无需推送")
+
+print(f"本地 {head[:8]}，远端 {remote_sha[:8]}：新增/修改 {len(changed)} 个，删除 {len(removed)} 个")
 
 tree = []
-for status, path in changes:
-    if status.startswith("D"):
-        tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
-        continue
-    content = git("show", f"HEAD:{path}")
+for path in removed:
+    tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+for path in changed:
+    mode, _ = local_files[path]
+    content = git("show", f"HEAD:{path}", binary=True)
     blob = call("POST", "/git/blobs", {
         "content": base64.b64encode(content).decode(),
         "encoding": "base64",
     })
-    mode = "100755" if b"100755" in git("ls-tree", "HEAD", path) else "100644"
-    tree.append({"path": path, "mode": mode, "type": "blob", "sha": blob["sha"]})
-    print(f"  {status} {path}")
+    tree.append({
+        "path": path,
+        "mode": "100755" if mode == "100755" else "100644",
+        "type": "blob",
+        "sha": blob["sha"],
+    })
+    print(f"  {path}")
 
-base_tree = call("GET", f"/git/commits/{remote}")["tree"]["sha"]
-new_tree = call("POST", "/git/trees", {"base_tree": base_tree, "tree": tree})
-commit = call("POST", "/git/commits", {"message": message, "tree": new_tree["sha"], "parents": [remote]})
+remote_base_tree = call("GET", f"/git/commits/{remote_sha}")["tree"]["sha"]
+new_tree = call("POST", "/git/trees", {"base_tree": remote_base_tree, "tree": tree})
+commit = call("POST", "/git/commits", {
+    "message": message,
+    "tree": new_tree["sha"],
+    "parents": [remote_sha],
+})
 call("PATCH", f"/git/refs/heads/{BRANCH}", {"sha": commit["sha"], "force": False})
 print(f"已推送 {commit['sha'][:8]} 到 {repo}@{BRANCH}")
