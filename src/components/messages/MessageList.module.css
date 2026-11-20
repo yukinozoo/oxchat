@@ -37,6 +37,21 @@
   contain-intrinsic-size: auto 220px;
 }
 
+/* 从搜索结果跳过来时闪一下，帮眼睛定位 */
+.hitFlash {
+  animation: hit-flash 2.2s ease-out;
+}
+
+@keyframes hit-flash {
+  0%,
+  40% {
+    background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4d6bfe) 14%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
 /* 窗口边界上的「加载更早 / 后续消息」按钮：低调一行，不抢消息视觉 */
 .windowBar {
   display: flex;

@@ -12,6 +12,7 @@ import { IconArrowDownOutline20 } from '../base/icons.js'
 import { useTranslate } from '../../i18n/index.js'
 import { AssistantMessage } from './AssistantMessage.js'
 import { onJumpToFirst, ScrollToBottomContext } from './scrollContext.js'
+import { onJumpTarget, takeJumpTarget, windowAround } from './jumpTarget.js'
 import { UserMessage } from './UserMessage.js'
 import type { Message } from '../../services/chat/types.js'
 
@@ -94,6 +95,9 @@ export const MessageList = ({
   const anchorRef = useRef<{ height: number; top: number } | null>(null)
   /** 双击顶栏后需要滚到第一条 */
   const jumpTopRef = useRef(false)
+  /** 从搜索结果跳过来时，渲染完要滚到并把这条消息高亮一下 */
+  const pendingHitRef = useRef<string | null>(null)
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const versions = useMemo(
     () => buildMessageVersions(session, previousVersions),
     [session, previousVersions]
@@ -275,6 +279,73 @@ export const MessageList = ({
     setRange({ sessionId: session.id, start: nextStart, end: nextEnd })
   }, [session.id, startIndex, endIndex, total])
 
+  /** 把窗口摆到目标消息附近，渲染后滚到它并短暂高亮 */
+  const jumpToMessage = useCallback(
+    (messageId: string) => {
+      const index = messages.findIndex((message) => message.id === messageId)
+      if (index < 0) {
+        return
+      }
+      stickyRef.current = false
+      anchorRef.current = null
+      pendingHitRef.current = messageId
+      setRange({
+        sessionId: session.id,
+        ...windowAround(index, total, WINDOW_PAGE, WINDOW_MAX),
+      })
+    },
+    [messages, session.id, total]
+  )
+
+  // 挂载/切会话时先消费待办：搜索面板可能比列表先动作
+  useEffect(() => {
+    const target = takeJumpTarget(session.id)
+    if (target) {
+      jumpToMessage(target)
+    }
+    // 只处理当前会话的一次性跳转
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id, total])
+
+  useEffect(
+    () =>
+      onJumpTarget((target) => {
+        if (target.sessionId === session.id) {
+          jumpToMessage(target.messageId)
+        }
+      }),
+    [session.id, jumpToMessage]
+  )
+
+  // 渲染完成后再滚到目标消息；dom 里靠 data-message-id 定位
+  useLayoutEffect(() => {
+    const messageId = pendingHitRef.current
+    if (!messageId) {
+      return
+    }
+    const node = contentRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`
+    )
+    if (!node) {
+      return
+    }
+    pendingHitRef.current = null
+    // 部分内嵌 WebView 没有 scrollIntoView，降级为直接改滚动位置
+    if (typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'center' })
+    }
+    setHighlightId(messageId)
+  }, [range])
+
+  // 高亮 2.2 秒后自动消失
+  useEffect(() => {
+    if (!highlightId) {
+      return
+    }
+    const timer = setTimeout(() => setHighlightId(null), 2200)
+    return () => clearTimeout(timer)
+  }, [highlightId])
+
   /** 滚动回调里读最新窗口状态，避免每次窗口变化都重挂监听 */
   const windowRef = useRef({ start: startIndex, end: endIndex, total })
   windowRef.current = { start: startIndex, end: endIndex, total }
@@ -325,7 +396,13 @@ export const MessageList = ({
             {messages.slice(startIndex, endIndex).map((message, offset) => {
               const index = startIndex + offset
               return (
-                <div key={message.id} className={styles.item}>
+                <div
+                  key={message.id}
+                  data-message-id={message.id}
+                  className={
+                    highlightId === message.id ? `${styles.item} ${styles.hitFlash}` : styles.item
+                  }
+                >
                   {message.role === 'user' ? (
                     <UserMessage
                       key={message.id}

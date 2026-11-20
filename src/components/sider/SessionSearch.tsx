@@ -12,6 +12,7 @@ import {
   IconPersonOutline20,
   IconSearchOutline16,
 } from '../base/icons.js'
+import { requestJumpToMessage } from '../messages/jumpTarget.js'
 import { closeMobileSider } from './mobileSiderState.js'
 import styles from './SessionSearch.module.css'
 
@@ -83,8 +84,12 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
     }
   }, [query])
 
-  const open = (sessionId: string) => {
-    selectSession(sessionId)
+  /** 打开会话并滚到命中的那条消息；标题命中（messageId 为空）只打开会话 */
+  const open = (hit: SessionSearchHit) => {
+    selectSession(hit.sessionId)
+    if (hit.messageId) {
+      requestJumpToMessage(hit.sessionId, hit.messageId)
+    }
     closeMobileSider()
     onBack()
   }
@@ -139,7 +144,7 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             // 同一会话可能有多条命中，键里带上序号
             key={`${hit.sessionId}-${index}`}
             className={styles.result}
-            onClick={() => open(hit.sessionId)}
+            onClick={() => open(hit)}
           >
             <span className={clsx(styles.avatar, hit.source === 'user' && styles.avatarUser)}>
               {hit.source === 'user' ? <IconPersonOutline20 /> : <IconChatOutline20 />}

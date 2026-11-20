@@ -1,9 +1,9 @@
 {
-  "versionCode": 67,
-  "versionName": "0.1.67",
-  "size": 5165425,
-  "sha256": "ed9a5a880a274c3afe1e7ba7cdbfac69c0a25255c8c9d6d83ef386d91bd360f6",
-  "notes": "0.1.67：软键盘回车换行全端适配（手机换行、桌面发送、中文选词不误发）+ 导入中可以先打字，发送时给出提示",
+  "versionCode": 68,
+  "versionName": "0.1.68",
+  "size": 5164941,
+  "sha256": "1850ffd26017155c45d5a89bd05f69cae9317a316b8e262028874a0b4292d50c",
+  "notes": "0.1.68：搜索结果点击直达命中的那条消息并高亮 + 搜索覆盖思考过程、上限提到 1000 + 官网登录导入入口暂时隐藏",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

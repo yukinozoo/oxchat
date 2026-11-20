@@ -10,6 +10,8 @@ export type SessionSearchHit = {
   updatedAt: number
   /** 命中所在消息的角色，用于列表左侧图标 */
   source: 'user' | 'assistant'
+  /** 命中的消息 ID：点开结果时用它把列表滚到那条消息；标题命中没有 */
+  messageId: string
   /** 命中处前后截取的片段，已折叠空白 */
   snippet: string
 }
@@ -27,12 +29,21 @@ const SNIPPET_AFTER = 34
  * 默认结果上限：列表是异步追加渲染的，几百条已经很够用；
  * 命中上限时返回 truncated，界面提示「细化关键词」，而不是静默截断。
  */
-export const DEFAULT_MAX_HITS = 300
+export const DEFAULT_MAX_HITS = 1000
 
-/** 助手消息的可读文本：只取 text 块，思考与服务端工具块不参与匹配 */
+/**
+ * 助手消息的可读文本：正文 + 思考过程。
+ * 思考也算「对话内容」——用户经常记得的是推理里出现过的说法；
+ * 搜索/网页结果卡片的文字是外部资料，不参与匹配。
+ */
 const assistantText = (message: AssistantMessage): string =>
   message.blocks
-    .map((block) => (block.type === 'text' ? block.text : ''))
+    .map((block) => {
+      if (block.type === 'text') {
+        return block.text
+      }
+      return block.type === 'thinking' ? block.thinking : ''
+    })
     .filter(Boolean)
     .join('\n')
 
@@ -94,7 +105,7 @@ export const searchSessions = (
       // 标题命中：给出整条记录，不带片段
       if (summary.title.toLowerCase().includes(needle)) {
         seen.add(`${summary.id}|title`)
-        onHit({ ...base, source: 'assistant', snippet: '' })
+        onHit({ ...base, source: 'assistant', snippet: '', messageId: '' })
         hits += 1
       }
       const session = Object.hasOwn(sessionCache, summary.id)
@@ -119,7 +130,7 @@ export const searchSessions = (
           continue
         }
         seen.add(key)
-        onHit({ ...base, source: message.role, snippet })
+        onHit({ ...base, source: message.role, snippet, messageId: message.id })
         hits += 1
         if (hits >= maxHits) {
           return { hits, truncated: true }

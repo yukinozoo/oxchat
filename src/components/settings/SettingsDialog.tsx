@@ -49,6 +49,8 @@ import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
 import { WebsiteImportEntry } from './WebsiteImportEntry.js'
+/** 官网登录导入暂时下线：入口隐藏，组件与解析代码保留，需要时把开关改回 true */
+const WEBSITE_IMPORT_ENABLED = false
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
 import { ChatSettings } from './ChatSettings.js'
 import { LinkImportEntry } from './LinkImportEntry.js'
@@ -342,7 +344,7 @@ const SettingsContent = () => {
           ) : section === 'data' ? (
             <>
               {isNativePlatform() ? null : <StorageCard />}
-              <WebsiteImportEntry disabled={historyBusy} />
+              {WEBSITE_IMPORT_ENABLED ? <WebsiteImportEntry disabled={historyBusy} /> : null}
               <LinkImportEntry disabled={historyBusy} />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
