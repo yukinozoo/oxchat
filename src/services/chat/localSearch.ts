@@ -26,10 +26,11 @@ export type SessionSearchResult = {
 const SNIPPET_BEFORE = 18
 const SNIPPET_AFTER = 34
 /**
- * 默认结果上限：列表是异步追加渲染的，几百条已经很够用；
- * 命中上限时返回 truncated，界面提示「细化关键词」，而不是静默截断。
+ * 默认结果上限。实测 2000 会话 / 2 万命中全库扫描只要几十毫秒（内存存储），
+ * 真正的代价在列表渲染，所以上限开到 3000，界面再分页渲染。
+ * 命中上限时返回 truncated，提示「细化关键词」，而不是静默截断。
  */
-export const DEFAULT_MAX_HITS = 1000
+export const DEFAULT_MAX_HITS = 3000
 
 /**
  * 助手消息的可读文本：正文 + 思考过程。

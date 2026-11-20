@@ -14,9 +14,15 @@ import {
 } from '../base/icons.js'
 import { requestJumpToMessage } from '../messages/jumpTarget.js'
 import { closeMobileSider } from './mobileSiderState.js'
+import { setSessionSearchQuery, useSessionSearch } from './sessionSearchState.js'
 import styles from './SessionSearch.module.css'
 
 const DEBOUNCE_MS = 200
+/** 命中是流式来的：攒一小批再刷，避免每命中一条就整表重渲染 */
+const FLUSH_MS = 80
+/** 结果列表首屏条数与每次续载条数（结果多时只渲染视口附近，不铺几千行） */
+const RESULT_PAGE = 100
+const RESULT_STEP = 100
 
 /** 搜索结果行的日期：中文用「9月22日」，其它语言用短日期 */
 const shortDate = (time: number, locale: string) => {
@@ -30,13 +36,54 @@ const shortDate = (time: number, locale: string) => {
 export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
   const t = useTranslate()
   const locale = useSettings((state) => state.locale)
-  const [query, setQuery] = useState('')
+  // 关键词存在全局：从对话右滑回侧栏时还是原来那批结果
+  const query = useSessionSearch((state) => state.query)
+  const setQuery = setSessionSearchQuery
   const [hits, setHits] = useState<SessionSearchHit[]>([])
   const [searching, setSearching] = useState(false)
   /** 命中上限被截断时的提示条数；null 表示没有截断 */
   const [truncated, setTruncated] = useState<number | null>(null)
+  /** 已渲染的结果条数：滚动到底部再续一批 */
+  const [limit, setLimit] = useState(RESULT_PAGE)
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelRef = useRef<(() => void) | null>(null)
+  /** 命中缓冲：定时整批刷进 state */
+  const bufferRef = useRef<SessionSearchHit[]>([])
+  const flushTimerRef = useRef<number | null>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
+
+  const flushHits = () => {
+    if (bufferRef.current.length === 0) {
+      return
+    }
+    const batch = bufferRef.current
+    bufferRef.current = []
+    setHits((previous) => [...previous, ...batch])
+  }
+  const scheduleFlush = () => {
+    if (flushTimerRef.current !== null) {
+      return
+    }
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null
+      flushHits()
+    }, FLUSH_MS)
+  }
+  /** 立刻把缓冲刷出去（搜索结束时用，别丢最后一批命中） */
+  const flushNow = () => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    flushHits()
+  }
+  const clearFlush = () => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    bufferRef.current = []
+  }
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -51,7 +98,9 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
       setTruncated(null)
       return
     }
+    clearFlush()
     setHits([])
+    setLimit(RESULT_PAGE)
     setSearching(true)
     setTruncated(null)
     /** 本轮是否已被新查询取代：被取代后不再追加命中、不改搜索结果状态 */
@@ -59,14 +108,18 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
     // 输入停顿后再扫库，避免每敲一个字都全量读一遍
     const timer = setTimeout(() => {
       const round = searchSessions(trimmed, (hit) => {
-        if (!stale) {
-          setHits((previous) => [...previous, hit])
+        if (stale) {
+          return
         }
+        bufferRef.current.push(hit)
+        scheduleFlush()
       })
       cancelRef.current = round.cancel
       void round.done
         .then((result) => {
           if (!stale) {
+            // 收尾时把缓冲区里剩下的命中一次性刷出来
+            flushNow()
             setTruncated(result.truncated ? result.hits : null)
           }
         })
@@ -79,19 +132,22 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
     return () => {
       stale = true
       clearTimeout(timer)
+      clearFlush()
       cancelRef.current?.()
       cancelRef.current = null
     }
   }, [query])
 
-  /** 打开会话并滚到命中的那条消息；标题命中（messageId 为空）只打开会话 */
+  /**
+   * 打开会话并滚到命中的那条消息；标题命中（messageId 为空）只打开会话。
+   * 注意这里**不退出搜索界面**：右滑回侧栏时用户要能接着看这批结果。
+   */
   const open = (hit: SessionSearchHit) => {
     selectSession(hit.sessionId)
     if (hit.messageId) {
       requestJumpToMessage(hit.sessionId, hit.messageId)
     }
     closeMobileSider()
-    onBack()
   }
 
   // 挂到 body：抽屉可能带 transform/overflow，会把 fixed 层限制在抽屉内部
@@ -137,8 +193,20 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
         </div>
       </div>
 
-      <div className={styles.results}>
-        {hits.map((hit, index) => (
+      <div
+        ref={resultsRef}
+        className={styles.results}
+        onScroll={(event) => {
+          const element = event.currentTarget
+          if (
+            hits.length > limit &&
+            element.scrollHeight - element.scrollTop - element.clientHeight < 320
+          ) {
+            setLimit((current) => current + RESULT_STEP)
+          }
+        }}
+      >
+        {hits.slice(0, limit).map((hit, index) => (
           <button
             type="button"
             // 同一会话可能有多条命中，键里带上序号
@@ -158,6 +226,15 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             </span>
           </button>
         ))}
+        {hits.length > limit ? (
+          <button
+            type="button"
+            className={styles.hint}
+            onClick={() => setLimit((current) => current + RESULT_STEP)}
+          >
+            {t('searchLoadMore', { count: hits.length - limit })}
+          </button>
+        ) : null}
         {truncated !== null ? (
           <div className={styles.hint}>{t('searchSessionsTruncated', { count: truncated })}</div>
         ) : null}

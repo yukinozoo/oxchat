@@ -55,6 +55,7 @@ import {
   type SessionFolder,
 } from '../../services/chat/folders.js'
 import { SessionSearch } from './SessionSearch.js'
+import { closeSessionSearch, openSessionSearch, useSessionSearch } from './sessionSearchState.js'
 import styles from './Sider.module.css'
 
 /** 首屏挂载的会话条数与每次续载条数：几千条会话全量挂载会把低端机拖到个位数帧率 */
@@ -178,8 +179,9 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
       setLimit((current) => current + SIDER_PAGE)
     }
   }, [views.hasMore, views.shown, limit])
-  const [searching, setSearching] = useState(false)
-  useAndroidBackHandler(mobile && searching, () => setSearching(false))
+  // 搜索界面状态放在全局：手机端抽屉关闭会卸载整棵侧栏，回来时要还在搜索结果上
+  const searching = useSessionSearch((state) => state.active)
+  useAndroidBackHandler(mobile && searching, closeSessionSearch)
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const exitEditing = () => {
@@ -276,7 +278,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
     // 搜索是独立界面：不再渲染侧边栏列表，避免两层内容叠在一起
     return (
       <div className={clsx(styles.sider, mobile && styles.mobile)}>
-        <SessionSearch onBack={() => setSearching(false)} />
+        <SessionSearch onBack={closeSessionSearch} />
       </div>
     )
   }
@@ -324,7 +326,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         </div>
       </div>
       {editing ? null : (
-        <button type="button" className={styles.searchEntry} onClick={() => setSearching(true)}>
+        <button type="button" className={styles.searchEntry} onClick={openSessionSearch}>
           <IconSearchOutline16 />
           <span className={styles.searchEntryLabel}>{t('searchSessionsPlaceholder')}</span>
         </button>

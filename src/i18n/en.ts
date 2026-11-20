@@ -82,6 +82,7 @@ export const en = {
   loadEarlierMessages: 'Load earlier messages ({count} left)',
   loadLaterMessages: 'Load later messages ({count} left)',
   jumpToFirstHint: 'Double-tap to jump to the first message',
+  searchLoadMore: 'Load more results ({count} left)',
   searchSessionsTruncated: 'Showing the first {count} matches — add a more specific keyword',
   modelSwitch: 'Change model',
   deleteSessionModalContentTitle: 'Delete chat?',
@@ -412,6 +413,8 @@ export const en = {
 
 
   settingsCheckUpdate: 'Check for updates',
+  settingsDownloadAndroid: 'Download for Android',
+  settingsDownloadAndroidValue: 'APK',
   updateChecking: 'Checking…',
   updateLatest: 'Up to date',
   updateFound: 'New version {version}',

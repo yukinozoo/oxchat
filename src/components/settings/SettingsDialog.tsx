@@ -56,6 +56,7 @@ import { ChatSettings } from './ChatSettings.js'
 import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
+import { downloadAndroidApk } from '../../services/androidDownload.js'
 import {
   canStreamExport,
   streamExportToFile,
@@ -308,7 +309,15 @@ const SettingsContent = () => {
                       }
                       onClick={() => void checkUpdate()}
                     />
-                  ) : null}
+                  ) : (
+                    // 网页版没有安装包可检查，改成引导去下 Android 版（走 gh-proxy 转发）
+                    <NavRow
+                      icon={<IconDownloadOutline16 />}
+                      label={t('settingsDownloadAndroid')}
+                      value={t('settingsDownloadAndroidValue')}
+                      onClick={downloadAndroidApk}
+                    />
+                  )}
                 </div>
               </div>
               {apiKey ? (

@@ -77,6 +77,7 @@ export const zh = {
   loadEarlierMessages: '加载更早的消息（还有 {count} 条）',
   loadLaterMessages: '加载后续消息（还有 {count} 条）',
   jumpToFirstHint: '双击这里回到第 1 条',
+  searchLoadMore: '加载更多结果（还有 {count} 条）',
   searchSessionsTruncated: '命中已到上限 {count} 条，只显示前面的结果，加个更具体的词再搜',
   modelSwitch: '切换模型',
   deleteSessionModalContentTitle: '永久删除对话',
@@ -394,6 +395,8 @@ export const zh = {
 
 
   settingsCheckUpdate: '检查更新',
+  settingsDownloadAndroid: '下载 Android 版',
+  settingsDownloadAndroidValue: 'APK',
   updateChecking: '检查中…',
   updateLatest: '已是最新',
   updateFound: '新版本 {version}',
