@@ -232,6 +232,7 @@ export const zh = {
   historyImportCount: '{done} / {total} 个对话',
   historyImportCountUnknown: '已处理 {done} 个对话',
   historyImportBackground: '后台继续',
+  importBusyHint: '正在导入历史对话，导入完成前不能发送消息',
   importProgressLabel: '正在导入历史对话 · 已读取 {done}/{total} 个会话',
   importProgressCounting: '正在导入历史对话 · 已处理 {done} 个会话',
   historyImportStop: '停止导入',

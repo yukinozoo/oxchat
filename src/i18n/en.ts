@@ -245,6 +245,7 @@ export const en = {
   historyImportCount: '{done} / {total} chats',
   historyImportCountUnknown: 'Processed {done} chats',
   historyImportBackground: 'Continue in background',
+  importBusyHint: 'History import in progress — you can send again once it finishes',
   importProgressLabel: 'Importing history · {done}/{total} chats read',
   importProgressCounting: 'Importing history · {done} chats processed',
   historyImportStop: 'Stop import',

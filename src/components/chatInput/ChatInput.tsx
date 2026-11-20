@@ -37,6 +37,7 @@ import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
+import { insertNewline, resolveEnterAction, useImeGuard } from './enterKey.js'
 import styles from './ChatInput.module.css'
 
 /** 持久化存储只申请一次，避免每次发送都打扰浏览器 */
@@ -73,6 +74,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const [attachSheetOpen, setAttachSheetOpen] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  /** 输入法组词守卫：Android WebView 只在组词时给 keyCode 229，iOS 只给 isComposing */
+  const ime = useImeGuard()
   const togglesRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -93,7 +96,14 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }, [t])
 
   const acceptFiles = (files: File[]) => {
-    if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
+    if (files.length === 0) {
+      return
+    }
+    if (useChatStore.getState().importingHistory) {
+      showToast({ key: 'importBusyHint' })
+      return
+    }
+    if (!ensureApiKey()) {
       return
     }
     const error = addDraftFiles(sessionId, files, useSettings.getState().apiKey ?? '')
@@ -151,8 +161,12 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
 
   const send = () => {
+    if (useChatStore.getState().importingHistory) {
+      // 导入会整体替换历史并中止正在生成的回答，这里明确告诉用户为什么发不出去
+      showToast({ key: 'importBusyHint' })
+      return
+    }
     if (
-      useChatStore.getState().importingHistory ||
       voice.status !== 'idle' ||
       !prepareDraftMessage(getDraft(sessionId), useUploads.getState().tasks)
     ) {
@@ -210,9 +224,14 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       <div
         className={clsx(styles.wrapper, sessionId === null ? styles.home : styles.session)}
         onClick={(event) => {
-          if (event.target === event.currentTarget) {
-            textareaRef.current?.focus({ preventScroll: true })
+          if (event.target !== event.currentTarget) {
+            return
           }
+          if (importingHistory) {
+            showToast({ key: 'importBusyHint' })
+            return
+          }
+          textareaRef.current?.focus({ preventScroll: true })
         }}
       >
         <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
@@ -223,14 +242,13 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             className={clsx(styles.textarea, recording && isMobile && styles.textareaHidden)}
             placeholder={t('chatInputPlaceholderChat')}
             rows={2}
-            // 软键盘回车键显示「确定」而不是换行箭头；按下即发送（onKeyDown 已处理）
-            enterKeyHint="done"
+            // 软键盘回车显示「换行」：手机上回车换行、发送只走按钮（onKeyDown 里统一处理）
+            enterKeyHint="enter"
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
             // 移动端不自动聚焦，避免一打开就弹出键盘
             autoFocus={!isMobile}
-            disabled={importingHistory}
             value={text}
             onChange={(event) => setText(event.target.value)}
             onMouseDown={(event) => {
@@ -244,10 +262,32 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
                 event.currentTarget.focus({ preventScroll: true })
               }
             }}
+            {...ime.compositionHandlers}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              const action = resolveEnterAction({
+                key: event.key,
+                shiftKey: event.shiftKey,
+                imeActive: ime.isImeActive(event.nativeEvent),
+                softKeyboard: isMobile,
+              })
+              if (action === 'send') {
                 event.preventDefault()
                 send()
+                return
+              }
+              if (action === 'newline') {
+                // 自己插换行：软键盘的默认「确定」在部分 WebView 里会直接收起键盘
+                event.preventDefault()
+                const textarea = event.currentTarget
+                const next = insertNewline(
+                  textarea.value,
+                  textarea.selectionStart ?? textarea.value.length,
+                  textarea.selectionEnd ?? textarea.value.length
+                )
+                setText(next.text)
+                requestAnimationFrame(() => {
+                  textarea.setSelectionRange(next.caret, next.caret)
+                })
               }
             }}
             onPaste={(event) => {

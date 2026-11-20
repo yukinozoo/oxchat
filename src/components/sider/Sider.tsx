@@ -602,7 +602,8 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               setFolderPrompt((current) => (current ? { ...current, name: event.target.value } : current))
             }
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && folderPrompt.name.trim()) {
+              // 输入法组词中的回车是选候选词，不提交
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing && folderPrompt.name.trim()) {
                 event.preventDefault()
                 if (folderPrompt.mode === 'create') {
                   createFolder(folderPrompt.name)

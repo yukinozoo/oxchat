@@ -9,6 +9,7 @@ import type { UserMessage as UserMessageType } from '../../services/chat/types.j
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { ensureApiKey } from '../settings/settingsDialogState.js'
+import { resolveEnterAction, useImeGuard } from '../chatInput/enterKey.js'
 import {
   BranchSwitcher,
   type MessageVersions,
@@ -44,6 +45,7 @@ export const UserMessage = memo(function UserMessage({
   const [draft, setDraft] = useState(message.content)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMobile = useIsMobile()
+  const ime = useImeGuard()
   const canSend = !busy && (draft.trim() !== '' || message.files.length > 0)
 
   useLayoutEffect(() => {
@@ -89,17 +91,26 @@ export const UserMessage = memo(function UserMessage({
             rows={1}
             value={draft}
             disabled={busy}
+            // 软键盘回车换行、发送走按钮；桌面回车保存、Shift+Enter 换行
+            enterKeyHint="enter"
             onChange={(event) => setDraft(event.target.value)}
+            {...ime.compositionHandlers}
             onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) {
-                return
-              }
               if (event.key === 'Escape') {
                 setEditing(false)
-              } else if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !isMobile) {
+                return
+              }
+              const action = resolveEnterAction({
+                key: event.key,
+                shiftKey: event.shiftKey,
+                imeActive: ime.isImeActive(event.nativeEvent),
+                softKeyboard: isMobile,
+              })
+              if (action === 'send') {
                 event.preventDefault()
                 sendEdit()
               }
+              // newline / native：交给浏览器原生插入换行，编辑框不再自绘
             }}
           />
           <div className={styles.editorActions}>

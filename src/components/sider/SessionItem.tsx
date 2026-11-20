@@ -89,6 +89,7 @@ export const SessionItem = memo(function SessionItem({
         onBlur={(event) => finish(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            event.preventDefault()
             finish(event.currentTarget.value)
           } else if (event.key === 'Escape') {
             setEditing(false)
