@@ -5,9 +5,10 @@ import {
   getVisibleMessages,
   type MessageVersions,
 } from '../../services/chat/branches.js'
-import { selectMessageVersion } from '../../services/chat/store.js'
+import { revealSessionMessage, selectMessageVersion } from '../../services/chat/store.js'
 import type { Session } from '../../services/chat/types.js'
 import { closeSearchPanel } from '../search/searchPanelState.js'
+import { showToast } from '../base/toastState.js'
 import { IconArrowDownOutline20 } from '../base/icons.js'
 import { useTranslate } from '../../i18n/index.js'
 import { AssistantMessage } from './AssistantMessage.js'
@@ -279,43 +280,62 @@ export const MessageList = ({
     setRange({ sessionId: session.id, start: nextStart, end: nextEnd })
   }, [session.id, startIndex, endIndex, total])
 
-  /** 把窗口摆到目标消息附近，渲染后滚到它并短暂高亮 */
-  const jumpToMessage = useCallback(
-    (messageId: string) => {
-      const index = messages.findIndex((message) => message.id === messageId)
-      if (index < 0) {
-        return
-      }
-      stickyRef.current = false
-      anchorRef.current = null
-      pendingHitRef.current = messageId
-      setRange({
-        sessionId: session.id,
-        ...windowAround(index, total, WINDOW_PAGE, WINDOW_MAX),
-      })
-    },
-    [messages, session.id, total]
-  )
+  /** 待定位的消息：找不到时会先切分支（revealSessionMessage），再等它可见 */
+  const [pendingJumpId, setPendingJumpId] = useState<string | null>(null)
+  /** 已经尝试过切分支的 id：避免找不到时无限循环 */
+  const revealedRef = useRef(new Set<string>())
 
-  // 挂载/切会话时先消费待办：搜索面板可能比列表先动作
+  // 挂载时先消费一次性待办：搜索面板可能比列表先动作
   useEffect(() => {
     const target = takeJumpTarget(session.id)
     if (target) {
-      jumpToMessage(target)
+      setPendingJumpId(target)
     }
-    // 只处理当前会话的一次性跳转
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id, total])
+  }, [session.id])
 
+  // 已经在看这个会话时，订阅后续的跳转请求
   useEffect(
     () =>
       onJumpTarget((target) => {
         if (target.sessionId === session.id) {
-          jumpToMessage(target.messageId)
+          setPendingJumpId(target.messageId)
         }
       }),
-    [session.id, jumpToMessage]
+    [session.id]
   )
+
+  /**
+   * 定位到目标消息：
+   * 1. 在当前可见消息里 → 摆窗口、滚过去、高亮；
+   * 2. 不在可见消息里 → 先把分支链切到它（老版本 / 别的分支），等重渲染再来一次；
+   * 3. 切过还找不到 → 说明这条消息不在这个会话里，给个明确提示。
+   */
+  useEffect(() => {
+    if (!pendingJumpId) {
+      return
+    }
+    const index = messages.findIndex((message) => message.id === pendingJumpId)
+    if (index >= 0) {
+      stickyRef.current = false
+      anchorRef.current = null
+      pendingHitRef.current = pendingJumpId
+      setRange({
+        sessionId: session.id,
+        ...windowAround(index, total, WINDOW_PAGE, WINDOW_MAX),
+      })
+      setPendingJumpId(null)
+      return
+    }
+    if (!revealedRef.current.has(pendingJumpId)) {
+      revealedRef.current.add(pendingJumpId)
+      revealSessionMessage(session.id, pendingJumpId)
+      // 换了分支得说一声，否则用户不知道自己现在在另一条分支上
+      showToast({ key: 'jumpSwitchedBranch' })
+      return
+    }
+    setPendingJumpId(null)
+    showToast({ key: 'jumpTargetMissing' })
+  }, [pendingJumpId, messages, total, session.id])
 
   // 渲染完成后再滚到目标消息；dom 里靠 data-message-id 定位
   useLayoutEffect(() => {
@@ -330,9 +350,17 @@ export const MessageList = ({
       return
     }
     pendingHitRef.current = null
-    // 部分内嵌 WebView 没有 scrollIntoView，降级为直接改滚动位置
     if (typeof node.scrollIntoView === 'function') {
       node.scrollIntoView({ block: 'center' })
+    } else {
+      // 兜底：老 WebView 没有 scrollIntoView，直接按偏移居中
+      const scroll = scrollRef.current
+      if (scroll) {
+        scroll.scrollTop = Math.max(
+          0,
+          node.offsetTop - scroll.clientHeight / 2 + node.offsetHeight / 2
+        )
+      }
     }
     setHighlightId(messageId)
   }, [range])

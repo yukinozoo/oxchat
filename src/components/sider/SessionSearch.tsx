@@ -14,7 +14,11 @@ import {
 } from '../base/icons.js'
 import { requestJumpToMessage } from '../messages/jumpTarget.js'
 import { closeMobileSider } from './mobileSiderState.js'
-import { setSessionSearchQuery, useSessionSearch } from './sessionSearchState.js'
+import {
+  setSearchResults,
+  setSessionSearchQuery,
+  useSessionSearch,
+} from './sessionSearchState.js'
 import styles from './SessionSearch.module.css'
 
 const DEBOUNCE_MS = 200
@@ -58,7 +62,16 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
     }
     const batch = bufferRef.current
     bufferRef.current = []
-    setHits((previous) => [...previous, ...batch])
+    setHits((previous) => {
+      const next = [...previous, ...batch]
+      // 边搜边存：搜索中途离开也不会丢这批结果
+      setSearchResults({
+        query: useSessionSearch.getState().query.trim(),
+        hits: next,
+        truncated: useSessionSearch.getState().results?.truncated ?? null,
+      })
+      return next
+    })
   }
   const scheduleFlush = () => {
     if (flushTimerRef.current !== null) {
@@ -98,6 +111,17 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
       setTruncated(null)
       return
     }
+    // 同一关键词已有结果：直接铺上次那批，不重跑、不闪空态
+    const cached = useSessionSearch.getState().results
+    if (cached && cached.query === trimmed && cached.hits.length > 0) {
+      setHits(cached.hits)
+      setTruncated(cached.truncated)
+      setSearching(false)
+      setLimit(RESULT_PAGE)
+      return () => {
+        // 卸载不需要做任何清理：这批结果留在全局状态里
+      }
+    }
     clearFlush()
     setHits([])
     setLimit(RESULT_PAGE)
@@ -121,6 +145,13 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             // 收尾时把缓冲区里剩下的命中一次性刷出来
             flushNow()
             setTruncated(result.truncated ? result.hits : null)
+            // 存一份给「下次打开搜索」直接复用
+            const state = useSessionSearch.getState()
+            setSearchResults({
+              query: trimmed,
+              hits: state.results?.query === trimmed ? state.results.hits : [],
+              truncated: result.truncated ? result.hits : null,
+            })
           }
         })
         .finally(() => {
@@ -241,7 +272,9 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
         {!query.trim() ? null : searching ? (
           <div className={styles.hint}>{t('searchSessionsSearching')}</div>
         ) : hits.length === 0 ? (
-          <div className={styles.hint}>{t('searchSessionsEmpty')}</div>
+          <div className={styles.hint}>
+            {t('searchSessionsEmptyKeyword', { query: query.trim() })}
+          </div>
         ) : null}
       </div>
     </div>,

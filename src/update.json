@@ -1,9 +1,9 @@
 {
-  "versionCode": 72,
-  "versionName": "0.1.72",
-  "size": 5165169,
-  "sha256": "9ef0b049788184451dd1fb7b1658d7078f1300c3b5570203389fd60cea22c04a",
-  "notes": "0.1.72：精简输入区（深度思考按钮与思考强度重复已移除）、智能搜索移到模型面板、个性化新增「打开回到上次对话」",
+  "versionCode": 73,
+  "versionName": "0.1.73",
+  "size": 5166049,
+  "sha256": "aa069068ee276f18f782c04c3cd011810f6f02bac262ea830827f8533d51edda",
+  "notes": "0.1.73：搜索覆盖全部分支，点结果自动切到命中分支并定位高亮（可点 1/2 切回）；搜索结果缓存回来不闪空、空态带上关键词",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

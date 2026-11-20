@@ -1,4 +1,3 @@
-import { getVisibleMessages } from './branches.js'
 import * as db from './db.js'
 import { useChatStore } from './store.js'
 import type { AssistantMessage, Message, SessionSummary, UserMessage } from './types.js'
@@ -115,8 +114,8 @@ export const searchSessions = (
       if (!session || cancelled) {
         continue
       }
-      // 只搜当前显示的分支：session.messages 里还留着被切换下去的版本
-      for (const message of getVisibleMessages(session)) {
+      // 搜全部消息：被切下去的分支也算「对话内容」，命中后跳转会先把分支切回来
+      for (const message of session.messages) {
         const text = messageText(message)
         if (!text) {
           continue

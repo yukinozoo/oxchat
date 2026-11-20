@@ -101,6 +101,47 @@ export const appendBranch = (
 }
 
 /** 仅允许切换当前路径上某一节点的兄弟版本，恢复该版本已选中的后续分支。 */
+/**
+ * 把任意一条消息变成「可见」：沿 parentId 链逐层把 selectedChildId 指向它，
+ * 并把这条消息的子节点收起来。用于搜索结果跳到被切下去的老版本上。
+ */
+export const revealMessage = (original: Session, messageId: string): Session => {
+  const session = normalizeSession(original)
+  const byId = new Map(session.messages.map((message) => [message.id, message]))
+  const target = byId.get(messageId)
+  if (!target) {
+    return original
+  }
+  // 从目标往上走到根，得到 根 → … → 目标 的完整路径
+  const parentOf = (message: Message): Message | undefined => {
+    const parentId = message.parentId
+    return parentId === null || parentId === undefined ? undefined : byId.get(parentId)
+  }
+  const chain: Message[] = []
+  const seen = new Set<string>()
+  let cursor: Message | undefined = target
+  while (cursor !== undefined) {
+    if (seen.has(cursor.id)) {
+      return original
+    }
+    seen.add(cursor.id)
+    chain.unshift(cursor)
+    cursor = parentOf(cursor)
+  }
+  const nextOf = new Map<string, string | undefined>()
+  for (const [index, message] of chain.entries()) {
+    const next = chain[index + 1]
+    nextOf.set(message.id, next === undefined ? undefined : next.id)
+  }
+  return {
+    ...session,
+    rootMessageId: chain[0]?.id ?? session.rootMessageId ?? null,
+    messages: session.messages.map((message) =>
+      nextOf.has(message.id) ? { ...message, selectedChildId: nextOf.get(message.id) } : message
+    ),
+  }
+}
+
 export const selectVersion = (original: Session, messageId: string): Session => {
   const session = normalizeSession(original)
   const message = session.messages.find((item) => item.id === messageId)

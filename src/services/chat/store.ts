@@ -6,7 +6,13 @@ import { DEFAULT_MODEL, type ChatModel, type CreateMessageRequest } from '../api
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { currentSystemPrompt, effortOfDepth, useSettings } from '../settings.js'
-import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
+import {
+  appendBranch,
+  getVisibleMessages,
+  normalizeSession,
+  revealMessage,
+  selectVersion,
+} from './branches.js'
 import { canCompact, getCompactPlan } from './compact.js'
 import { modelCaps } from '../modelCaps.js'
 import { messageTokens, prepareContext, summarizeMessages } from './context.js'
@@ -911,6 +917,15 @@ export const editMessage = (sessionId: string, messageId: string, content: strin
   persist(sessionId)
   void streamReply(sessionId, reply, { history: path.slice(0, index), question })
   return true
+}
+
+/** 跳到某条不在当前分支上的消息：先把分支链切过来 */
+export const revealSessionMessage = (sessionId: string, messageId: string) => {
+  if (get().importingHistory || deletingSessions.has(sessionId) || getStreamController(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (session) => revealMessage(session, messageId))
+  persist(sessionId)
 }
 
 export const selectMessageVersion = (sessionId: string, messageId: string) => {
