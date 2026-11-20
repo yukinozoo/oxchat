@@ -1,9 +1,9 @@
 {
-  "versionCode": 73,
-  "versionName": "0.1.73",
-  "size": 5166049,
-  "sha256": "aa069068ee276f18f782c04c3cd011810f6f02bac262ea830827f8533d51edda",
-  "notes": "0.1.73：搜索覆盖全部分支，点结果自动切到命中分支并定位高亮（可点 1/2 切回）；搜索结果缓存回来不闪空、空态带上关键词",
+  "versionCode": 74,
+  "versionName": "0.1.74",
+  "size": 5168754,
+  "sha256": "65a0a98a54db561b5cbff4715f4b78361bc2bd4032896728eb8337cc1d172177",
+  "notes": "0.1.74：导入超长对话会提示先手动压缩（选择权在用户）+ 自动摘要加缓存（长会话不再每轮重复总结）+ PWA 离线/主屏支持",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

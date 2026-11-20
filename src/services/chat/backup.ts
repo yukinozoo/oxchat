@@ -110,7 +110,7 @@ export const exportHistoryStream = (
 export const importHistory = (
   file: File,
   onProgress?: (done: number, total: number) => void
-): Promise<{ imported: number; skipped: number }> =>
+): Promise<{ imported: number; skipped: number; maxTokens: number }> =>
   enqueueBackup(async () => {
     const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
     const { countArchiveSessions } = await import('./history/zipReader.js')
@@ -132,7 +132,7 @@ export const importHistory = (
           }),
         'merge'
       )
-      return result as { imported: number; skipped: number }
+      return result as { imported: number; skipped: number; maxTokens: number }
     } finally {
       endImportJob()
     }
@@ -151,7 +151,7 @@ export const importSelectedSessions = (
     skipFiles?: boolean
     cleanMissing?: boolean
   } = {}
-): Promise<{ imported: number; skipped: number }> =>
+): Promise<{ imported: number; skipped: number; maxTokens: number }> =>
   enqueueBackup(async () => {
     const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
     beginImportJob(ids.size)
@@ -173,7 +173,7 @@ export const importSelectedSessions = (
           }),
         'merge'
       )
-      return result as { imported: number; skipped: number }
+      return result as { imported: number; skipped: number; maxTokens: number }
     } finally {
       endImportJob()
     }

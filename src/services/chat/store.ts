@@ -1284,7 +1284,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         persist(sessionId)
         // 发送前按「对话设置」整理历史：必要时自动压缩，再按上下文窗口裁剪
         const apiKey = useSettings.getState().apiKey ?? ''
-        const context = await prepareContext(prepared.history, apiKey, controller.signal)
+        const context = await prepareContext(prepared.history, apiKey, controller.signal, {
+          cacheKey: sessionId,
+        })
         const messages = toRequestMessages(
           context,
           prepared.question,

@@ -7,6 +7,7 @@ import {
 } from '../../services/chat/backup.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { BackupError } from '../../services/chat/history/errors.js'
+import { shouldSuggestCompact } from '../../services/chat/compactHint.js'
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
@@ -35,6 +36,8 @@ export const ArchiveImportDialog = ({
   const [keyword, setKeyword] = useState('')
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** 导入的超长对话 token 估算：>0 时弹「建议手动压缩」提示 */
+  const [longTokens, setLongTokens] = useState<number | null>(null)
   /** 默认跳过图片附件：几百兆的整包里图片通常占绝大部分 */
   const [skipFiles, setSkipFiles] = useState(true)
   /** 默认开启：失效的图片引用直接清理并补占位，避免整条会话失败 */
@@ -118,6 +121,10 @@ export const ArchiveImportDialog = ({
           : { key: 'websiteImportedNothing' }
       )
       onDone?.({ imported: result.imported, skipped: result.skipped })
+      // 超长对话：不自动压缩，只提示用户去模型面板手动点「压缩」
+      if (shouldSuggestCompact(result.maxTokens)) {
+        setLongTokens(result.maxTokens)
+      }
       onClose()
     } catch (e) {
       setStage('list')
@@ -136,6 +143,7 @@ export const ArchiveImportDialog = ({
   const addable = sessions.filter((item) => !isExisting(item.id)).length
 
   return (
+    <>
     <Modal
       title={t('archiveImportTitle')}
       className={styles.dialog}
@@ -250,5 +258,20 @@ export const ArchiveImportDialog = ({
         </>
       ) : null}
     </Modal>
+    {longTokens !== null ? (
+      <Modal
+        title={t('longImportTitle')}
+        closable
+        onClose={() => setLongTokens(null)}
+        footer={
+          <Button size="m" onClick={() => setLongTokens(null)}>
+            {t('longImportAction')}
+          </Button>
+        }
+      >
+        <p className={styles.lead}>{t('longImportBody', { tokens: longTokens })}</p>
+      </Modal>
+    ) : null}
+    </>
   )
 }

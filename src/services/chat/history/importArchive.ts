@@ -1,3 +1,4 @@
+import { historyTokens } from '../context.js'
 import * as db from '../db.js'
 import type { Session } from '../types.js'
 import { BackupError, fail } from './errors.js'
@@ -149,10 +150,17 @@ export type ImportOptions = {
  * 会话读完立即暂存，只保留图片路径映射；图片全部读完后逐会话回填 MIME，不改变图片身份。
  * 写入导入暂存存储；调用方负责先清空暂存，成功后提交，失败时清理暂存。
  */
+export type ImportResult = {
+  imported: number
+  skipped: number
+  /** 本次导入里最长那条对话的 token 估算，用来提示用户手动压缩 */
+  maxTokens: number
+}
+
 export const importArchive = async (
   file: File,
   options: ImportOptions = {}
-): Promise<{ imported: number; skipped: number }> => {
+): Promise<ImportResult> => {
   cancelRequested = false
   if (!(await isZipFile(file))) {
     fail('backupUnrecognized')
@@ -166,6 +174,8 @@ export const importArchive = async (
   /** 已见过的会话（导入 + 跳过），用于图片路由与 index 校验 */
   const known = new Set<string>()
   let skipped = 0
+  /** 最长会话的 token 估算：导入完用来决定要不要提示手动压缩 */
+  let maxTokens = 0
   let done = 0
   let lastReportAt = 0
   /**
@@ -278,6 +288,7 @@ export const importArchive = async (
         if (parsed.hasFiles) {
           sessionsWithFiles.add(sessionId)
         }
+        maxTokens = Math.max(maxTokens, historyTokens(parsed.session.messages))
         pendingSessions.push(
           available === undefined
             ? parsed.session
@@ -347,5 +358,5 @@ export const importArchive = async (
     fail('historyImportStorageFailed')
   }
   report(true)
-  return { imported: imported.size, skipped }
+  return { imported: imported.size, skipped, maxTokens }
 }

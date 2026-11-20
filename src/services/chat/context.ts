@@ -53,6 +53,62 @@ export const fitTail = (history: Message[], budget: number): Message[] => {
   return kept
 }
 
+/**
+ * 自动压缩的摘要缓存：同一会话、同一段 head 内容只总结一次。
+ * 自动压缩是「请求级」的，原来的实现每发一句都会把同一段历史重新总结一遍，
+ * 长会话连续聊会白白多花 N 次模型调用。这里按「会话 + 内容指纹」缓存结果。
+ */
+const summaryCache = new Map<string, { signature: string; summary: string }>()
+/** 最多记住多少个会话的摘要，避免长跑内存涨 */
+const SUMMARY_CACHE_LIMIT = 20
+
+/** head 的内容指纹：id / 角色 / 长度 / token 估算都参与，内容变了就失效 */
+const signatureOf = (messages: Message[], extra = ''): string => {
+  let hash = 2166136261
+  const feed = (text: string) => {
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index)
+      hash = Math.imul(hash, 16777619)
+    }
+  }
+  for (const message of messages) {
+    const body = message.role === 'assistant' ? getReplyText(message) : message.content
+    const summaryLength = message.role === 'user' ? (message.summary?.length ?? 0) : 0
+    feed(`${message.id}|${message.role}|${body.length}|${summaryLength}|`)
+    feed(String(messageTokens(message)))
+  }
+  feed(extra)
+  return `${messages.length}:${(hash >>> 0).toString(36)}`
+}
+
+const cachedSummary = (key: string | undefined, signature: string): string | undefined => {
+  if (!key) {
+    return undefined
+  }
+  const hit = summaryCache.get(key)
+  return hit?.signature === signature ? hit.summary : undefined
+}
+
+const rememberSummary = (key: string | undefined, signature: string, summary: string): void => {
+  if (!key) {
+    return
+  }
+  summaryCache.delete(key)
+  summaryCache.set(key, { signature, summary })
+  while (summaryCache.size > SUMMARY_CACHE_LIMIT) {
+    const oldest = summaryCache.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    summaryCache.delete(oldest)
+  }
+}
+
+/** 冒烟用：清掉缓存 */
+export const clearSummaryCache = (): void => {
+  summaryCache.clear()
+}
+
 /** 摘要提示：留下继续对话需要的信息，避免摘要本身再次膨胀 */
 export const COMPACT_INSTRUCTION = `把下面这段对话压缩成一份简洁的中文摘要，供同一个助手在后续轮次继续对话时使用。
 要求：保留用户的目标、已确认的决定、关键事实与数据、待办与未解决的问题；代码、命令、路径、文件名和报错原文按原样保留；去掉寒暄、重复内容和推理过程；用 Markdown 列表组织，控制在 400 字以内，不要任何前言或结语。`
@@ -152,10 +208,18 @@ const withSummary = (messages: Message[], summary: string): Message[] => {
  * - 随后按上下文窗口裁掉最早的部分。
  * 摘要是请求级的，不改动会话记录；压缩失败时退回按窗口裁剪，不阻断本轮。
  */
+export type PrepareContextOptions = {
+  /** 会话 id：作为摘要缓存的键 */
+  cacheKey?: string
+  /** 测试注入：默认走真实模型调用 */
+  summarize?: typeof summarizeMessages
+}
+
 export const prepareContext = async (
   history: Message[],
   apiKey: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  options: PrepareContextOptions = {}
 ): Promise<Message[]> => {
   const { contextWindow, autoCompact, compactThreshold, compactKeep } = useSettings.getState()
   if (contextWindow <= 0 || history.length === 0) {
@@ -168,13 +232,22 @@ export const prepareContext = async (
     const kept = fitTail(history, keepBudget)
     const head = history.slice(0, history.length - kept.length)
     if (head.length >= 2 && kept.length > 0) {
+      // 保留段自带的旧摘要也参与指纹：手动压缩过之后不能复用旧结果
+      const signature = signatureOf(head, leadingSummary(kept) ?? '')
+      const reuse = cachedSummary(options.cacheKey, signature)
+      if (reuse) {
+        messages = withSummary(kept, reuse)
+        return historyTokens(messages) > contextWindow ? fitTail(messages, contextWindow) : messages
+      }
       try {
-        const summary = await summarizeMessages(head, {
+        const summarize = options.summarize ?? summarizeMessages
+        const summary = await summarize(head, {
           apiKey,
           signal,
           previousSummary: leadingSummary(kept),
         })
         if (summary) {
+          rememberSummary(options.cacheKey, signature, summary)
           messages = withSummary(kept, summary)
         }
       } catch {

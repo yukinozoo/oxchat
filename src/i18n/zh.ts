@@ -435,6 +435,10 @@ export const zh = {
   storagePersistState: '持久化存储',
   storageBackup: '备份提醒',
   pwaUpdateReady: '有新版本了，重新打开应用即可用上',
+  longImportTitle: '这条对话很长',
+  longImportBody:
+    '本次导入里有会话约 {tokens} token，已超过当前模型的单轮上限或自动压缩阈值。继续对话时早期内容会被摘要或裁剪——如果希望保留完整上下文，建议先在模型面板里手动点「压缩」，把摘要写进对话后再继续。',
+  longImportAction: '知道了',
   importKeepForeground: '导入时请保持应用在前台，切到后台可能被系统暂停',
   storagePersistUnsupported: '当前浏览器不支持申请持久化（iOS Safari 就是这样），建议定期导出备份。',
   storagePersistHint: '把本站「添加到主屏幕」后再来申请，Chrome 通常会自动授予；不授予也不影响使用。',

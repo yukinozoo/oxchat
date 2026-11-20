@@ -453,6 +453,10 @@ export const en = {
   storagePersistState: 'Persistent storage',
   storageBackup: 'Backup reminder',
   pwaUpdateReady: 'A new version is ready — reopen the app to use it',
+  longImportTitle: 'This chat is very long',
+  longImportBody:
+    'A chat in this import is about {tokens} tokens — beyond the current model\'s per-request limit or the auto-compact threshold. Earlier content will be summarised or trimmed as you keep chatting. To keep the full context, open the model panel and tap “Compact” to write a summary into the chat first.',
+  longImportAction: 'Got it',
   importKeepForeground: 'Keep the app in the foreground while importing — the system may pause it in the background',
   storagePersistUnsupported: 'This browser cannot request persistent storage (iOS Safari), so export a backup regularly.',
   storagePersistHint: 'Add this site to your home screen and retry — Chrome usually grants it then. It is optional.',
