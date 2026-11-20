@@ -15,6 +15,7 @@ import type {
 import { fail } from './errors.js'
 import type { ChatMessage, FileEntry, Fragment, SessionFile } from './format.js'
 import { sessionFilesDir } from './paths.js'
+import { isWebUrl } from '../../../utils/url.js'
 
 export type LocalSession = {
   session: Session
@@ -23,15 +24,6 @@ export type LocalSession = {
 }
 
 const time = (value: string) => Date.parse(value)
-
-/** 链接会渲染成 href，只接受 HTTP / HTTPS。 */
-const isWebUrl = (value: string) => {
-  try {
-    return ['http:', 'https:'].includes(new URL(value).protocol)
-  } catch {
-    return false
-  }
-}
 
 const toFile = (file: FileEntry): FileAttachment => ({
   id: file.id,

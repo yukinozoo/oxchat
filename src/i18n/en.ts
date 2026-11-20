@@ -213,7 +213,6 @@ export const en = {
   settingsLocalePreference: 'Language',
   settingsTtsVoice: 'Read-aloud voice',
   settingsTtsVoiceStella: 'Stella (female)',
-  settingsTtsEngineSystem: 'System voice (free)',
   costSpeechTitle: 'Speech',
   costSpeechBody:
     '{times} reads · {chars} billed characters (CJK counts as 2). At the 50%-off rate (¥1.5 per 10k chars) that is about {money}; the invoice is authoritative.',

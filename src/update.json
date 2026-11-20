@@ -1,9 +1,9 @@
 {
-  "versionCode": 78,
-  "versionName": "0.1.78",
-  "size": 5170662,
-  "sha256": "2fcc1335e49028fb078f342ef410b6ec6492b41b4187afaf8b5636160bb5eb1e",
-  "notes": "0.1.78：移除系统朗读（安卓 WebView 不支持该能力），朗读回到 stella/tide 两个音色 + 本地音频缓存",
+  "versionCode": 79,
+  "versionName": "0.1.79",
+  "size": 5170863,
+  "sha256": "89b7b16af3ffa2fa3dc37e576612632928db0ede06d6a711470622be28d22107",
+  "notes": "0.1.79：安全加固——运行时只允许 http(s) 链接（防 javascript:/data: 注入），附件打开改为图片/PDF 预览、SVG 与其他文件下载原件",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

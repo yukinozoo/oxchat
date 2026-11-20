@@ -202,7 +202,6 @@ export const zh = {
   settingsTtsVoice: '朗读音色',
   settingsTtsVoiceStella: '海星（女声）',
   settingsTtsVoiceTide: '暗潮（男声）',
-  settingsTtsEngineSystem: '系统朗读（免费）',
   costSpeechTitle: '语音朗读',
   costSpeechBody:
     '已合成 {times} 次 · 计费字符 {chars}（汉字算 2）。按官方限时 5 折价（1.5 元/万字符）估算约 {money}，实际以账单为准。',

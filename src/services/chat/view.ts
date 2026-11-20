@@ -1,4 +1,5 @@
 import { translate } from '../../i18n/index.js'
+import { isWebUrl } from '../../utils/url.js'
 import type {
   ServerToolKind,
   TextCitation,
@@ -114,7 +115,11 @@ class SourceRegistry {
     title: string | null,
     publishedAt: string | null,
     metadata?: Pick<WebSearchResult, 'snippet' | 'site_icon' | 'site_name'>
-  ): Source {
+  ): Source | null {
+    // 运行时也要过滤：服务端返回的引用/结果可能带 javascript: 或 data: 链接
+    if (!isWebUrl(url)) {
+      return null
+    }
     const siteName = metadata?.site_name?.trim() || getSiteName(url)
     const snippet = metadata?.snippet?.trim() || null
     const siteIcon = metadata?.site_icon?.trim() || null
@@ -161,7 +166,10 @@ const joinTextBlocks = (
     text += block.text
     const indexes = new Set<number>()
     for (const citation of block.citations ?? []) {
-      indexes.add(registry.add(citation.url, citation.title, null).index)
+      const source = registry.add(citation.url, citation.title, null)
+      if (source) {
+        indexes.add(source.index)
+      }
     }
     const body = indexes.size > 0 ? block.text.trimEnd() : block.text
     markdown += body
@@ -198,7 +206,7 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
       for (const item of result.content) {
         if (item.type === 'web_search_result') {
           const source = registry.add(item.url, item.title, item.page_age, item)
-          if (!searchResults.includes(source)) {
+          if (source && !searchResults.includes(source)) {
             searchResults.push(source)
           }
         }
@@ -271,11 +279,13 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
       const { queries } = input
       const found =
         result?.type === 'web_search_tool_result'
-          ? result.content.flatMap((item) =>
-              item.type === 'web_search_result'
-                ? [registry.add(item.url, item.title, item.page_age, item)]
-                : []
-            )
+          ? result.content.flatMap((item) => {
+              if (item.type !== 'web_search_result') {
+                return []
+              }
+              const source = registry.add(item.url, item.title, item.page_age, item)
+              return source ? [source] : []
+            })
           : []
       // 普通搜索按种类聚合到首次出现的位置；边想边搜只合并相邻、同种类的调用。
       const target = isDeepSearchKind(kind)

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useUploads } from '../../services/attachments.js'
 import { loadFile } from '../../services/chat/db.js'
+import { openAttachment } from '../../utils/attachmentView.js'
 import type { FileAttachment } from '../../services/chat/types.js'
 import { IconPhotoErrorFill20, IconRefreshOutline16 } from '../base/icons.js'
 import { Tooltip } from '../base/Tooltip.js'
@@ -134,17 +135,16 @@ export const MessageFile = ({
       )
     }
 
-    // 正常态：链接到原件
+    // 正常态：点缩略图打开（图片预览 / SVG 与其他文件走下载）
     return url ? (
-      <a
+      <button
+        type="button"
         className={clsx(styles.image, styles.imageThumb)}
-        href={url}
-        target="_blank"
-        rel="noreferrer"
         title={file.name}
+        onClick={() => void openAttachment(file.id, file.name)}
       >
         {preview}
-      </a>
+      </button>
     ) : (
       // 原件还没加载出来（极短暂）
       <div className={styles.image} />
@@ -158,7 +158,7 @@ export const MessageFile = ({
       status={uploading ? 'uploading' : failed ? 'error' : 'done'}
       error={errorText}
       onRetry={retry ?? undefined}
-      onOpen={url && !upload ? () => window.open(url, '_blank', 'noreferrer') : undefined}
+      onOpen={url && !upload ? () => void openAttachment(file.id, file.name) : undefined}
     />
   )
 }
