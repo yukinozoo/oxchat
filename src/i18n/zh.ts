@@ -202,6 +202,12 @@ export const zh = {
   settingsTtsVoice: '朗读音色',
   settingsTtsVoiceStella: '海星（女声）',
   settingsTtsVoiceTide: '暗潮（男声）',
+  settingsTtsEngineSystem: '系统朗读（免费）',
+  settingsTtsEngineDesc: 'DeepSeek 音色走语音合成接口，按官方计费扣额度；系统朗读不消耗额度，但音色跟随系统。',
+  settingsTtsVoiceMore: '官方 App 的另外两个音色（贝壳 / 白浪）来自 Chat 侧接口，需要登录 DeepSeek 账号，暂未接入。',
+  costSpeechTitle: '语音朗读',
+  costSpeechBody:
+    '已合成 {times} 次 · 计费字符 {chars}（汉字算 2）。按官方限时 5 折价（1.5 元/万字符）估算约 {money}，实际以账单为准。',
   settingsLocation: '位置信息',
   settingsLocationProvince: '请选择省份/地区',
   settingsLocationCity: '请选择市',

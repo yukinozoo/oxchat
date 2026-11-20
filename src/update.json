@@ -1,9 +1,9 @@
 {
-  "versionCode": 75,
-  "versionName": "0.1.75",
-  "size": 5168974,
-  "sha256": "fc8eb175e1fcef344e8640cb09267fc576cf27c5d9637361fbc6bafb2540bd87",
-  "notes": "0.1.75：超长对话改成「发送时」才提示——弹窗可选 先压缩 / 仍然发送 / 取消，同一档位不再重复打扰；导入时不再提示",
+  "versionCode": 76,
+  "versionName": "0.1.76",
+  "size": 5171086,
+  "sha256": "f7ecd71f12d6d4eec7c1092058748d99ffaba8d587d161673b4bdb4eef6fcb18",
+  "notes": "0.1.76：朗读更省额度——同一条回答二次朗读走本地缓存、可切「系统朗读（免费）」；费用页新增语音朗读（计费字符 + 估算金额）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

@@ -4,6 +4,8 @@ import { useTranslate } from '../../i18n/index.js'
 import { collectCosts, type CostSummary } from '../../services/chat/costs.js'
 import { formatMoney } from '../../services/chat/pricing.js'
 import { formatTokens } from '../../services/chat/usage.js'
+import { loadSpeechUsage, type SpeechUsage } from '../../services/speech/audioCache.js'
+import { estimateSpeechCost } from '../../services/speech/pricing.js'
 import styles from './Cost.module.css'
 
 /** Token 构成里各段颜色 */
@@ -20,6 +22,22 @@ const share = (value: number, total: number) => (total > 0 ? (value / total) * 1
 export const CostSettings = () => {
   const t = useTranslate()
   const [summary, setSummary] = useState<CostSummary | null>(null)
+  /** 语音用量：朗读/识别不走 token 计价，单独列出来 */
+  const [speech, setSpeech] = useState<SpeechUsage[]>([])
+
+  useEffect(() => {
+    let alive = true
+    void loadSpeechUsage()
+      .then((rows) => {
+        if (alive) {
+          setSpeech(rows)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -38,6 +56,8 @@ export const CostSettings = () => {
       alive = false
     }
   }, [])
+
+  const speechChars = speech.reduce((total, row) => total + row.billedChars, 0)
 
   if (!summary) {
     return (
@@ -170,6 +190,19 @@ export const CostSettings = () => {
           </span>
         </div>
       </div>
+
+      {speech.length > 0 ? (
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>{t('costSpeechTitle')}</div>
+          <div className={styles.empty}>
+            {t('costSpeechBody', {
+              times: speech.length,
+              chars: speechChars,
+              money: formatMoney(estimateSpeechCost(speechChars)),
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {summary.sessions.length > 0 ? (
         <div className={styles.card}>

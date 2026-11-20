@@ -4,6 +4,13 @@ import { ApiError } from '../api/client.js'
 import { classifyApiError } from '../api/errors.js'
 import { synthesize, TTS_SAMPLE_RATE } from '../api/speech.js'
 import { useSettings } from '../settings.js'
+import { billedCharsOf } from './pricing.js'
+import {
+  audioKeyOf,
+  loadSpeechAudio,
+  recordSpeechUsage,
+  saveSpeechAudio,
+} from './audioCache.js'
 
 /**
  * 朗读：同一时间只读一条回复。
@@ -23,13 +30,13 @@ export const useReadAloud = create<ReadAloudState>(() => ({ messageId: null, sta
 /** 首帧前多缓冲一点，减少网络抖动造成的断续 */
 const START_DELAY = 0.1
 
-let current: { controller: AbortController; context: AudioContext } | null = null
+let current: { controller: AbortController; stop: () => void } | null = null
 
 const finish = (controller: AbortController) => {
   if (current?.controller !== controller) {
     return
   }
-  void current.context.close()
+  current.stop()
   current = null
   useReadAloud.setState({ messageId: null, status: 'idle' })
 }
@@ -41,6 +48,33 @@ export const stopReadAloud = () => {
     controller.abort()
     finish(controller)
   }
+}
+
+/** 系统朗读（speechSynthesis）：不花额度，音色跟系统走 */
+const readWithSystemVoice = (
+  messageId: string,
+  text: string,
+  controller: AbortController,
+  onError: (error: unknown) => void
+) => {
+  const synth = typeof window === 'undefined' ? undefined : window.speechSynthesis
+  if (!synth) {
+    onError(new Error('speech synthesis unavailable'))
+    return
+  }
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.onend = () => finish(controller)
+  utterance.onerror = () => {
+    finish(controller)
+  }
+  current = {
+    controller,
+    stop: () => synth.cancel(),
+  }
+  useReadAloud.setState({ messageId, status: 'playing' })
+  synth.cancel()
+  synth.speak(utterance)
 }
 
 /** 16-bit 小端 PCM 转成 Float32；奇数字节留到下一段 */
@@ -88,17 +122,64 @@ export const toggleReadAloud = (
     return
   }
   const controller = new AbortController()
+  const { apiKey, ttsVoice, ttsEngine } = useSettings.getState()
+
+  // 系统朗读：不产生任何接口费用
+  if (ttsEngine === 'system') {
+    readWithSystemVoice(messageId, text, controller, onError)
+    return
+  }
+
   const context = new AudioContext({ sampleRate: TTS_SAMPLE_RATE })
-  current = { controller, context }
+  current = {
+    controller,
+    stop: () => {
+      void context.close()
+    },
+  }
   useReadAloud.setState({ messageId, status: 'loading' })
-  // 音色在开始朗读时读取，设置中切换后下一次朗读生效
-  const { apiKey, ttsVoice } = useSettings.getState()
 
   void (async () => {
     let nextTime = 0
-    let lastSource: AudioBufferSourceNode | null = null
+    // 用对象持有：闭包里赋值，TS 的收窄会把 let 判成 never
+    const playback: { last: AudioBufferSourceNode | null } = { last: null }
     let rest = new Uint8Array(0)
+    const cacheKey = audioKeyOf(ttsVoice, text)
+    /** 边播边攒，读完整个回复后存一份，下次同一条直接播缓存 */
+    const collected: Uint8Array[] = []
+    let collectedBytes = 0
+
+    const schedule = (samples: Float32Array<ArrayBuffer>) => {
+      const buffer = context.createBuffer(1, samples.length, TTS_SAMPLE_RATE)
+      buffer.copyToChannel(samples, 0)
+      const source = context.createBufferSource()
+      source.buffer = buffer
+      source.connect(context.destination)
+      nextTime = Math.max(nextTime, context.currentTime + (playback.last ? 0 : START_DELAY))
+      source.start(nextTime)
+      nextTime += buffer.duration
+      playback.last = source
+      if (useReadAloud.getState().status === 'loading') {
+        useReadAloud.setState({ status: 'playing' })
+      }
+    }
+
     try {
+      // 命中缓存：直接用本地音频，不再请求接口（也不产生费用）
+      const cached = await loadSpeechAudio(cacheKey)
+      if (cached) {
+        const samples = toFloat32(new Uint8Array(cached))
+        if (samples.length > 0) {
+          schedule(samples)
+        }
+        if (playback.last) {
+          playback.last.onended = () => finish(controller)
+        } else {
+          finish(controller)
+        }
+        return
+      }
+
       const stream = await synthesize(apiKey ?? '', text, ttsVoice, controller.signal)
       const reader = stream.getReader()
       controller.signal.addEventListener('abort', () => void reader.cancel().catch(() => {}))
@@ -107,6 +188,8 @@ export const toggleReadAloud = (
         if (done) {
           break
         }
+        collected.push(value)
+        collectedBytes += value.byteLength
         const bytes = new Uint8Array(rest.length + value.length)
         bytes.set(rest)
         bytes.set(value, rest.length)
@@ -115,24 +198,28 @@ export const toggleReadAloud = (
         if (samples.length === 0) {
           continue
         }
-        const buffer = context.createBuffer(1, samples.length, TTS_SAMPLE_RATE)
-        buffer.copyToChannel(samples, 0)
-        const source = context.createBufferSource()
-        source.buffer = buffer
-        source.connect(context.destination)
-        // 网络慢于播放时从当前时间续上，不补播过去的时间
-        nextTime = Math.max(nextTime, context.currentTime + (lastSource ? 0 : START_DELAY))
-        source.start(nextTime)
-        nextTime += buffer.duration
-        lastSource = source
-        if (useReadAloud.getState().status === 'loading') {
-          useReadAloud.setState({ status: 'playing' })
-        }
+        schedule(samples)
       }
-      if (lastSource) {
-        lastSource.onended = () => finish(controller)
+      if (playback.last) {
+        playback.last.onended = () => finish(controller)
       } else {
         finish(controller)
+      }
+      // 完整音频入库 + 记一笔用量
+      if (collectedBytes > 0 && !controller.signal.aborted) {
+        const merged = new Uint8Array(collectedBytes)
+        let offset = 0
+        for (const piece of collected) {
+          merged.set(piece, offset)
+          offset += piece.byteLength
+        }
+        void saveSpeechAudio(cacheKey, merged.buffer as ArrayBuffer)
+        void recordSpeechUsage({
+          at: Date.now(),
+          kind: 'tts',
+          billedChars: billedCharsOf(text),
+          voice: ttsVoice,
+        })
       }
     } catch (error) {
       if (!controller.signal.aborted) {

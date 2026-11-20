@@ -32,6 +32,7 @@ import {
   formatContextWindow,
   setLocale,
   setTtsVoice,
+  setTtsEngine,
   setApiKey,
   setAutoCollapseThinking,
   setResumeLastSession,
@@ -100,6 +101,7 @@ const SettingsContent = () => {
   const locale = useSettings((state) => state.locale)
   const themePreference = useSettings((state) => state.themePreference)
   const ttsVoice = useSettings((state) => state.ttsVoice)
+  const ttsEngine = useSettings((state) => state.ttsEngine)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const contextWindow = useSettings((state) => state.contextWindow)
@@ -456,10 +458,20 @@ const SettingsContent = () => {
         >
           <div className={styles.card}>
             <OptionRow
+              label={t('settingsTtsEngineSystem')}
+              icon={<IconVolumeOutline16 />}
+              selected={ttsEngine === 'system'}
+              onSelect={() => {
+                setTtsEngine('system')
+                setDialog(null)
+              }}
+            />
+            <OptionRow
               label={t('settingsTtsVoiceStella')}
               icon={<IconVolumeOutline16 />}
-              selected={ttsVoice !== 'tide'}
+              selected={ttsEngine === 'deepseek' && ttsVoice !== 'tide'}
               onSelect={() => {
+                setTtsEngine('deepseek')
                 setTtsVoice('stella')
                 setDialog(null)
               }}
@@ -467,13 +479,16 @@ const SettingsContent = () => {
             <OptionRow
               label={t('settingsTtsVoiceTide')}
               icon={<IconVolumeOutline16 />}
-              selected={ttsVoice === 'tide'}
+              selected={ttsEngine === 'deepseek' && ttsVoice === 'tide'}
               onSelect={() => {
+                setTtsEngine('deepseek')
                 setTtsVoice('tide')
                 setDialog(null)
               }}
             />
           </div>
+          <div className={styles.settingDesc}>{t('settingsTtsEngineDesc')}</div>
+          <div className={styles.settingDesc}>{t('settingsTtsVoiceMore')}</div>
         </Modal>
       ) : null}
       {historyImport.file ? (
