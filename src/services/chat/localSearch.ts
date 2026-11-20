@@ -1,7 +1,7 @@
 import { getVisibleMessages } from './branches.js'
 import * as db from './db.js'
 import { useChatStore } from './store.js'
-import type { Message, SessionSummary } from './types.js'
+import type { AssistantMessage, Message, SessionSummary, UserMessage } from './types.js'
 
 /** 一条搜索命中：会话 + 片段来源 + 命中附近的上下文 */
 export type SessionSearchHit = {
@@ -14,19 +14,38 @@ export type SessionSearchHit = {
   snippet: string
 }
 
+/** 一轮搜索的结果：命中条数与「是否因为上限被截断」 */
+export type SessionSearchResult = {
+  hits: number
+  /** true 表示命中了上限，后面的会话没有再扫 */
+  truncated: boolean
+}
+
 const SNIPPET_BEFORE = 18
 const SNIPPET_AFTER = 34
-const MAX_HITS = 80
+/**
+ * 默认结果上限：列表是异步追加渲染的，几百条已经很够用；
+ * 命中上限时返回 truncated，界面提示「细化关键词」，而不是静默截断。
+ */
+export const DEFAULT_MAX_HITS = 300
 
 /** 助手消息的可读文本：只取 text 块，思考与服务端工具块不参与匹配 */
-const assistantText = (message: Extract<Message, { role: 'assistant' }>): string =>
+const assistantText = (message: AssistantMessage): string =>
   message.blocks
     .map((block) => (block.type === 'text' ? block.text : ''))
     .filter(Boolean)
     .join('\n')
 
+/**
+ * 用户消息的可读文本：正文 + 手动压缩留下的摘要。
+ * 压缩会把被替换掉的早期消息从 messages 里删掉，只剩摘要字符串；
+ * 不读这里，压缩过的历史就彻底搜不到了。
+ */
+const userText = (message: UserMessage): string =>
+  [message.content, message.summary].filter(Boolean).join('\n')
+
 const messageText = (message: Message): string =>
-  message.role === 'user' ? message.content : assistantText(message)
+  message.role === 'user' ? userText(message) : assistantText(message)
 
 const collapse = (text: string) => text.replace(/\s+/g, ' ').trim()
 
@@ -45,25 +64,31 @@ const textMatches = (text: string, needle: string): { index: number } | null => 
 
 /**
  * 在本地全部会话里搜索标题与消息内容。
- * 逐条读取未加载的会话，命中即回调；返回的 cancel 用于中断（查询变化时）。
+ * 逐条读取未加载的会话，命中即回调；返回的 cancel 用于中断（查询变化时），
+ * done 解析为命中条数与是否被上限截断。
  */
 export const searchSessions = (
   query: string,
-  onHit: (hit: SessionSearchHit) => void
-): { done: Promise<void>; cancel: () => void } => {
+  onHit: (hit: SessionSearchHit) => void,
+  options: { maxHits?: number } = {}
+): { done: Promise<SessionSearchResult>; cancel: () => void } => {
   const needle = collapse(query).toLowerCase()
+  const maxHits = Math.max(1, options.maxHits ?? DEFAULT_MAX_HITS)
   let cancelled = false
 
-  const done = (async () => {
+  const done = (async (): Promise<SessionSearchResult> => {
     if (!needle) {
-      return
+      return { hits: 0, truncated: false }
     }
     const { sessions, sessionCache } = useChatStore.getState()
     let hits = 0
     const seen = new Set<string>()
     for (const summary of sessions) {
-      if (cancelled || hits >= MAX_HITS) {
-        return
+      if (cancelled) {
+        return { hits, truncated: false }
+      }
+      if (hits >= maxHits) {
+        return { hits, truncated: true }
       }
       const base = { sessionId: summary.id, title: summary.title, updatedAt: summary.updatedAt }
       // 标题命中：给出整条记录，不带片段
@@ -96,11 +121,12 @@ export const searchSessions = (
         seen.add(key)
         onHit({ ...base, source: message.role, snippet })
         hits += 1
-        if (hits >= MAX_HITS) {
-          return
+        if (hits >= maxHits) {
+          return { hits, truncated: true }
         }
       }
     }
+    return { hits, truncated: false }
   })()
 
   return { done, cancel: () => (cancelled = true) }

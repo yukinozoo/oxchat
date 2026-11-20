@@ -95,6 +95,24 @@
   scrollbar-color: var(--scroll-color) transparent;
 }
 
+.loadMore {
+  display: block;
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 8px 10px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
 .section {
   position: relative;
   margin-top: 16px;

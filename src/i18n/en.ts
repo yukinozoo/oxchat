@@ -78,6 +78,11 @@ export const en = {
   searchSessionsPlaceholder: 'Search chats…',
   searchSessionsEmpty: 'No matching chats',
   searchSessionsSearching: 'Searching…',
+  siderLoadMore: 'Load more ({count} chats left)',
+  loadEarlierMessages: 'Load earlier messages ({count} left)',
+  loadLaterMessages: 'Load later messages ({count} left)',
+  jumpToFirstHint: 'Double-tap to jump to the first message',
+  searchSessionsTruncated: 'Showing the first {count} matches — add a more specific keyword',
   modelSwitch: 'Change model',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
@@ -240,6 +245,8 @@ export const en = {
   historyImportCount: '{done} / {total} chats',
   historyImportCountUnknown: 'Processed {done} chats',
   historyImportBackground: 'Continue in background',
+  importProgressLabel: 'Importing history · {done}/{total} chats read',
+  importProgressCounting: 'Importing history · {done} chats processed',
   historyImportStop: 'Stop import',
   historyImportCancelled: 'Import stopped',
   historyImportStorageFailed:

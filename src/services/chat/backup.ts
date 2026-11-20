@@ -1,6 +1,11 @@
 import { formatDate } from '../../utils/format.js'
 import * as db from './db.js'
 import { replaceHistory, useChatStore } from './store.js'
+import {
+  beginImportJob,
+  endImportJob,
+  reportImportProgress,
+} from './importProgress.js'
 import type { Session } from './types.js'
 
 export { BackupError } from './history/errors.js'
@@ -88,14 +93,28 @@ export const importHistory = (
   enqueueBackup(async () => {
     const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
     const { countArchiveSessions } = await import('./history/zipReader.js')
-    await checkArchiveFormat(file)
-    const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
-    const totalSessions = await countArchiveSessions(file)
-    const result = await replaceHistory(
-      () => importArchive(file, { existingIds, totalSessions, onProgress }),
-      'merge'
-    )
-    return result as { imported: number; skipped: number }
+    beginImportJob()
+    try {
+      await checkArchiveFormat(file)
+      const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
+      const totalSessions = await countArchiveSessions(file)
+      reportImportProgress(0, totalSessions)
+      const result = await replaceHistory(
+        () =>
+          importArchive(file, {
+            existingIds,
+            totalSessions,
+            onProgress: (done, total) => {
+              reportImportProgress(done, total)
+              onProgress?.(done, total)
+            },
+          }),
+        'merge'
+      )
+      return result as { imported: number; skipped: number }
+    } finally {
+      endImportJob()
+    }
   })
 
 /**
@@ -114,21 +133,29 @@ export const importSelectedSessions = (
 ): Promise<{ imported: number; skipped: number }> =>
   enqueueBackup(async () => {
     const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
-    await checkArchiveFormat(file)
-    const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
-    const result = await replaceHistory(
-      () =>
-        importArchive(file, {
-          existingIds,
-          onlyIds: ids,
-          totalSessions: ids.size,
-          skipFiles: options.skipFiles ?? false,
-          cleanMissing: options.cleanMissing ?? false,
-          onProgress: options.onProgress,
-        }),
-      'merge'
-    )
-    return result as { imported: number; skipped: number }
+    beginImportJob(ids.size)
+    try {
+      await checkArchiveFormat(file)
+      const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
+      const result = await replaceHistory(
+        () =>
+          importArchive(file, {
+            existingIds,
+            onlyIds: ids,
+            totalSessions: ids.size,
+            skipFiles: options.skipFiles ?? false,
+            cleanMissing: options.cleanMissing ?? false,
+            onProgress: (done, total) => {
+              reportImportProgress(done, total)
+              options.onProgress?.(done, total)
+            },
+          }),
+        'merge'
+      )
+      return result as { imported: number; skipped: number }
+    } finally {
+      endImportJob()
+    }
   })
 
 /** 读第三方整包的会话索引（官网导出包）：只解析索引条目，其余跳过 */

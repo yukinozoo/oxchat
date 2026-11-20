@@ -43,11 +43,27 @@ const toFile = (file: FileEntry): FileAttachment => ({
   mimeType: '',
 })
 
+/**
+ * 用户消息正文：REQUEST 片段按顺序拼接。
+ * 正文为空时退回提示片段（TIP / CONTENT_RISK）：只有图的消息被清掉附件后，
+ * 占位说明只存在于提示片段里，直接丢弃会得到一条空白气泡。
+ */
+const userContent = (fragments: Fragment[]): string => {
+  const request = fragments.map((item) => (item.type === 'REQUEST' ? item.content : '')).join('')
+  if (request.trim()) {
+    return request
+  }
+  return fragments
+    .flatMap((item) => (item.type === 'TIP' || item.type === 'CONTENT_RISK' ? [item.content] : []))
+    .filter((text) => text.trim())
+    .join('\n\n')
+}
+
 const toUser = (message: ChatMessage): UserMessage => ({
   id: String(message.id),
   role: 'user',
   createdAt: time(message.inserted_at),
-  content: message.fragments.map((item) => (item.type === 'REQUEST' ? item.content : '')).join(''),
+  content: userContent(message.fragments),
   files: message.fragments.flatMap((item) => (item.type === 'FILE' ? item.files.map(toFile) : [])),
 })
 

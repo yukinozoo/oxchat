@@ -6,6 +6,7 @@ import { useChatStore } from '../../services/chat/store.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
 import { MessageList } from '../messages/MessageList.js'
 import { MobileHeader } from './MobileHeader.js'
+import { useTitleJump } from './titleJump.js'
 import styles from './SessionView.module.css'
 
 /** 会话页：标题栏（移动端为顶栏）+ 消息列表，输入框吸底 */
@@ -26,13 +27,18 @@ export const SessionView = ({
     (state) => state.sessions.find((item) => item.id === session.id)?.title
   )
   const title = summaryTitle || session.title || t('untitledChat')
+  const onTitleClick = useTitleJump()
   return (
     <div className={styles.view}>
       {isMobile ? (
         <MobileHeader title={title} />
       ) : (
         <div className={styles.header}>
-          <div className={clsx(styles.title, siderCollapsed && styles.withCollapsedSider)}>
+          <div
+            className={clsx(styles.title, siderCollapsed && styles.withCollapsedSider)}
+            title={t('jumpToFirstHint')}
+            onClick={onTitleClick}
+          >
             {title}
           </div>
         </div>

@@ -55,6 +55,10 @@ import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import {
+  canStreamExport,
+  streamExportToFile,
+} from '../../services/chat/webExport.js'
+import {
   BACKUP_REMINDER_DAYS,
   shouldRetryPersist,
   daysSinceBackup,
@@ -949,19 +953,37 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     setStatus(null)
     setWritten(0)
     writtenRef.current = 0
+    let saved = true
+    /** 流式写入的分片很密，按 1MB 节流刷新进度，避免每片都重渲染 */
+    let lastStreamReport = 0
+    const reportStream = (bytes: number) => {
+      if (bytes - lastStreamReport >= 1_048_576) {
+        lastStreamReport = bytes
+        setWritten(bytes)
+      }
+    }
     try {
       if (native) {
         await exportNative(native, only, { includeImages })
+      } else if (canStreamExport()) {
+        // 网页版优先边压边存；浏览器不支持时由 streamExportToFile 返回 unsupported
+        const result = await streamExportToFile(
+          backupFileName(new Date()),
+          only,
+          reportStream,
+          { includeImages }
+        )
+        if (result === 'cancelled') {
+          saved = false
+        } else if (result === 'unsupported') {
+          await downloadAsBlob(only, includeImages)
+        }
       } else {
-        const { name, blob } = await exportHistory(only, { includeImages })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = name
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 10_000)
+        await downloadAsBlob(only, includeImages)
       }
-      markBackupDone()
+      if (saved) {
+        markBackupDone()
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       // 用户在分享面板取消不算失败
@@ -971,6 +993,17 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     } finally {
       setBusy(false)
     }
+  }
+
+  /** 不支持流式写入的浏览器：整包拼成 Blob 再下载 */
+  const downloadAsBlob = async (only: Set<string> | undefined, includeImages: boolean) => {
+    const { name, blob } = await exportHistory(only, { includeImages })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = name
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
 
   /**

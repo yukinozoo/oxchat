@@ -18,6 +18,12 @@ import {
 
 /** 批量落库的阈值：一次事务写一批，摊掉每批的提交开销，同时限制峰值内存 */
 const SESSION_BATCH = 20
+
+/**
+ * 让出一次宏任务：几千个会话连续写库时，每批之间喘口气，
+ * 界面才不会在整个导入期间变成「卡死」状态。
+ */
+const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 const FILE_BATCH_COUNT = 12
 const FILE_BATCH_BYTES = 24 * 1024 * 1024
 
@@ -188,6 +194,7 @@ export const importArchive = async (
   const flushSessions = async () => {
     if (pendingSessions.length > 0) {
       await db.addStagingSessions(pendingSessions.splice(0))
+      await yieldToMain()
     }
   }
 
@@ -195,6 +202,7 @@ export const importArchive = async (
     if (pendingFiles.length > 0) {
       await db.saveStagingFiles(pendingFiles.splice(0))
       pendingBytes = 0
+      await yieldToMain()
     }
   }
 

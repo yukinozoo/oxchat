@@ -142,10 +142,11 @@ export const ArchiveImportDialog = ({
       overlayClassName={styles.overlay}
       mainClassName={styles.body}
       closable
-      onClose={stage === 'importing' ? () => undefined : onClose}
+      // 导入改到后台：关掉对话框不中断任务，顶部进度条继续显示，可随时取消
+      onClose={onClose}
       footer={
         <div className={styles.actions}>
-          <Button variant="outlined" size="m" disabled={stage === 'importing'} onClick={onClose}>
+          <Button variant="outlined" size="m" onClick={onClose}>
             {t('websiteLater')}
           </Button>
           {stage === 'importing' ? (

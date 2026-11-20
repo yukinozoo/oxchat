@@ -3,6 +3,7 @@ import { useTranslate } from '../../i18n/index.js'
 import { newChat } from '../../services/chat/store.js'
 import { IconButton } from '../base/IconButton.js'
 import { closeMobileSider, openMobileSider } from '../sider/mobileSiderState.js'
+import { useTitleJump } from './titleJump.js'
 import styles from './MobileHeader.module.css'
 
 /** 点「新建对话」后把焦点交给输入框，首页点也能立刻开打 */
@@ -22,6 +23,7 @@ export const MobileHeader = ({
   hideNewChat?: boolean
 }) => {
   const t = useTranslate()
+  const onTitleClick = useTitleJump()
   const startNewChat = () => {
     newChat()
     closeMobileSider()
@@ -36,7 +38,13 @@ export const MobileHeader = ({
         aria-label={t('expandSiderbarButton')}
         onClick={() => openMobileSider()}
       />
-      <div className={styles.title}>{title ?? ''}</div>
+      <div
+        className={styles.title}
+        title={t('jumpToFirstHint')}
+        onClick={onTitleClick}
+      >
+        {title ?? ''}
+      </div>
       {hideNewChat ? null : (
         <IconButton
           size="xl"

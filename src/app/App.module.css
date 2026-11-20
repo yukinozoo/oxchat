@@ -9,6 +9,11 @@
   background-color: var(--oxchat-surface-base, var(--dsw-alias-bg-base));
 }
 
+/* 导入进行中：给顶部高 22px 的进度条让位，避免压住顶栏标题 */
+.frameWithBar {
+  padding-top: calc(env(safe-area-inset-top) + 22px);
+}
+
 .main {
   position: relative;
   display: flex;

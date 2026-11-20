@@ -57,12 +57,23 @@ import {
 import { SessionSearch } from './SessionSearch.js'
 import styles from './Sider.module.css'
 
+/** 首屏挂载的会话条数与每次续载条数：几千条会话全量挂载会把低端机拖到个位数帧率 */
+const SIDER_PAGE = 60
+/** 距列表底部小于该值时续载下一批 */
+const SIDER_LOAD_THRESHOLD = 320
+
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
 export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const t = useTranslate()
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
   const [now, setNow] = useState(Date.now)
+  /** 已发放的渲染配额：置顶 → 分组 → 未分组按顺序消耗，滚到底部再续一页 */
+  const [limit, setLimit] = useState(SIDER_PAGE)
+  const listRef = useRef<HTMLDivElement>(null)
+  /** 滚动回调里读最新配额与「还有没有更多」，避免重复续载 */
+  const limitRef = useRef(limit)
+  limitRef.current = limit
   /** 分组相关的浮层状态 */
   const folders = useFolders((state) => state.folders)
   const assignments = useFolders((state) => state.assignments)
@@ -97,6 +108,76 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   useEffect(() => {
     pruneAssignments(new Set(sessions.map((session) => session.id)))
   }, [sessions])
+
+  /**
+   * 按顺序分发渲染配额：置顶 → 各分组（展开的）→ 未分组的时间组。
+   * 全选/搜索/分组计数一律用全量 sessions，只有 DOM 节点数受配额限制。
+   * 会话总量变少（删除、切库）时把配额收回到当前需要的最小值。
+   */
+  const views = useMemo(() => {
+    let left = limit
+    const take = <T,>(list: T[]): T[] => {
+      if (left <= 0) {
+        return []
+      }
+      const slice = list.slice(0, left)
+      left -= slice.length
+      return slice
+    }
+    const pinnedView = take(pinned)
+    const folderViews = folders.map((folder) => {
+      const items = folderSessions.get(folder.id) ?? []
+      const folded = Boolean(collapsed[folder.id])
+      return { folder, items: folded ? [] : take(items), folded, total: items.length }
+    })
+    const groupViews = ungrouped.map((group) => ({
+      key: group.key,
+      label: group.label,
+      sessions: take(group.sessions),
+      total: group.sessions.length,
+    }))
+    const shown =
+      pinnedView.length +
+      folderViews.reduce((sum, item) => sum + item.items.length, 0) +
+      groupViews.reduce((sum, item) => sum + item.sessions.length, 0)
+    const total =
+      pinned.length +
+      folderViews.reduce((sum, item) => sum + (item.folded ? 0 : item.total), 0) +
+      groupViews.reduce((sum, item) => sum + item.total, 0)
+    return { pinnedView, folderViews, groupViews, shown, total, hasMore: shown < total }
+  }, [limit, pinned, folders, folderSessions, collapsed, ungrouped])
+  const hasMoreRef = useRef(views.hasMore)
+  hasMoreRef.current = views.hasMore
+
+  /** 滚到底部附近续一页；内容不足一屏时也自动补齐，避免首屏只剩几十条 */
+  useEffect(() => {
+    const element = listRef.current
+    if (!element) {
+      return
+    }
+    const grow = () => {
+      if (!hasMoreRef.current) {
+        return
+      }
+      if (element.scrollHeight - element.scrollTop - element.clientHeight < SIDER_LOAD_THRESHOLD) {
+        setLimit((current) => current + SIDER_PAGE)
+      }
+    }
+    element.addEventListener('scroll', grow, { passive: true })
+    return () => element.removeEventListener('scroll', grow)
+  }, [])
+
+  /** 列表首屏铺不满时继续补一页（最多补到内容超过一屏） */
+  useEffect(() => {
+    if (!views.hasMore) {
+      return
+    }
+    const element = listRef.current
+    // clientHeight 为 0（隐藏/动画中）时不判断，等真实布局出来再说
+    if (element && element.clientHeight > 0 && element.scrollHeight <= element.clientHeight + 8) {
+      setLimit((current) => current + SIDER_PAGE)
+    }
+  }, [views.hasMore, views.shown, limit])
   const [searching, setSearching] = useState(false)
   useAndroidBackHandler(mobile && searching, () => setSearching(false))
   const [editing, setEditing] = useState(false)
@@ -264,7 +345,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         </button>
       )}
       <div className={styles.listWrap}>
-        <div className={styles.list}>
+        <div ref={listRef} className={styles.list}>
           {editing ? null : (
             <button
               type="button"
@@ -275,15 +356,13 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               <span>{t('folderNew')}</span>
             </button>
           )}
-          {pinned.length > 0 ? (
+          {views.pinnedView.length > 0 ? (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>{t('pinnedSessions')}</div>
-              {pinned.map((session) => renderSession(session))}
+              {views.pinnedView.map((session) => renderSession(session))}
             </div>
           ) : null}
-          {folders.map((folder) => {
-            const items = folderSessions.get(folder.id) ?? []
-            const isCollapsed = Boolean(collapsed[folder.id])
+          {views.folderViews.map(({ folder, items, folded: isCollapsed, total }) => {
             return (
               <div key={folder.id} className={styles.section}>
                 <Menu
@@ -337,7 +416,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                         <IconFolderOutline16 />
                       </span>
                       <span className={styles.folderName}>{folder.name}</span>
-                      <span className={styles.folderCount}>{items.length}</span>
+                      <span className={styles.folderCount}>{total}</span>
                       <span
                         className={clsx(styles.folderChevron, isCollapsed && styles.folderChevronFolded)}
                       >
@@ -354,12 +433,22 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               </div>
             )
           })}
-          {ungrouped.map((group) => (
+          {views.groupViews.map((group) => (
             <div key={group.key} className={styles.section}>
               <div className={styles.sectionHeader}>{group.label}</div>
               {group.sessions.map((session) => renderSession(session))}
             </div>
           ))}
+          {views.hasMore ? (
+            <button
+              type="button"
+              className={styles.loadMore}
+              // 滚动到底部会自动续载；这个按钮是给「滚不到底 / 辅助功能」的兜底
+              onClick={() => setLimit((current) => current + SIDER_PAGE)}
+            >
+              {t('siderLoadMore', { count: views.total - views.shown })}
+            </button>
+          ) : null}
         </div>
       </div>
       <div className={styles.bottom}>

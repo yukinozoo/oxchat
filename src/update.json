@@ -1,9 +1,9 @@
 {
-  "versionCode": 65,
-  "versionName": "0.1.65",
-  "size": 5161829,
-  "sha256": "f65b04965e337f86f22b165947df971541b45d65d3bd1af9153ca190874949e0",
-  "notes": "0.1.65：修正欢迎页鲸鱼位置（与问候语成组居中，紧贴文字上方），修复上次 CSS 被写坏导致的布局错位",
+  "versionCode": 66,
+  "versionName": "0.1.66",
+  "size": 5164953,
+  "sha256": "e6419cb16558197e971ad15a931e75e034ac1a0df5b43aa3cb21a8aafde29907",
+  "notes": "0.1.66：超长对话窗口化（1500 轮也不卡）+ 侧栏分页懒加载 + 双击顶栏回第 1 条 + 导入后台进度条 + 搜索覆盖压缩摘要 + 保存失败自动重试",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

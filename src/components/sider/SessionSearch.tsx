@@ -32,6 +32,8 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SessionSearchHit[]>([])
   const [searching, setSearching] = useState(false)
+  /** 命中上限被截断时的提示条数；null 表示没有截断 */
+  const [truncated, setTruncated] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelRef = useRef<(() => void) | null>(null)
 
@@ -45,19 +47,36 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
     if (!trimmed) {
       setHits([])
       setSearching(false)
+      setTruncated(null)
       return
     }
     setHits([])
     setSearching(true)
+    setTruncated(null)
+    /** 本轮是否已被新查询取代：被取代后不再追加命中、不改搜索结果状态 */
+    let stale = false
     // 输入停顿后再扫库，避免每敲一个字都全量读一遍
     const timer = setTimeout(() => {
-      const { done, cancel } = searchSessions(trimmed, (hit) => {
-        setHits((previous) => [...previous, hit])
+      const round = searchSessions(trimmed, (hit) => {
+        if (!stale) {
+          setHits((previous) => [...previous, hit])
+        }
       })
-      cancelRef.current = cancel
-      void done.finally(() => setSearching(false))
+      cancelRef.current = round.cancel
+      void round.done
+        .then((result) => {
+          if (!stale) {
+            setTruncated(result.truncated ? result.hits : null)
+          }
+        })
+        .finally(() => {
+          if (!stale) {
+            setSearching(false)
+          }
+        })
     }, DEBOUNCE_MS)
     return () => {
+      stale = true
       clearTimeout(timer)
       cancelRef.current?.()
       cancelRef.current = null
@@ -134,6 +153,9 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             </span>
           </button>
         ))}
+        {truncated !== null ? (
+          <div className={styles.hint}>{t('searchSessionsTruncated', { count: truncated })}</div>
+        ) : null}
         {!query.trim() ? null : searching ? (
           <div className={styles.hint}>{t('searchSessionsSearching')}</div>
         ) : hits.length === 0 ? (

@@ -223,6 +223,7 @@ const persist = (sessionId: string) => {
           pendingFiles.delete(sessionId)
         }
         if (getSession(sessionId) === session) {
+          saveRetry.attempt = 0
           unsavedSessions.delete(sessionId)
           set((state) => ({
             sessionSaveErrors: Object.fromEntries(
@@ -239,9 +240,34 @@ const persist = (sessionId: string) => {
           set((state) => ({
             sessionSaveErrors: { ...state.sessionSaveErrors, [sessionId]: true },
           }))
+          // 掉线、存储配额抖动这类失败自己会好，退避重试而不是干等用户点重试
+          scheduleSaveRetry()
         }
       })
   }
+}
+
+/** 保存失败后的自动重试：2s 起翻倍，封顶 60s，成功后清零 */
+const RETRY_BASE_MS = 2_000
+const RETRY_MAX_MS = 60_000
+const saveRetry: { handle: ReturnType<typeof setTimeout> | null; attempt: number } = {
+  handle: null,
+  attempt: 0,
+}
+
+const scheduleSaveRetry = () => {
+  if (saveRetry.handle !== null) {
+    return
+  }
+  if (!Object.values(get().sessionSaveErrors).some(Boolean)) {
+    return
+  }
+  const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** saveRetry.attempt)
+  saveRetry.attempt += 1
+  saveRetry.handle = setTimeout(() => {
+    saveRetry.handle = null
+    retrySaveSessions()
+  }, delay)
 }
 
 export const retrySaveSessions = () => {
@@ -269,13 +295,23 @@ export const bindChatPersistence = () => {
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
       save()
+      return
     }
+    // 切回前台：后台期间可能掉线或写库被限流，立刻补一次
+    saveRetry.attempt = 0
+    retrySaveSessions()
+  }
+  const onOnline = () => {
+    saveRetry.attempt = 0
+    retrySaveSessions()
   }
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('pagehide', save)
+  window.addEventListener('online', onOnline)
   return () => {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     window.removeEventListener('pagehide', save)
+    window.removeEventListener('online', onOnline)
   }
 }
 

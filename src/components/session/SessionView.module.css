@@ -16,6 +16,7 @@
 }
 
 .title {
+  cursor: pointer;
   max-width: 480px;
   padding: 8px 12px;
   overflow: hidden;

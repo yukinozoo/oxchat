@@ -37,6 +37,28 @@
   contain-intrinsic-size: auto 220px;
 }
 
+/* 窗口边界上的「加载更早 / 后续消息」按钮：低调一行，不抢消息视觉 */
+.windowBar {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.windowButton {
+  padding: 6px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-elevated, transparent);
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
 /* 离开底部时出现的圆形按钮，贴在输入框上方右侧 */
 .toBottomWrap {
   position: sticky;
