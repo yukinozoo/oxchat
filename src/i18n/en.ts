@@ -214,8 +214,6 @@ export const en = {
   settingsTtsVoice: 'Read-aloud voice',
   settingsTtsVoiceStella: 'Stella (female)',
   settingsTtsEngineSystem: 'System voice (free)',
-  settingsTtsEngineDesc: 'DeepSeek voices use the speech API and are billed; the system voice uses no quota but follows your device voice.',
-  settingsTtsVoiceMore: 'The other two official voices (Mira / Echo) come from the chat-side API and need a DeepSeek login — not wired up yet.',
   costSpeechTitle: 'Speech',
   costSpeechBody:
     '{times} reads · {chars} billed characters (CJK counts as 2). At the 50%-off rate (¥1.5 per 10k chars) that is about {money}; the invoice is authoritative.',

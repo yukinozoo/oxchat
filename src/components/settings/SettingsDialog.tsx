@@ -275,9 +275,11 @@ const SettingsContent = () => {
                   <NavRow
                     icon={<IconVolumeOutline16 />}
                     label={t('settingsTtsVoice')}
-                    value={t(
-                      ttsVoice === 'tide' ? 'settingsTtsVoiceTide' : 'settingsTtsVoiceStella'
-                    )}
+                    value={
+                      ttsEngine === 'system'
+                        ? t('settingsTtsEngineSystem')
+                        : t(ttsVoice === 'tide' ? 'settingsTtsVoiceTide' : 'settingsTtsVoiceStella')
+                    }
                     onClick={() => setDialog('voice')}
                   />
                 </div>
@@ -487,8 +489,6 @@ const SettingsContent = () => {
               }}
             />
           </div>
-          <div className={styles.settingDesc}>{t('settingsTtsEngineDesc')}</div>
-          <div className={styles.settingDesc}>{t('settingsTtsVoiceMore')}</div>
         </Modal>
       ) : null}
       {historyImport.file ? (

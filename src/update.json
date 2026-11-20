@@ -1,9 +1,9 @@
 {
-  "versionCode": 76,
-  "versionName": "0.1.76",
-  "size": 5171086,
-  "sha256": "f7ecd71f12d6d4eec7c1092058748d99ffaba8d587d161673b4bdb4eef6fcb18",
-  "notes": "0.1.76：朗读更省额度——同一条回答二次朗读走本地缓存、可切「系统朗读（免费）」；费用页新增语音朗读（计费字符 + 估算金额）",
+  "versionCode": 77,
+  "versionName": "0.1.77",
+  "size": 5170694,
+  "sha256": "5e42d8b07567317ecb90eb80f0d4b5cded76780496ef8b8cdd3a6e90d7a2ccec",
+  "notes": "0.1.77：朗读音色设置行跟随引擎联动显示（选系统朗读就显示系统朗读），并去掉音色弹窗底部的解释文案",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
