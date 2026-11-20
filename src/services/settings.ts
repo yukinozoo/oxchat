@@ -16,8 +16,6 @@ type Settings = {
   themePreference: ThemePreference
   location: UserLocation | null
   ttsVoice: TtsVoice
-  /** 朗读引擎：deepseek 走语音合成接口（计费），system 用系统朗读（免费） */
-  ttsEngine: 'deepseek' | 'system'
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
@@ -69,7 +67,6 @@ const KEYS = {
   location: 'oxchat:location',
   themePreference: 'oxchat:theme-preference',
   ttsVoice: 'oxchat:tts-voice',
-  ttsEngine: 'oxchat:tts-engine',
   thinking: 'oxchat:thinking',
   search: 'oxchat:search',
   siderCollapsed: 'oxchat:sider-collapsed',
@@ -183,9 +180,6 @@ const initialThemePreference = (): ThemePreference => {
 /** 未保存过时使用服务端默认音色 stella（海星） */
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
-/** 默认走 DeepSeek 音色；系统朗读需要用户主动切换 */
-const initialTtsEngine = (): 'deepseek' | 'system' =>
-  read(KEYS.ttsEngine) === 'system' ? 'system' : 'deepseek'
 
 /** 未保存过时使用默认模型 */
 const initialModel = (): ChatModel => read(KEYS.model)?.trim() || DEFAULT_MODEL
@@ -242,7 +236,6 @@ export const useSettings = create<Settings>(() => {
     location: initialLocation(),
     themePreference: initialThemePreference(),
     ttsVoice: initialTtsVoice(),
-    ttsEngine: initialTtsEngine(),
     thinking: thinkingDepth !== 'off',
     search: read(KEYS.search) === 'true',
     siderCollapsed: read(KEYS.siderCollapsed) === 'true',
@@ -288,10 +281,6 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
   useSettings.setState({ ttsVoice })
 }
 
-export const setTtsEngine = (ttsEngine: 'deepseek' | 'system') => {
-  write(KEYS.ttsEngine, ttsEngine)
-  useSettings.setState({ ttsEngine })
-}
 
 export const setApiKey = (apiKey: string | null) => {
   write(KEYS.apiKey, apiKey)

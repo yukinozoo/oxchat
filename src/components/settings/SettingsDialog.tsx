@@ -32,7 +32,6 @@ import {
   formatContextWindow,
   setLocale,
   setTtsVoice,
-  setTtsEngine,
   setApiKey,
   setAutoCollapseThinking,
   setResumeLastSession,
@@ -101,7 +100,6 @@ const SettingsContent = () => {
   const locale = useSettings((state) => state.locale)
   const themePreference = useSettings((state) => state.themePreference)
   const ttsVoice = useSettings((state) => state.ttsVoice)
-  const ttsEngine = useSettings((state) => state.ttsEngine)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const contextWindow = useSettings((state) => state.contextWindow)
@@ -275,11 +273,9 @@ const SettingsContent = () => {
                   <NavRow
                     icon={<IconVolumeOutline16 />}
                     label={t('settingsTtsVoice')}
-                    value={
-                      ttsEngine === 'system'
-                        ? t('settingsTtsEngineSystem')
-                        : t(ttsVoice === 'tide' ? 'settingsTtsVoiceTide' : 'settingsTtsVoiceStella')
-                    }
+                    value={t(
+                      ttsVoice === 'tide' ? 'settingsTtsVoiceTide' : 'settingsTtsVoiceStella'
+                    )}
                     onClick={() => setDialog('voice')}
                   />
                 </div>
@@ -460,20 +456,10 @@ const SettingsContent = () => {
         >
           <div className={styles.card}>
             <OptionRow
-              label={t('settingsTtsEngineSystem')}
-              icon={<IconVolumeOutline16 />}
-              selected={ttsEngine === 'system'}
-              onSelect={() => {
-                setTtsEngine('system')
-                setDialog(null)
-              }}
-            />
-            <OptionRow
               label={t('settingsTtsVoiceStella')}
               icon={<IconVolumeOutline16 />}
-              selected={ttsEngine === 'deepseek' && ttsVoice !== 'tide'}
+              selected={ttsVoice !== 'tide'}
               onSelect={() => {
-                setTtsEngine('deepseek')
                 setTtsVoice('stella')
                 setDialog(null)
               }}
@@ -481,9 +467,8 @@ const SettingsContent = () => {
             <OptionRow
               label={t('settingsTtsVoiceTide')}
               icon={<IconVolumeOutline16 />}
-              selected={ttsEngine === 'deepseek' && ttsVoice === 'tide'}
+              selected={ttsVoice === 'tide'}
               onSelect={() => {
-                setTtsEngine('deepseek')
                 setTtsVoice('tide')
                 setDialog(null)
               }}

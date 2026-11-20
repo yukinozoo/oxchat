@@ -50,33 +50,6 @@ export const stopReadAloud = () => {
   }
 }
 
-/** 系统朗读（speechSynthesis）：不花额度，音色跟系统走 */
-const readWithSystemVoice = (
-  messageId: string,
-  text: string,
-  controller: AbortController,
-  onError: (error: unknown) => void
-) => {
-  const synth = typeof window === 'undefined' ? undefined : window.speechSynthesis
-  if (!synth) {
-    onError(new Error('speech synthesis unavailable'))
-    return
-  }
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = 'zh-CN'
-  utterance.onend = () => finish(controller)
-  utterance.onerror = () => {
-    finish(controller)
-  }
-  current = {
-    controller,
-    stop: () => synth.cancel(),
-  }
-  useReadAloud.setState({ messageId, status: 'playing' })
-  synth.cancel()
-  synth.speak(utterance)
-}
-
 /** 16-bit 小端 PCM 转成 Float32；奇数字节留到下一段 */
 const toFloat32 = (bytes: Uint8Array) => {
   const samples = new Float32Array(bytes.length >> 1)
@@ -122,13 +95,7 @@ export const toggleReadAloud = (
     return
   }
   const controller = new AbortController()
-  const { apiKey, ttsVoice, ttsEngine } = useSettings.getState()
-
-  // 系统朗读：不产生任何接口费用
-  if (ttsEngine === 'system') {
-    readWithSystemVoice(messageId, text, controller, onError)
-    return
-  }
+  const { apiKey, ttsVoice } = useSettings.getState()
 
   const context = new AudioContext({ sampleRate: TTS_SAMPLE_RATE })
   current = {

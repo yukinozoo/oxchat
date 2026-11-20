@@ -1,9 +1,9 @@
 {
-  "versionCode": 77,
-  "versionName": "0.1.77",
-  "size": 5170694,
-  "sha256": "5e42d8b07567317ecb90eb80f0d4b5cded76780496ef8b8cdd3a6e90d7a2ccec",
-  "notes": "0.1.77：朗读音色设置行跟随引擎联动显示（选系统朗读就显示系统朗读），并去掉音色弹窗底部的解释文案",
+  "versionCode": 78,
+  "versionName": "0.1.78",
+  "size": 5170662,
+  "sha256": "2fcc1335e49028fb078f342ef410b6ec6492b41b4187afaf8b5636160bb5eb1e",
+  "notes": "0.1.78：移除系统朗读（安卓 WebView 不支持该能力），朗读回到 stella/tide 两个音色 + 本地音频缓存",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
