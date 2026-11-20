@@ -804,9 +804,11 @@ const StorageCard = () => {
         description={
           status?.persisted
             ? t('storagePersisted')
-            : denied
-              ? `${t('storageNotPersisted')} · ${t('storagePersistHint')}`
-              : t('storageNotPersisted')
+            : status && !status.supported
+              ? `${t('storageNotPersisted')} · ${t('storagePersistUnsupported')}`
+              : denied
+                ? `${t('storageNotPersisted')} · ${t('storagePersistHint')}`
+                : t('storageNotPersisted')
         }
         status={null}
         action={null}

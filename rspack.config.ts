@@ -116,6 +116,8 @@ export const createConfig = ({
         },
         // 在线更新清单：随站点发布，App 从 Pages 读取
         { from: path.resolve(root, 'src/update.json'), to: 'update.json', toType: 'file' },
+        // Service Worker：必须放在根目录，作用域才覆盖整站
+        { from: path.resolve(root, 'src/sw.js'), to: 'sw.js', toType: 'file' },
       ],
     }),
   ],

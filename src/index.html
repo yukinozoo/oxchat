@@ -12,6 +12,10 @@
     <link rel="apple-touch-icon" sizes="192x192" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="apple-mobile-web-app-title" content="OxChat" />
+    <!-- 主屏独立窗口：老 iOS 只认这个属性；状态栏用默认样式，避免顶栏被刘海压住 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="application-name" content="OxChat" />
     <title>OxChat</title>
   </head>

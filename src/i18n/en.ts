@@ -452,6 +452,9 @@ export const en = {
   storageQuota: '{used} used · quota {quota}',
   storagePersistState: 'Persistent storage',
   storageBackup: 'Backup reminder',
+  pwaUpdateReady: 'A new version is ready — reopen the app to use it',
+  importKeepForeground: 'Keep the app in the foreground while importing — the system may pause it in the background',
+  storagePersistUnsupported: 'This browser cannot request persistent storage (iOS Safari), so export a backup regularly.',
   storagePersistHint: 'Add this site to your home screen and retry — Chrome usually grants it then. It is optional.',
   storagePersistDenied: 'The browser declined for now — you can retry later',
   replyInputTooLong:

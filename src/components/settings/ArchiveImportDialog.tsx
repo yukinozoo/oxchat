@@ -246,6 +246,7 @@ export const ArchiveImportDialog = ({
               <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
             </span>
           </label>
+          <div className={styles.skipDesc}>{t('importKeepForeground')}</div>
         </>
       ) : null}
     </Modal>
