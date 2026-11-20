@@ -255,6 +255,8 @@ export const en = {
     'Saving to this device failed. Please check the available storage space and try again.',
   historyImportFailed:
     'File import failed. The file format may be invalid, or the ZIP file may use an older chat export format. Please export your chat history from DeepSeek again and retry the import.',
+  historyExportDone: 'Exported',
+  sessionItemMenuExport: 'Export chat',
   historyExportFailed: 'Export failed: {message}',
   exportAllLabel: 'Export all chats',
   historyExportProgress: 'Exporting {size}',

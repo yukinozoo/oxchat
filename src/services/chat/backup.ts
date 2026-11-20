@@ -20,7 +20,28 @@ const enqueueBackup = <T>(run: () => Promise<T>): Promise<T> => {
   return task
 }
 
-export const backupFileName = (date: Date) => `deepseek_data-${formatDate(date)}.zip`
+/** 标题在文件名里的长度上限：太长的对话名会把文件名撑爆，按字符截断 */
+const TITLE_LIMIT = 40
+/** 文件名里不能出现的字符 + 控制字符（控制字符用码点过滤，避免正则里写 \u0000） */
+const ILLEGAL = new Set(['\\', '/', ':', '*', '?', '"', '<', '>', '|'])
+const safeTitle = (title: string): string =>
+  Array.from(title)
+    .filter((char) => (char.codePointAt(0) ?? 0) >= 0x20 && !ILLEGAL.has(char))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, TITLE_LIMIT)
+    .trim()
+
+/**
+ * 导出文件名：与 DeepSeek 官方导出一致（`deepseek_data-日期.zip`）。
+ * 单条对话导出时把标题接在日期后面用于区分；多条/全部导出保持纯官方格式。
+ */
+export const backupFileName = (date: Date, title?: string): string => {
+  const stamp = formatDate(date)
+  const suffix = title === undefined ? '' : safeTitle(title)
+  return suffix ? `deepseek_data-${stamp}-${suffix}.zip` : `deepseek_data-${stamp}.zip`
+}
 
 /** 会话快照：列表和已加载内容保留导出开始时的状态；未打开的会话逐条读取。 */
 const readSessions = async function* (only?: ReadonlySet<string>): AsyncGenerator<Session> {

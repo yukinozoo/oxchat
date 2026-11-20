@@ -17,13 +17,7 @@ import {
   IconVolumeOutline16,
   IconUploadOutline14,
 } from '../base/icons.js'
-import {
-  BackupError,
-  backupFileName,
-  clearHistory,
-  exportHistory,
-  exportHistoryStream,
-} from '../../services/chat/backup.js'
+import { BackupError, backupFileName, clearHistory } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
 import {
@@ -57,10 +51,7 @@ import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import { downloadAndroidApk } from '../../services/androidDownload.js'
-import {
-  canStreamExport,
-  streamExportToFile,
-} from '../../services/chat/webExport.js'
+import { exportSessionsToFile } from '../../services/chat/exportSession.js'
 import {
   BACKUP_REMINDER_DAYS,
   shouldRetryPersist,
@@ -82,7 +73,6 @@ import {
 import { FontSizeSettings, fontSizeLabel } from './FontSizeSettings.js'
 import { ThemeSettings } from './ThemeSettings.js'
 import { ExportSelectDialog } from './ExportSelectDialog.js'
-import { toBase64 } from '../../utils/base64.js'
 import { logoutWebsite } from '../../services/chat/websiteImport.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
@@ -921,32 +911,6 @@ const ImportHistory = ({
 
 /** 导入进度对话框：N / M 个对话 + 进度条，可后台继续或停止。 */
 
-/** 原生端导出用到的插件子集：文件系统分片写入 + 系统分享 */ type NativeBackupFilesystem = {
-  deleteFile: (options: { path: string; directory: string }) => Promise<unknown>
-  writeFile: (options: {
-    path: string
-    data: string
-    directory: string
-    recursive?: boolean
-  }) => Promise<unknown>
-  appendFile: (options: { path: string; data: string; directory: string }) => Promise<unknown>
-  getUri: (options: { path: string; directory: string }) => Promise<{ uri: string }>
-}
-type NativeBackup = {
-  filesystem: NativeBackupFilesystem
-  share: {
-    share: (options: { title: string; url: string; dialogTitle: string }) => Promise<unknown>
-  }
-}
-
-const nativeBackupPlugins = (): NativeBackup | null => {
-  const plugins = (window as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor
-    ?.Plugins
-  const filesystem = plugins?.Filesystem as NativeBackupFilesystem | undefined
-  const share = plugins?.Share as NativeBackup['share'] | undefined
-  return filesystem && share ? { filesystem, share } : null
-}
-
 /** 导出历史：先选对话，原生端分片写缓存后分享，网页端整包下载 */
 const ExportHistory = ({ disabled }: { disabled: boolean }) => {
   const t = useTranslate()
@@ -959,40 +923,28 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
   const writtenRef = useRef(0)
 
   const onExport = async (only?: Set<string>, includeImages = true) => {
-    const native = nativeBackupPlugins()
     setBusy(true)
     setStatus(null)
     setWritten(0)
     writtenRef.current = 0
-    let saved = true
-    /** 流式写入的分片很密，按 1MB 节流刷新进度，避免每片都重渲染 */
-    let lastStreamReport = 0
-    const reportStream = (bytes: number) => {
-      if (bytes - lastStreamReport >= 1_048_576) {
-        lastStreamReport = bytes
-        setWritten(bytes)
-      }
-    }
+    /** 流式写入的分片很密，按 1MB 节流刷新进度 */
+    let lastReport = 0
     try {
-      if (native) {
-        await exportNative(native, only, { includeImages })
-      } else if (canStreamExport()) {
-        // 网页版优先边压边存；浏览器不支持时由 streamExportToFile 返回 unsupported
-        const result = await streamExportToFile(
-          backupFileName(new Date()),
-          only,
-          reportStream,
-          { includeImages }
-        )
-        if (result === 'cancelled') {
-          saved = false
-        } else if (result === 'unsupported') {
-          await downloadAsBlob(only, includeImages)
-        }
-      } else {
-        await downloadAsBlob(only, includeImages)
-      }
-      if (saved) {
+      // 文件名与「导出当前对话」完全一致：deepseek_data-日期.zip
+      const outcome = await exportSessionsToFile({
+        only,
+        includeImages,
+        fileName: backupFileName(new Date()),
+        shareTitle: t('exportShareTitle'),
+        onProgress: (bytes) => {
+          writtenRef.current = bytes
+          if (bytes - lastReport >= 1_048_576) {
+            lastReport = bytes
+            setWritten(bytes)
+          }
+        },
+      })
+      if (outcome === 'saved') {
         markBackupDone()
       }
     } catch (error) {
@@ -1004,81 +956,6 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     } finally {
       setBusy(false)
     }
-  }
-
-  /** 不支持流式写入的浏览器：整包拼成 Blob 再下载 */
-  const downloadAsBlob = async (only: Set<string> | undefined, includeImages: boolean) => {
-    const { name, blob } = await exportHistory(only, { includeImages })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = name
-    link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
-  }
-
-  /**
-   * 分片写入应用缓存：先把小分片攒到 512KB 再写一次。
-   * 每次写入都要跨进程转 base64，攒批能把文件接口调用次数降到 1/8。
-   */
-  const exportNative = async (
-    native: NativeBackup,
-    only?: Set<string>,
-    options: { includeImages?: boolean } = {}
-  ) => {
-    const FLUSH_BYTES = 512 * 1024
-    let pending: Uint8Array[] = []
-    let pendingBytes = 0
-    const name = backupFileName(new Date())
-    try {
-      await native.filesystem.deleteFile({ path: name, directory: 'CACHE' })
-    } catch {
-      // 首次导出没有旧文件
-    }
-    let first = true
-    let lastReport = 0
-    /** 把攒下的分片拼成一块写盘 */
-    const flush = async () => {
-      if (pendingBytes === 0) {
-        return
-      }
-      const merged = new Uint8Array(pendingBytes)
-      let offset = 0
-      for (const piece of pending) {
-        merged.set(piece, offset)
-        offset += piece.byteLength
-      }
-      pending = []
-      pendingBytes = 0
-      const data = toBase64(merged)
-      if (first) {
-        first = false
-        await native.filesystem.writeFile({
-          path: name,
-          data,
-          directory: 'CACHE',
-          recursive: true,
-        })
-      } else {
-        await native.filesystem.appendFile({ path: name, data, directory: 'CACHE' })
-      }
-    }
-    const { bytes } = await exportHistoryStream(only, async (chunk) => {
-      writtenRef.current += chunk.byteLength
-      if (writtenRef.current - lastReport >= 1_048_576) {
-        lastReport = writtenRef.current
-        setWritten(writtenRef.current)
-      }
-      pending.push(chunk)
-      pendingBytes += chunk.byteLength
-      if (pendingBytes >= FLUSH_BYTES) {
-        await flush()
-      }
-    }, options)
-    await flush()
-    setWritten(bytes)
-    const { uri } = await native.filesystem.getUri({ path: name, directory: 'CACHE' })
-    await native.share.share({ title: name, url: uri, dialogTitle: t('exportShareTitle') })
   }
 
   return (

@@ -1,9 +1,9 @@
 {
-  "versionCode": 70,
-  "versionName": "0.1.70",
-  "size": 5165501,
-  "sha256": "4b2fa3c50c1ecd8207777202e59c9be52518a5806fe093970018ca7ce0eb8845",
-  "notes": "0.1.70：修复启动时把分组映射误清空的问题（更新后分组丢失），并加备份自动恢复",
+  "versionCode": 71,
+  "versionName": "0.1.71",
+  "size": 5165785,
+  "sha256": "9360097d486c6f3ea21e51bafc7a40f1c5ea1995f513659151a76409dca063f5",
+  "notes": "0.1.71：新增「导出对话」（会话菜单里直接导出单条），导出文件名统一为 deepseek_data-日期[-标题].zip",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

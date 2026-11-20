@@ -3,6 +3,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import {
   IconCheckOutline16,
+  IconDownloadOutline16,
   IconEditOutline16,
   IconEllipsisOutline16,
   IconFolderOutline16,
@@ -27,6 +28,7 @@ export const SessionItem = memo(function SessionItem({
   onPin,
   onMultiSelect,
   onMove,
+  onExport,
 }: {
   session: SessionSummary
   active: boolean
@@ -37,6 +39,8 @@ export const SessionItem = memo(function SessionItem({
   onMultiSelect?: () => void
   /** 长按菜单：移动到分组 */
   onMove?: () => void
+  /** 长按菜单：导出这一条对话 */
+  onExport?: () => void
   /** 选择模式下整行变成勾选，不再跳转会话 */
   selectable?: boolean
   selected?: boolean
@@ -180,6 +184,16 @@ export const SessionItem = memo(function SessionItem({
                       label: t('folderMove'),
                       icon: <IconFolderOutline16 />,
                       onSelect: onMove,
+                    },
+                  ]
+                : []),
+              ...(onExport
+                ? [
+                    {
+                      key: 'export',
+                      label: t('sessionItemMenuExport'),
+                      icon: <IconDownloadOutline16 />,
+                      onSelect: onExport,
                     },
                   ]
                 : []),

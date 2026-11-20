@@ -33,6 +33,8 @@ import { IconButton } from '../base/IconButton.js'
 import { Menu } from '../base/Menu.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
+import { backupFileName } from '../../services/chat/backup.js'
+import { exportSessionsToFile } from '../../services/chat/exportSession.js'
 import { openSettings } from '../settings/settingsDialogState.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import {
@@ -261,6 +263,25 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
     []
   )
 
+  /** 导出单条对话：文件名与全局导出保持一致（deepseek_data-日期.zip） */
+  const exportOne = async (session: SessionSummary) => {
+    try {
+      await exportSessionsToFile({
+        only: new Set([session.id]),
+        // 单条对话：官方格式 + 标题，方便在下载目录里认出是哪一条
+        fileName: backupFileName(new Date(), session.title || t('untitledChat')),
+        shareTitle: t('exportShareTitle'),
+      })
+      showToast({ key: 'historyExportDone' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // 用户在分享面板取消不算失败
+      if (!/cancel/i.test(message)) {
+        showToast({ key: 'historyExportFailed', params: { message }, type: 'error' })
+      }
+    }
+  }
+
   const renderSession = (session: SessionSummary) => (
     <SessionItem
       key={session.id}
@@ -276,6 +297,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         setSelected(new Set([session.id]))
       }}
       onMove={() => setMoving(session)}
+      onExport={() => void exportOne(session)}
     />
   )
 
