@@ -105,10 +105,15 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
     return map
   }, [sessions, assignments])
 
-  // 会话被删除后清掉指向它的分组映射
+  const chatReady = useChatStore((state) => state.ready)
+  const importing = useChatStore((state) => state.importingHistory)
+  // 会话被删除后清掉指向它的分组映射；会话还没加载完或正在换历史时一律不动
   useEffect(() => {
+    if (!chatReady || importing) {
+      return
+    }
     pruneAssignments(new Set(sessions.map((session) => session.id)))
-  }, [sessions])
+  }, [sessions, chatReady, importing])
 
   /**
    * 按顺序分发渲染配额：置顶 → 各分组（展开的）→ 未分组的时间组。

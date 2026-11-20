@@ -1,9 +1,9 @@
 {
-  "versionCode": 69,
-  "versionName": "0.1.69",
-  "size": 5165369,
-  "sha256": "4f6556d4858f03094bcb20431cf7279e1a54660c0e18a0ef5d6590d12cb6ad63",
-  "notes": "0.1.69：搜索上限提到 3000 + 结果分页渲染不卡 + 右滑回侧栏仍在原搜索结果页 + 网页版关于页新增「下载 Android 版」",
+  "versionCode": 70,
+  "versionName": "0.1.70",
+  "size": 5165501,
+  "sha256": "4b2fa3c50c1ecd8207777202e59c9be52518a5806fe093970018ca7ce0eb8845",
+  "notes": "0.1.70：修复启动时把分组映射误清空的问题（更新后分组丢失），并加备份自动恢复",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
