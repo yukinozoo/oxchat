@@ -1,9 +1,9 @@
 {
-  "versionCode": 74,
-  "versionName": "0.1.74",
-  "size": 5168754,
-  "sha256": "65a0a98a54db561b5cbff4715f4b78361bc2bd4032896728eb8337cc1d172177",
-  "notes": "0.1.74：导入超长对话会提示先手动压缩（选择权在用户）+ 自动摘要加缓存（长会话不再每轮重复总结）+ PWA 离线/主屏支持",
+  "versionCode": 75,
+  "versionName": "0.1.75",
+  "size": 5168974,
+  "sha256": "fc8eb175e1fcef344e8640cb09267fc576cf27c5d9637361fbc6bafb2540bd87",
+  "notes": "0.1.75：超长对话改成「发送时」才提示——弹窗可选 先压缩 / 仍然发送 / 取消，同一档位不再重复打扰；导入时不再提示",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

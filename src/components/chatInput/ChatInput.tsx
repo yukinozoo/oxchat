@@ -8,6 +8,13 @@ import {
 import { useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
+import { getVisibleMessages } from '../../services/chat/branches.js'
+import { historyTokens } from '../../services/chat/context.js'
+import { shouldSuggestCompact } from '../../services/chat/compactHint.js'
+import {
+  requestCompactPrompt,
+  wasCompactPromptDismissed,
+} from './compactPromptState.js'
 import {
   addDraftFiles,
   EMPTY_DRAFT,
@@ -137,7 +144,23 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   // 排队、上传中或上传失败的附件都留在输入框，全部上传成功后才能发送
   const canSend = !importingHistory && !streaming && voice.status === 'idle' && draftReady
 
+  /** 发送：先判断这条对话是不是已经超长，超长就让用户选「先压缩 / 仍然发送」 */
   const send = () => {
+    const target = sessionId
+    if (target !== null) {
+      const session = useChatStore.getState().sessionCache[target]
+      if (session) {
+        const tokens = historyTokens(getVisibleMessages(session))
+        if (shouldSuggestCompact(tokens) && !wasCompactPromptDismissed(target, tokens)) {
+          requestCompactPrompt({ sessionId: target, tokens, proceed: () => sendNow() })
+          return
+        }
+      }
+    }
+    sendNow()
+  }
+
+  const sendNow = () => {
     if (useChatStore.getState().importingHistory) {
       // 导入会整体替换历史并中止正在生成的回答，这里明确告诉用户为什么发不出去
       showToast({ key: 'importBusyHint' })

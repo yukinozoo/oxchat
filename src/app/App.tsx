@@ -19,6 +19,7 @@ import { UsageDeclaration } from '../components/session/UsageDeclaration.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { ImportProgressBar } from '../components/ImportProgressBar.js'
+import { CompactConfirmDialog } from '../components/chatInput/CompactConfirmDialog.js'
 import { showToast } from '../components/base/toastState.js'
 import { onUploadNotice } from '../services/attachments.js'
 import { Button } from '../components/base/Button.js'
@@ -97,6 +98,7 @@ export const App = () => {
   return (
     <>
       <ImportProgressBar />
+      <CompactConfirmDialog />
       <div
         ref={frameRef}
         className={importingHistory ? `${styles.frame} ${styles.frameWithBar}` : styles.frame}
