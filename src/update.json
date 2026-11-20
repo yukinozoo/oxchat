@@ -1,9 +1,9 @@
 {
-  "versionCode": 71,
-  "versionName": "0.1.71",
-  "size": 5165785,
-  "sha256": "9360097d486c6f3ea21e51bafc7a40f1c5ea1995f513659151a76409dca063f5",
-  "notes": "0.1.71：新增「导出对话」（会话菜单里直接导出单条），导出文件名统一为 deepseek_data-日期[-标题].zip",
+  "versionCode": 72,
+  "versionName": "0.1.72",
+  "size": 5165169,
+  "sha256": "9ef0b049788184451dd1fb7b1658d7078f1300c3b5570203389fd60cea22c04a",
+  "notes": "0.1.72：精简输入区（深度思考按钮与思考强度重复已移除）、智能搜索移到模型面板、个性化新增「打开回到上次对话」",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

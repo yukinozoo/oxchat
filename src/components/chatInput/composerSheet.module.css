@@ -250,3 +250,53 @@
 .compactAction:active {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+
+/* 模型面板底部的开关行（智能搜索）：和思考强度同一块面板 */
+.optionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.optionLabel {
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 15px;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 27px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-skeleton);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.switchOn {
+  background: var(--dsw-alias-brand-primary, #4d6bfe);
+}
+
+.switchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+  transition: transform 140ms ease;
+}
+
+.switchOn .switchKnob {
+  transform: translateX(19px);
+}

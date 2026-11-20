@@ -24,6 +24,8 @@ type Settings = {
   thinkingDepth: ThinkingDepth
   /** 思考结束后自动折叠思考内容 */
   autoCollapseThinking: boolean
+  /** 重新打开 App 时回到上次看的那条对话，而不是新对话 */
+  resumeLastSession: boolean
   /** 上下文窗口（token）：0 表示不限，超出后从最早的消息开始丢弃 */
   contextWindow: number
   /** 达到触发阈值时先把更早的对话总结成摘要，再发送本轮请求 */
@@ -71,6 +73,7 @@ const KEYS = {
   model: 'oxchat:model',
   thinkingDepth: 'oxchat:thinking-depth',
   autoCollapseThinking: 'oxchat:auto-collapse-thinking',
+  resumeLastSession: 'oxchat:resume-last-session',
   contextWindow: 'oxchat:context-window',
   autoCompact: 'oxchat:auto-compact',
   compactThreshold: 'oxchat:compact-threshold',
@@ -191,6 +194,8 @@ const initialThinkingDepth = (): ThinkingDepth => {
 
 /** 未保存过时默认开启：与官方客户端行为一致 */
 const initialAutoCollapseThinking = (): boolean => read(KEYS.autoCollapseThinking) !== 'false'
+/** 默认关闭：不打扰「每次都是新对话」的习惯 */
+const initialResumeLastSession = (): boolean => read(KEYS.resumeLastSession) === 'true'
 
 /** 读取数字设置：没保存过时给 NaN，避免 Number(null) 被当成 0 而吃掉落默认值 */
 const readNumber = (key: string): number => {
@@ -236,6 +241,7 @@ export const useSettings = create<Settings>(() => {
     model: initialModel(),
     thinkingDepth,
     autoCollapseThinking: initialAutoCollapseThinking(),
+    resumeLastSession: initialResumeLastSession(),
     contextWindow: initialContextWindow(),
     autoCompact: initialAutoCompact(),
     compactThreshold: initialPercent(KEYS.compactThreshold, 50),
@@ -309,6 +315,11 @@ export const setSiderCollapsed = (siderCollapsed: boolean) => {
 export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
   write(KEYS.autoCollapseThinking, String(autoCollapseThinking))
   useSettings.setState({ autoCollapseThinking })
+}
+
+export const setResumeLastSession = (resumeLastSession: boolean) => {
+  write(KEYS.resumeLastSession, String(resumeLastSession))
+  useSettings.setState({ resumeLastSession })
 }
 
 export const setModel = (model: ChatModel) => {

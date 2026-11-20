@@ -8,6 +8,7 @@ import { useChatStore } from '../../services/chat/store.js'
 import { useModels } from '../../services/models.js'
 import {
   setModel,
+  setSearch,
   setThinkingEffort,
   useSettings,
   type ThinkingDepth,
@@ -41,6 +42,7 @@ export const ModelPicker = ({
   const t = useTranslate()
   const selected = useSettings((state) => state.model)
   const depth = useSettings((state) => state.thinkingDepth)
+  const search = useSettings((state) => state.search)
   const models = useModels((state) => state.models)
   const options = models.length > 0 ? models : [selected]
   const session = useChatStore((state) =>
@@ -125,6 +127,21 @@ export const ModelPicker = ({
                 {t(item.label)}
               </button>
             ))}
+          </div>
+
+          {/* 智能搜索：从输入框上方的按钮挪到这里，跟模型 / 思考强度放一起 */}
+          <div className={styles.optionRow}>
+            <span className={styles.optionLabel}>{t('search')}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={search}
+              aria-label={t('search')}
+              className={clsx(styles.switch, search && styles.switchOn)}
+              onClick={() => setSearch(!search)}
+            >
+              <span className={styles.switchKnob} />
+            </button>
           </div>
         </div>
       </div>

@@ -210,6 +210,8 @@ export const zh = {
   avatarMenuSettingsDialogThemeSelectDarkOption: '深色',
   avatarMenuSettingsDialogThemeSelectSystemOption: '跟随系统',
   settingsPersonalize: '个性化',
+  personalizeResumeLastSession: '打开回到上次对话',
+  personalizeResumeLastSessionDesc: '开启后重新打开应用会进入上次看的那条对话；关闭则每次都从新对话开始。',
   personalizeAutoCollapseThinking: '思考内容自动折叠',
   personalizeAutoCollapseThinkingDesc: '开启后，思考结束后将自动折叠思考内容',
   apiKeyStart: '输入 API Key 开始使用',

@@ -222,6 +222,8 @@ export const en = {
   avatarMenuSettingsDialogThemeSelectDarkOption: 'Dark',
   avatarMenuSettingsDialogThemeSelectSystemOption: 'System',
   settingsPersonalize: 'Personalization',
+  personalizeResumeLastSession: 'Resume last chat on launch',
+  personalizeResumeLastSessionDesc: 'When on, opening the app returns to the chat you were reading; when off, every launch starts a new chat.',
   personalizeAutoCollapseThinking: 'Auto-collapse thinking',
   personalizeAutoCollapseThinkingDesc:
     'Once enabled, thinking content is collapsed automatically when thinking finishes',

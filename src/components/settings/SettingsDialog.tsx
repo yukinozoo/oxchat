@@ -34,6 +34,7 @@ import {
   setTtsVoice,
   setApiKey,
   setAutoCollapseThinking,
+  setResumeLastSession,
   useSettings,
   type ThemePreference,
 } from '../../services/settings.js'
@@ -100,6 +101,7 @@ const SettingsContent = () => {
   const themePreference = useSettings((state) => state.themePreference)
   const ttsVoice = useSettings((state) => state.ttsVoice)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
+  const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const contextWindow = useSettings((state) => state.contextWindow)
   const fontSize = useSettings((state) => state.fontSize)
   const fontSizeFollowSystem = useSettings((state) => state.fontSizeFollowSystem)
@@ -393,6 +395,26 @@ const SettingsContent = () => {
                 </button>
               </div>
               <div className={styles.settingDesc}>{t('personalizeAutoCollapseThinkingDesc')}</div>
+              <div className={styles.card}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resumeLastSession}
+                  className={clsx(styles.cell, styles.row, styles.navRow)}
+                  onClick={() => setResumeLastSession(!resumeLastSession)}
+                >
+                  <span className={clsx(styles.label, styles.labelGrow)}>
+                    {t('personalizeResumeLastSession')}
+                  </span>
+                  <span
+                    className={clsx(styles.switch, resumeLastSession && styles.switchOn)}
+                    aria-hidden="true"
+                  >
+                    <span className={styles.switchKnob} />
+                  </span>
+                </button>
+              </div>
+              <div className={styles.settingDesc}>{t('personalizeResumeLastSessionDesc')}</div>
             </>
           ) : null}
         </div>

@@ -1,13 +1,11 @@
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
-  IconGlobeLanguageOutline14,
   IconPaperclipOutline16,
   IconSendOutline16,
   IconStopFill16,
-  IconThinkOutline14,
 } from '../base/icons.js'
-import { setSearch, setThinking, useSettings } from '../../services/settings.js'
+import { useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -22,7 +20,6 @@ import {
 } from '../../services/chat/drafts.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import { IconButton } from '../base/IconButton.js'
-import { Tooltip } from '../base/Tooltip.js'
 import { ensureApiKey } from '../settings/settingsDialogState.js'
 import { AttachSheet } from './AttachSheet.js'
 import { ModelBadge } from './ModelBadge.js'
@@ -64,10 +61,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
-  const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
-  const search = useSettings((state) => state.search)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -76,24 +71,6 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   /** 输入法组词守卫：Android WebView 只在组词时给 keyCode 229，iOS 只给 isComposing */
   const ime = useImeGuard()
-  const togglesRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    const toggles = togglesRef.current
-    if (!toggles) {
-      return
-    }
-
-    const updateLabels = () => {
-      toggles.classList.remove(styles.collapsedToggles)
-      toggles.classList.toggle(styles.collapsedToggles, toggles.scrollWidth > toggles.clientWidth)
-    }
-
-    updateLabels()
-    const observer = new ResizeObserver(updateLabels)
-    observer.observe(toggles)
-    return () => observer.disconnect()
-  }, [t])
 
   const acceptFiles = (files: File[]) => {
     if (files.length === 0) {
@@ -189,38 +166,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     }
   }
 
-  const toggles = (
-    <div ref={togglesRef} className={styles.togglesRow}>
-      <Tooltip content={t('deactivatedThinkTooltip')}>
-        <button
-          type="button"
-          className={clsx(styles.toggle, thinking && styles.selected)}
-          aria-label={t('thinkingSwitch')}
-          aria-pressed={thinking}
-          onClick={() => setThinking(!thinking)}
-        >
-          <IconThinkOutline14 />
-          <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-        </button>
-      </Tooltip>
-      <Tooltip content={t('deactivatedSearchTooltip')}>
-        <button
-          type="button"
-          className={clsx(styles.toggle, search && styles.selected)}
-          aria-label={t('search')}
-          aria-pressed={search}
-          onClick={() => setSearch(!search)}
-        >
-          <IconGlobeLanguageOutline14 />
-          <span className={styles.toggleLabel}>{t('search')}</span>
-        </button>
-      </Tooltip>
-    </div>
-  )
-
   return (
     <>
-      {toggles}
       <div
         className={clsx(styles.wrapper, sessionId === null ? styles.home : styles.session)}
         onClick={(event) => {

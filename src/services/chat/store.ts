@@ -364,6 +364,14 @@ export const initChat = (): Promise<void> => {
       const summaries = await db.loadSessionSummaries()
       if (epoch === historyEpoch) {
         set({ ready: true, sessions: sortSessions(summaries) })
+        // 开着「回到上次对话」时直接进上次那条；找不到（已删除/换库）就当新对话
+        if (useSettings.getState().resumeLastSession) {
+          const last = readLastSession()
+          if (last && summaries.some((summary) => summary.id === last)) {
+            set({ activeId: last })
+            void ensureSessionLoaded(last)
+          }
+        }
       }
     } catch (error) {
       if (epoch === historyEpoch) {
@@ -527,9 +535,33 @@ export const replaceHistory = async <T>(
   }
 }
 
+/** 上次打开的对话：只给「启动回到上次对话」用，新对话会把它清掉 */
+const LAST_SESSION_KEY = 'oxchat:last-session'
+
+const readLastSession = (): string | null => {
+  try {
+    return localStorage.getItem(LAST_SESSION_KEY)
+  } catch {
+    return null
+  }
+}
+
+const writeLastSession = (id: string | null) => {
+  try {
+    if (id) {
+      localStorage.setItem(LAST_SESSION_KEY, id)
+    } else {
+      localStorage.removeItem(LAST_SESSION_KEY)
+    }
+  } catch {
+    // 存储不可用时只是不恢复，不影响使用
+  }
+}
+
 export const newChat = () => {
   if (!get().importingHistory) {
     set({ activeId: null })
+    writeLastSession(null)
     trimSessionCache()
   }
 }
@@ -538,6 +570,7 @@ export const selectSession = (id: string) => {
   if (!get().importingHistory && get().sessions.some((session) => session.id === id)) {
     touchSession(id)
     set({ activeId: id })
+    writeLastSession(id)
     void ensureSessionLoaded(id)
     trimSessionCache()
   }
