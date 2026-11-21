@@ -1,3 +1,5 @@
+import { translate } from '../../../i18n/index.js'
+import { createId } from '../../../utils/id.js'
 import { historyTokens } from '../context.js'
 import * as db from '../db.js'
 import type { Session } from '../types.js'
@@ -129,6 +131,11 @@ export const requestImportCancel = (): void => {
 export type ImportOptions = {
   /** 本地已存在的会话 ID：同 ID 会话跳过，保留现有对话与续聊内容 */
   existingIds?: ReadonlySet<string>
+  /**
+   * 同步模式：给出本地各会话的 updatedAt 后，同 id 会话不再一律跳过，
+   * 而是比较时间戳——远端较新则覆盖导入，本地较新则保留。
+   */
+  localUpdatedAt?: ReadonlyMap<string, number>
   /** 预扫描得到的会话总数，用于「N / M 个对话」进度 */
   totalSessions?: number
   /** 跳过图片等附件条目：只导入对话文字，图片在消息里显示为文件名 */
@@ -152,6 +159,10 @@ export type ImportOptions = {
  */
 export type ImportResult = {
   imported: number
+  /** 同步模式下被远端较新版本覆盖的会话数 */
+  updated: number
+  /** 覆盖前另存的本地副本数量 */
+  conflicts: number
   skipped: number
   /** 本次导入里最长那条对话的 token 估算，用来提示用户手动压缩 */
   maxTokens: number
@@ -174,6 +185,8 @@ export const importArchive = async (
   /** 已见过的会话（导入 + 跳过），用于图片路由与 index 校验 */
   const known = new Set<string>()
   let skipped = 0
+  let updated = 0
+  let conflicts = 0
   /** 最长会话的 token 估算：导入完用来决定要不要提示手动压缩 */
   let maxTokens = 0
   let done = 0
@@ -270,7 +283,9 @@ export const importArchive = async (
         if (imported.has(sessionId)) {
           fail('backupIncomplete')
         }
-        if (existing.has(sessionId)) {
+        const localAt = options.localUpdatedAt?.get(sessionId)
+        const merging = existing.has(sessionId) && options.localUpdatedAt !== undefined
+        if (existing.has(sessionId) && !merging) {
           skipped += 1
           done += 1
           report()
@@ -280,6 +295,32 @@ export const importArchive = async (
         const parsed = await parseSessionAsync(await blob.text())
         if (parsed.session.id !== sessionId) {
           fail('backupIncomplete')
+        }
+        if (merging) {
+          // 远端不比本地新就不动本地，避免同步把本地更近的续聊冲掉
+          const remoteAt = parsed.session.updatedAt ?? 0
+          if (remoteAt <= (localAt ?? 0)) {
+            skipped += 1
+            done += 1
+            report()
+            continue
+          }
+          // 覆盖前把本地这一版另存成副本：同步只按 updatedAt 判新旧，
+          // 两边各自往后聊过时，输的一方不能就这么没了
+          const local = await db.loadSession(sessionId).catch(() => undefined)
+          if (local && local.messages.length > 0) {
+            const copyAt = Date.now()
+            pendingSessions.push({
+              ...local,
+              id: createId(),
+              title: `${local.title || translate('untitledChat')} · ${translate('syncConflictSuffix')}`,
+              createdAt: copyAt,
+              updatedAt: copyAt,
+              pinned: false,
+            })
+            conflicts += 1
+          }
+          updated += 1
         }
         imported.add(sessionId)
         for (const [imagePath, id] of parsed.images) {
@@ -358,5 +399,5 @@ export const importArchive = async (
     fail('historyImportStorageFailed')
   }
   report(true)
-  return { imported: imported.size, skipped, maxTokens }
+  return { imported: imported.size - updated, updated, conflicts, skipped, maxTokens }
 }

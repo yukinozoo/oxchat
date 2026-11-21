@@ -30,6 +30,7 @@ import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useEdgeSwipe } from '../components/sider/useEdgeSwipe.js'
 import { UpdateDialog } from '../components/settings/UpdateDialog.js'
 import { useSilentUpdateCheck, type CurrentVersion, type UpdateManifest } from '../services/update.js'
+import { registerAutoPullMerge, runAutoPull } from '../services/chat/giteeAutoPull.js'
 import styles from './App.module.css'
 
 export const App = () => {
@@ -83,6 +84,34 @@ export const App = () => {
     return () => window.removeEventListener('oxchat:blob-save-error', onSaveError)
   }, [])
   useEffect(bindChatPersistence, [])
+
+  // 自动拉取：进入应用 / 切回前台时静默把云端备份合并进来（近实时多端）
+  useEffect(() => {
+    void import('../services/chat/backup.js').then(({ readArchiveIndex, syncImportSessions }) =>
+      registerAutoPullMerge(async (file) => {
+        const entries = await readArchiveIndex(file)
+        return syncImportSessions(file, new Set(entries.map((entry) => entry.id)))
+      })
+    )
+  }, [])
+  useEffect(() => {
+    if (!ready) {
+      return
+    }
+    const run = () =>
+      void runAutoPull({
+        streaming: () => Object.keys(useChatStore.getState().streaming).length,
+        importing: () => useChatStore.getState().importingHistory,
+      })
+    run()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        run()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [ready])
 
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])

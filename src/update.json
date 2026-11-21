@@ -1,9 +1,9 @@
 {
-  "versionCode": 87,
-  "versionName": "0.1.87",
-  "size": 5178243,
-  "sha256": "9f4b18c931fc5db8de06e14b362e7ab6fc172fd0f74f26ac6fc2053944570531",
-  "notes": "0.1.87：补齐 android:windowNoTitle 并在运行时兜底隐藏 ActionBar（修某些 ROM 顶部多出一条「OxChat」标题栏）",
+  "versionCode": 89,
+  "versionName": "0.1.89",
+  "size": 5191751,
+  "sha256": "86676ab58e82e99af5a9ad0c8ec1d68ff6ebbac4dd5274b63a7bcfe336cd58ee",
+  "notes": "0.1.89：备份管理（Gitee 同步：上传/拉取/合并+冲突副本/自动备份/多端同步/教程/操作记录）；修超长对话整理失败（按模型上限分段，flash 自适应减半）；修荣耀等机型白屏（去掉创建期的窗口特性调用 + 网页/原生白屏兜底）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

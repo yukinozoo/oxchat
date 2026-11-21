@@ -9,6 +9,7 @@ import { compactSession } from '../../services/chat/store.js'
 import { showToast } from '../base/toastState.js'
 import { Button } from '../base/Button.js'
 import { MemoryDialog } from './MemoryDialog.js'
+import { CompactDialog } from './CompactDialog.js'
 import { formatMoney } from '../../services/chat/pricing.js'
 import { useSettings } from '../../services/settings.js'
 import { useEffect, useState } from 'react'
@@ -26,6 +27,7 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
   const balanceLabel = formatBalance(balance)
   const [compacting, setCompacting] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
+  const [compactOpen, setCompactOpen] = useState(false)
   useAndroidBackHandler(Boolean(usage), onClose)
 
   useEffect(() => {
@@ -81,6 +83,11 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
                 const controller = new AbortController()
                 const result = await compactSession(sessionId, controller.signal)
                 setCompacting(false)
+                if (result.status === 'confirm') {
+                  // 历史太长：交给整理弹窗去说明分段开销并二次确认
+                  setCompactOpen(true)
+                  return
+                }
                 if (result.status === 'done') {
                   showToast({ key: 'compactDone', params: { count: result.messages } })
                   onClose()
@@ -98,6 +105,9 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
 
         {memoryOpen ? (
           <MemoryDialog sessionId={sessionId} onClose={() => setMemoryOpen(false)} />
+        ) : null}
+        {compactOpen ? (
+          <CompactDialog sessionId={sessionId} onClose={() => setCompactOpen(false)} />
         ) : null}
         <div className={styles.groupTitle}>{t('usageSession')}</div>
         <div className={styles.card}>

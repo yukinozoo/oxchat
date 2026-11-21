@@ -154,7 +154,7 @@ export const importSelectedSessions = (
 ): Promise<{ imported: number; skipped: number; maxTokens: number }> =>
   enqueueBackup(async () => {
     const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
-    beginImportJob(ids.size)
+    beginImportJob()
     try {
       await checkArchiveFormat(file)
       const existingIds = new Set(useChatStore.getState().sessions.map((session) => session.id))
@@ -194,6 +194,56 @@ export const readArchiveIndex = async (
   const list = readSessionIndex(JSON.parse(await blob.text()))
   return list.map((entry) => ({ id: entry.id, title: entry.title ?? '' }))
 }
+
+/**
+ * 同步导入：把远端备份合并进本地。
+ * 与「导入」的区别是同 id 会话按 updatedAt 比较——远端较新就覆盖，本地较新就保留，
+ * 因此拉取备份不会把本地更近的续聊冲掉，也不会因为"同 id 已存在"而什么都不做。
+ */
+export const syncImportSessions = (
+  file: File,
+  ids: ReadonlySet<string>,
+  options: { onProgress?: (done: number, total: number) => void } = {}
+): Promise<{
+  imported: number
+  updated: number
+  conflicts: number
+  skipped: number
+  maxTokens: number
+}> =>
+  enqueueBackup(async () => {
+    const { checkArchiveFormat, importArchive } = await import('./history/importArchive.js')
+    beginImportJob(ids.size)
+    try {
+      await checkArchiveFormat(file)
+      const localUpdatedAt = new Map(
+        useChatStore.getState().sessions.map((session) => [session.id, session.updatedAt])
+      )
+      const result = await replaceHistory(
+        () =>
+          importArchive(file, {
+            existingIds: new Set(localUpdatedAt.keys()),
+            localUpdatedAt,
+            onlyIds: ids,
+            totalSessions: ids.size,
+            onProgress: (done, total) => {
+              reportImportProgress(done, total)
+              options.onProgress?.(done, total)
+            },
+          }),
+        'merge'
+      )
+      return result as {
+        imported: number
+        updated: number
+        conflicts: number
+        skipped: number
+        maxTokens: number
+      }
+    } finally {
+      endImportJob()
+    }
+  })
 
 /** 确认删除后调用：以空历史原子替换全部本地会话与附件，保留 API Key 和其他设置。 */
 export const clearHistory = (): Promise<void> =>

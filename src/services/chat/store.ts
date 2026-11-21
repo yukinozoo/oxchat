@@ -15,7 +15,13 @@ import {
 } from './branches.js'
 import { canCompact, getCompactPlan } from './compact.js'
 import { modelCaps } from '../modelCaps.js'
-import { messageTokens, prepareContext, summarizeMessages } from './context.js'
+import {
+  historyTokens,
+  messageTokens,
+  planTranscriptChunks,
+  prepareContext,
+  summarizeMessages,
+} from './context.js'
 import {
   contextMessages,
   foldMessages,
@@ -24,6 +30,8 @@ import {
   renderMemorySection,
 } from './memory.js'
 import { createBackupSession } from './sessionBackup.js'
+import { noteReplyCompleted } from './giteeAutoSync.js'
+import { resetCompactProgress, setCompactProgress } from './compactProgress.js'
 import * as db from './db.js'
 import {
   clearAllDrafts,
@@ -726,6 +734,8 @@ export type CompactResult =
   /** 正在生成回复，或会话正在被替换 */
   | { status: 'busy' }
   | { status: 'cancelled' }
+  /** 历史太长，整理需要分多次请求：先回来问一句要不要继续 */
+  | { status: 'confirm'; chunks: number; tokens: number }
   | { status: 'error'; message: string }
 
 /**
@@ -733,9 +743,13 @@ export type CompactResult =
  * 其余消息从会话中移除。摘要随后续请求进入上下文，界面单独展示。
  * 生成中不压缩；压缩期间会话位置变化（有新消息、删了会话）则放弃本次结果。
  */
+/** 超过这么多段就先确认：每段一次请求，超长历史可能是几十次 */
+export const COMPACT_CONFIRM_CHUNKS = 8
+
 export const compactSession = async (
   sessionId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: { confirmed?: boolean } = {}
 ): Promise<CompactResult> => {
   if (get().importingHistory || deletingSessions.has(sessionId)) {
     return { status: 'busy' }
@@ -762,6 +776,11 @@ export const compactSession = async (
   if (!kept) {
     return { status: 'short' }
   }
+  // 超长历史一次请求塞不下（会报 user input too long）：按预算分段，段数多了先问一句
+  const chunks = planTranscriptChunks(head).length
+  if (!options.confirmed && chunks > COMPACT_CONFIRM_CHUNKS) {
+    return { status: 'confirm', chunks, tokens: historyTokens(head) }
+  }
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })
@@ -772,6 +791,7 @@ export const compactSession = async (
       apiKey,
       signal: controller.signal,
       previousSummary,
+      onProgress: setCompactProgress,
     })
   } catch (error) {
     if (controller.signal.aborted) {
@@ -780,6 +800,7 @@ export const compactSession = async (
     return { status: 'error', message: error instanceof Error ? error.message : String(error) }
   } finally {
     signal?.removeEventListener('abort', abort)
+    resetCompactProgress()
   }
   if (!text) {
     return { status: 'error', message: translate('compactEmpty') }
@@ -1489,5 +1510,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+    // 自动备份按"完成的回复条数"计数，失败的回复不计
+    if (reply.status === 'done') {
+      noteReplyCompleted()
+    }
   }
 }

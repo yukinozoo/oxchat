@@ -18,6 +18,42 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="application-name" content="OxChat" />
     <title>OxChat</title>
+    <script>
+      // 启动兜底：脚本报错或长时间没渲染时，把原因直接画在页面上，而不是留一片白屏
+      (function () {
+        var shown = false
+        function show(text) {
+          if (shown) return
+          shown = true
+          window.__oxchatBootError = text
+          try {
+            var box = document.createElement('pre')
+            box.style.cssText =
+              'position:fixed;inset:0;margin:0;padding:16px;background:#fff;color:#b3261e;' +
+              'font:12px/1.6 monospace;white-space:pre-wrap;overflow:auto;z-index:2147483647'
+            box.textContent =
+              'OxChat 启动失败\n\n' + text + '\n\n请把这段文字反馈给开发者（版本见 APK 文件名）。'
+            document.body.appendChild(box)
+          } catch (_) {}
+        }
+        window.addEventListener('error', function (event) {
+          show(
+            (event.message || '未知错误') +
+              (event.filename ? '\n' + event.filename + ':' + event.lineno : '')
+          )
+        })
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason
+          show('Promise 拒绝：' + (reason && reason.stack ? reason.stack : String(reason)))
+        })
+        setTimeout(function () {
+          var root = document.getElementById('root')
+          if (!root || root.childElementCount === 0) {
+            show('页面在 15 秒内没有渲染出内容（JS 未执行或被系统拦截）。\nUA: ' + navigator.userAgent)
+          }
+        }, 15000)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -33,6 +33,16 @@ type Settings = {
   compactBackup: boolean
   /** 单份文档的 token 预算：超出后本地截断再上传 */
   documentBudget: number
+  /** Gitee 同步：仓库所有者 / 仓库名 / 私人令牌（原生壳里同时写加密存储） */
+  giteeOwner: string
+  giteeRepo: string
+  giteeToken: string
+  /** 上次成功同步的时间戳，0 表示还没同步过 */
+  giteeLastSync: number
+  /** 自动备份：每 5 条回复 / 切后台超 10 分钟时自动上传 */
+  giteeAutoSync: boolean
+  /** 自动拉取：进入应用 / 切回前台时静默拉取并合并（近实时多端） */
+  giteeAutoPull: boolean
   /** 上下文窗口（token）：0 表示不限，超出后从最早的消息开始丢弃 */
   contextWindow: number
   /** 达到触发阈值时先把更早的对话总结成摘要，再发送本轮请求 */
@@ -86,6 +96,12 @@ const KEYS = {
   showMessageUsage: 'oxchat:show-message-usage',
   compactBackup: 'oxchat:compact-backup',
   documentBudget: 'oxchat:document-budget',
+  giteeOwner: 'oxchat:gitee-owner',
+  giteeRepo: 'oxchat:gitee-repo',
+  giteeToken: 'oxchat:gitee-token',
+  giteeLastSync: 'oxchat:gitee-last-sync',
+  giteeAutoSync: 'oxchat:gitee-auto-sync',
+  giteeAutoPull: 'oxchat:gitee-auto-pull',
   contextWindow: 'oxchat:context-window',
   autoCompact: 'oxchat:auto-compact',
   compactThreshold: 'oxchat:compact-threshold',
@@ -264,6 +280,12 @@ export const useSettings = create<Settings>(() => {
     showMessageUsage: initialShowMessageUsage(),
     compactBackup: initialCompactBackup(),
     documentBudget: initialDocumentBudget(),
+    giteeOwner: read(KEYS.giteeOwner) ?? '',
+    giteeRepo: read(KEYS.giteeRepo) ?? '',
+    giteeToken: read(KEYS.giteeToken) ?? '',
+    giteeLastSync: Number(read(KEYS.giteeLastSync) ?? 0) || 0,
+    giteeAutoSync: read(KEYS.giteeAutoSync) === 'true',
+    giteeAutoPull: read(KEYS.giteeAutoPull) === 'true',
     contextWindow: initialContextWindow(),
     autoCompact: initialAutoCompact(),
     compactThreshold: initialPercent(KEYS.compactThreshold, 50),
@@ -340,6 +362,74 @@ export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
   write(KEYS.autoCollapseThinking, String(autoCollapseThinking))
   useSettings.setState({ autoCollapseThinking })
 }
+
+export const setGiteeRepoConfig = (owner: string, repo: string) => {
+  write(KEYS.giteeOwner, owner.trim())
+  write(KEYS.giteeRepo, repo.trim())
+  useSettings.setState({ giteeOwner: owner.trim(), giteeRepo: repo.trim() })
+}
+
+/** 原生壳里把令牌加密存一份；网页版只能落 localStorage，需在界面上提示风险 */
+const secureStore = () => {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  const capacitor = (window as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor
+  return capacitor?.Plugins?.SecureStore as
+    | {
+        save: (options: { key: string; value: string }) => Promise<void>
+        get: (options: { key: string }) => Promise<{ value: string | null }>
+        remove: (options: { key: string }) => Promise<void>
+      }
+    | undefined
+}
+
+const GITEE_TOKEN_KEY = 'oxchat:gitee-token'
+
+export const setGiteeToken = (token: string) => {
+  const value = token.trim()
+  write(KEYS.giteeToken, value || null)
+  useSettings.setState({ giteeToken: value })
+  const store = secureStore()
+  if (store) {
+    void (value ? store.save({ key: GITEE_TOKEN_KEY, value }) : store.remove({ key: GITEE_TOKEN_KEY })).catch(
+      () => undefined
+    )
+  }
+}
+
+export const setGiteeAutoPull = (giteeAutoPull: boolean) => {
+  write(KEYS.giteeAutoPull, String(giteeAutoPull))
+  useSettings.setState({ giteeAutoPull })
+}
+
+export const setGiteeAutoSync = (giteeAutoSync: boolean) => {
+  write(KEYS.giteeAutoSync, String(giteeAutoSync))
+  useSettings.setState({ giteeAutoSync })
+}
+
+export const markGiteeSynced = (at = Date.now()) => {
+  write(KEYS.giteeLastSync, String(at))
+  useSettings.setState({ giteeLastSync: at })
+}
+
+/** 原生壳启动时从加密存储补读一次令牌（localStorage 里可能没有） */
+const hydrateGiteeToken = async () => {
+  const store = secureStore()
+  if (!store || useSettings.getState().giteeToken) {
+    return
+  }
+  try {
+    const { value } = await store.get({ key: GITEE_TOKEN_KEY })
+    if (value) {
+      useSettings.setState({ giteeToken: value })
+    }
+  } catch {
+    // 解不开（重装/密钥被清）时保持空，让用户重新填
+  }
+}
+
+void hydrateGiteeToken()
 
 export const setDocumentBudget = (documentBudget: number) => {
   const value = clampDocumentBudget(documentBudget)

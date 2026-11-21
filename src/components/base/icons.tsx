@@ -736,6 +736,18 @@ export const IconFontSizeOutline16 = () => (
   </svg>
 )
 
+export const IconCloudOutline20 = () => (
+  <svg width={20} height={20} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6.4 15.25h7.35a3.4 3.4 0 0 0 .36-6.78 4.9 4.9 0 0 0-9.42.86 3.1 3.1 0 0 0 1.71 5.92Z"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 export const IconCostOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

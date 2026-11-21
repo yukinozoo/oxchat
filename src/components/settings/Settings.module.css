@@ -647,6 +647,23 @@
   height: 52px;
 }
 
+.pageAction {
+  position: absolute;
+  right: 16px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-brand-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pageAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
 .pageTitle {
   font-size: 17px;
   font-weight: 600;

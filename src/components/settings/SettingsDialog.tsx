@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   IconChatOutline20,
+  IconCloudOutline20,
   IconCostOutline16,
   IconCheckOutline16,
   IconChevronRightOutline14,
@@ -52,6 +53,8 @@ import { ChatSettings } from './ChatSettings.js'
 import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
+import { BackupSettings } from './BackupSettings.js'
+import { BackupGuide } from './BackupGuide.js'
 import { downloadAndroidApk } from '../../services/androidDownload.js'
 import { DEEPSEEK_TOP_UP_URL } from '../../services/platformLinks.js'
 import { exportSessionsToFile } from '../../services/chat/exportSession.js'
@@ -105,6 +108,7 @@ const SettingsContent = () => {
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const showMessageUsage = useSettings((state) => state.showMessageUsage)
+  const giteeLastSync = useSettings((state) => state.giteeLastSync)
   const contextWindow = useSettings((state) => state.contextWindow)
   const fontSize = useSettings((state) => state.fontSize)
   const fontSizeFollowSystem = useSettings((state) => state.fontSizeFollowSystem)
@@ -167,6 +171,8 @@ const SettingsContent = () => {
     chat: 'settingsChat',
     fontSize: 'settingsFontSize',
     cost: 'settingsCost',
+    backup: 'settingsBackup',
+    backupGuide: 'backupGuideTitle',
   }
 
   const themeLabels: Record<ThemePreference, TranslationKey> = {
@@ -204,6 +210,15 @@ const SettingsContent = () => {
             </span>
           </button>
           <div className={styles.pageTitle}>{t(titles[section])}</div>
+          {section === 'backup' ? (
+            <button
+              type="button"
+              className={styles.pageAction}
+              onClick={() => setSection('backupGuide')}
+            >
+              {t('backupGuideEntry')}
+            </button>
+          ) : null}
         </div>
         <div role="tabpanel" className={styles.pageBody}>
           {section === 'general' ? (
@@ -222,6 +237,18 @@ const SettingsContent = () => {
                     label={t('settingsDataManage')}
                     value={t('settingsDataCount', { count: sessionCount })}
                     onClick={() => setSection('data')}
+                  />
+                  <NavRow
+                    icon={<IconCloudOutline20 />}
+                    label={t('settingsBackup')}
+                    value={
+                      giteeLastSync > 0
+                        ? t('backupLastSyncShort', {
+                            time: new Date(giteeLastSync).toLocaleDateString(),
+                          })
+                        : t('backupNeverShort')
+                    }
+                    onClick={() => setSection('backup')}
                   />
                 </div>
               </div>
@@ -376,6 +403,10 @@ const SettingsContent = () => {
             <CostSettings />
           ) : section === 'chat' ? (
             <ChatSettings />
+          ) : section === 'backup' ? (
+            <BackupSettings />
+          ) : section === 'backupGuide' ? (
+            <BackupGuide />
           ) : section === 'personalize' ? (
             <>
               <div className={styles.card}>
