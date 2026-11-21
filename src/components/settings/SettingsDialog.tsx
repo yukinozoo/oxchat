@@ -35,6 +35,7 @@ import {
   setApiKey,
   setAutoCollapseThinking,
   setResumeLastSession,
+  setShowMessageUsage,
   useSettings,
   type ThemePreference,
 } from '../../services/settings.js'
@@ -52,6 +53,7 @@ import { LinkImportEntry } from './LinkImportEntry.js'
 import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import { downloadAndroidApk } from '../../services/androidDownload.js'
+import { DEEPSEEK_TOP_UP_URL } from '../../services/platformLinks.js'
 import { exportSessionsToFile } from '../../services/chat/exportSession.js'
 import {
   BACKUP_REMINDER_DAYS,
@@ -102,6 +104,7 @@ const SettingsContent = () => {
   const ttsVoice = useSettings((state) => state.ttsVoice)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
+  const showMessageUsage = useSettings((state) => state.showMessageUsage)
   const contextWindow = useSettings((state) => state.contextWindow)
   const fontSize = useSettings((state) => state.fontSize)
   const fontSizeFollowSystem = useSettings((state) => state.fontSizeFollowSystem)
@@ -415,6 +418,26 @@ const SettingsContent = () => {
                 </button>
               </div>
               <div className={styles.settingDesc}>{t('personalizeResumeLastSessionDesc')}</div>
+              <div className={styles.card}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showMessageUsage}
+                  className={clsx(styles.cell, styles.row, styles.navRow)}
+                  onClick={() => setShowMessageUsage(!showMessageUsage)}
+                >
+                  <span className={clsx(styles.label, styles.labelGrow)}>
+                    {t('personalizeShowUsage')}
+                  </span>
+                  <span
+                    className={clsx(styles.switch, showMessageUsage && styles.switchOn)}
+                    aria-hidden="true"
+                  >
+                    <span className={styles.switchKnob} />
+                  </span>
+                </button>
+              </div>
+              <div className={styles.settingDesc}>{t('personalizeShowUsageDesc')}</div>
             </>
           ) : null}
         </div>
@@ -533,6 +556,17 @@ const AccountCard = ({ apiKey }: { apiKey: string | null }) => {
             : t('settingsNoAccountHint')}
         </div>
       </div>
+      {apiKey ? (
+        // 余额右边给个出去充值的入口；原生壳里由 bridge 拦成系统浏览器打开
+        <a
+          className={styles.accountTopUp}
+          href={DEEPSEEK_TOP_UP_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('settingsTopUp')}
+        </a>
+      ) : null}
     </div>
   )
 }

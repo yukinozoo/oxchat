@@ -16,6 +16,8 @@ import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js
 import { ReadAloudButton } from './ReadAloudButton.js'
 import { CopyButton } from './CopyButton.js'
 import { ReplyArea } from './ReplyArea.js'
+import { formatTokens, usageSummary } from '../../services/chat/usage.js'
+import { useSettings } from '../../services/settings.js'
 import { useReplyView } from './useReplyView.js'
 import {
   BranchSwitcher,
@@ -44,6 +46,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   onSelectVersion: SelectMessageVersion
 }) {
   const t = useTranslate()
+  const showUsage = useSettings((state) => state.showMessageUsage)
   const view = useReplyView(message, streaming)
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
@@ -141,6 +144,15 @@ export const AssistantMessage = memo(function AssistantMessage({
       {streaming ? null : (
         <div className={styles.bottom}>
           <BranchSwitcher versions={versions} disabled={busy} onSelect={onSelectVersion} />
+          {showUsage && message.usage ? (
+            <div className={styles.usage}>
+              {t('messageUsage', {
+                input: formatTokens(usageSummary(message.usage).input),
+                cached: formatTokens(usageSummary(message.usage).cached),
+                output: formatTokens(usageSummary(message.usage).output),
+              })}
+            </div>
+          ) : null}
           <div className={clsx(styles.actions, isLast && styles.alwaysShow)}>
             {copyText ? <CopyButton text={copyText} /> : null}
             {responseText && !refused ? (

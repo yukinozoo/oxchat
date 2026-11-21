@@ -87,6 +87,18 @@ export const summarizeUsage = (session: Session | undefined): SessionUsage | nul
 }
 
 /** 大数字缩写：194.21M / 389K */
+/** 一条回复的用量摘要：总输入 = 未命中 + 缓存写入 + 缓存命中 */
+export const usageSummary = (usage: {
+  input_tokens: number
+  cache_creation_input_tokens: number
+  cache_read_input_tokens: number
+  output_tokens: number
+}) => ({
+  input: usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens,
+  cached: usage.cache_read_input_tokens,
+  output: usage.output_tokens,
+})
+
 export const formatTokens = (value: number): string => {
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(2)}M`

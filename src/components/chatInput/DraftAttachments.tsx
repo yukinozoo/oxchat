@@ -1,11 +1,12 @@
 import clsx from 'clsx'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useUploads, type UploadTask } from '../../services/attachments.js'
 import type { DraftAttachment } from '../../services/chat/drafts.js'
 import { IconCloseFill14, IconRefreshOutline16 } from '../base/icons.js'
 import { Tooltip } from '../base/Tooltip.js'
 import { FileCard } from '../files/FileCard.js'
+import { ImageLightbox, useLightboxEscape } from '../base/ImageLightbox.js'
 import styles from './ChatInput.module.css'
 
 const UPLOADING: UploadTask = { status: 'uploading' }
@@ -48,6 +49,8 @@ const AttachmentItem = ({
   onRemove: () => void
 }) => {
   const t = useTranslate()
+  const [previewing, setPreviewing] = useState(false)
+  useLightboxEscape(previewing, () => setPreviewing(false))
   const task = useUploads((state) => state.tasks[item.id] ?? UPLOADING)
   const status = task.status
   const error = task.status === 'error' ? t(task.error.key, task.error.params) : undefined
@@ -62,7 +65,21 @@ const AttachmentItem = ({
       className={clsx(styles.attachment, failed && styles.attachmentFailed)}
       title={error ?? item.file.name}
     >
-      <img src={item.previewUrl} alt={item.file.name} />
+      <button
+        type="button"
+        className={styles.thumbnail}
+        aria-label={t('viewImage')}
+        onClick={() => setPreviewing(true)}
+      >
+        <img src={item.previewUrl} alt={item.file.name} />
+      </button>
+      {previewing ? (
+        <ImageLightbox
+          src={item.previewUrl}
+          alt={item.file.name}
+          onClose={() => setPreviewing(false)}
+        />
+      ) : null}
       {status === 'uploading' ? <div className={styles.uploading} /> : null}
       {failed && retry ? (
         <Tooltip content={retryLabel}>

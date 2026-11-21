@@ -719,6 +719,18 @@
   background: var(--dsw-alias-bg-layer-2);
 }
 
+.accountTopUp {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--dsw-alias-brand-text);
+  border-radius: 999px;
+  color: var(--dsw-alias-brand-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
 .accountAvatar {
   display: flex;
   flex-shrink: 0;
