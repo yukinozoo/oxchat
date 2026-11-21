@@ -1,9 +1,9 @@
 {
-  "versionCode": 86,
-  "versionName": "0.1.86",
-  "size": 5177767,
-  "sha256": "d02093b5a7bcd0a70e0da693ff72cec82db398c008059590948426de75c5caab",
-  "notes": "0.1.86：去掉顶部多出的 ActionBar 灰色标题条；修正 WebView 内核误报（改按 UA 判断）；首页/对话页不再显示「内容由 AI 生成」并收窄底部留白；背景图读写修复",
+  "versionCode": 87,
+  "versionName": "0.1.87",
+  "size": 5178243,
+  "sha256": "9f4b18c931fc5db8de06e14b362e7ab6fc172fd0f74f26ac6fc2053944570531",
+  "notes": "0.1.87：补齐 android:windowNoTitle 并在运行时兜底隐藏 ActionBar（修某些 ROM 顶部多出一条「OxChat」标题栏）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"
