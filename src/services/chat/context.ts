@@ -2,21 +2,14 @@ import { streamMessage } from '../api/client.js'
 import { DEFAULT_MODEL } from '../api/types.js'
 import { currentSystemPrompt, useSettings } from '../settings.js'
 import { getReplyText } from './reply.js'
+import { estimateTokens } from '../../utils/tokens.js'
 import type { Message } from './types.js'
 
 /**
  * 上下文窗口与自动压缩：按估算 token 衡量历史长度。
- * 没有分词器，按「中日韩字符 1 token、其余字符 4 个 1 token」粗估，够用且稳定。
+ * 估算口径见 utils/tokens（中日韩 1 字 1 token，其余 4 字符 1 token）。
  */
-const CJK = /[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/g
-
-export const estimateTokens = (text: string): number => {
-  if (!text) {
-    return 0
-  }
-  const cjk = text.match(CJK)?.length ?? 0
-  return Math.ceil(cjk + (text.length - cjk) / 4)
-}
+export { estimateTokens } from '../../utils/tokens.js'
 
 /** 单条消息的估算量：正文 + 每条消息的协议开销 */
 const MESSAGE_OVERHEAD = 6

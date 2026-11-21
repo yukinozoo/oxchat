@@ -1,8 +1,10 @@
+import { useSettings } from '../settings.js'
 import { getVisibleMessages } from './branches.js'
+import { historyTokens } from './context.js'
 import { estimateCost, isPeakNow } from './pricing.js'
 import type { Session } from './types.js'
 
-/** 上下文窗口上限：官方文档标注为 1M */
+/** 上下文窗口的兜底上限：设置里选「不限」或没设置时按官方标注的 1M 算 */
 export const CONTEXT_LIMIT = 1_000_000
 
 export type SessionUsage = {
@@ -14,10 +16,12 @@ export type SessionUsage = {
   output: number
   /** 缓存命中率，0-100；没有输入时为 0 */
   cacheHitRate: number
-  /** 最近一轮请求的输入量，作为"下次请求上下文"的估算 */
+  /** 下次请求大概会带的上下文（历史 token 估算，含压缩摘要） */
   contextTokens: number
   /** 上下文进度，0-100 */
   contextPercent: number
+  /** 用于计算进度的窗口上限：跟随设置，选「不限」时为 CONTEXT_LIMIT */
+  contextLimit: number
   /** 累计花费（元），按官方价格表估算；模型不在表里时为 null */
   cost: number | null
   /** 当前是否高峰时段（价格翻倍） */
@@ -26,17 +30,25 @@ export type SessionUsage = {
   model: string | null
 }
 
-/** 从会话消息里汇总用量；没有回答或没有 usage 时返回 null（不显示进度环） */
+/**
+ * 从会话消息里汇总用量。
+ *
+ * 上下文进度按「下次请求会发多少」算：历史 token 估算（含压缩摘要），
+ * 分母跟随设置里的上下文窗口 —— 之前写死 1M，窗口调小后进度会严重偏低。
+ * 没有任何消息时返回 null；有消息但没有 usage（例如刚导入）也要返回，进度条才有意义。
+ */
 export const summarizeUsage = (session: Session | undefined): SessionUsage | null => {
   if (!session) {
     return null
   }
   const messages = getVisibleMessages(session)
+  if (messages.length === 0) {
+    return null
+  }
   let rounds = 0
   let input = 0
   let output = 0
   let cacheRead = 0
-  let contextTokens = 0
   let cost = 0
   let costKnown = false
   let model: string | null = null
@@ -52,8 +64,6 @@ export const summarizeUsage = (session: Session | undefined): SessionUsage | nul
     input += inputSum
     output += usage.output_tokens
     cacheRead += usage.cache_read_input_tokens
-    // 最后一轮即最近一次真实请求的输入量
-    contextTokens = inputSum
     model = message.resolvedModel ?? message.model ?? model
     const messageCost = estimateCost(
       {
@@ -70,16 +80,17 @@ export const summarizeUsage = (session: Session | undefined): SessionUsage | nul
     }
   }
 
-  if (rounds === 0) {
-    return null
-  }
+  const contextWindow = useSettings.getState().contextWindow
+  const contextLimit = contextWindow > 0 ? contextWindow : CONTEXT_LIMIT
+  const contextTokens = historyTokens(messages)
   return {
     rounds,
     input,
     output,
     cacheHitRate: input > 0 ? Math.round((cacheRead / input) * 100) : 0,
     contextTokens,
-    contextPercent: Math.min(100, Math.round((contextTokens / CONTEXT_LIMIT) * 100)),
+    contextPercent: Math.min(100, Math.round((contextTokens / contextLimit) * 100)),
+    contextLimit,
     cost: costKnown ? cost : null,
     peak: isPeakNow(),
     model,

@@ -36,7 +36,11 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* 50% 起琥珀色，80% 起红色：颜色同步到环与百分比 */
+/* 档位：20% 起浅提示、40% 起琥珀、70% 起红（颜色同步到环与百分比） */
+.notice .value {
+  stroke: var(--dsw-alias-brand-text);
+}
+
 .warn .value {
   stroke: var(--dsw-static-amber-500);
 }

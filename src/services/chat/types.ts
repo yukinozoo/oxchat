@@ -114,6 +114,28 @@ export type AssistantMessage = MessageBranch & {
 
 export type Message = UserMessage | AssistantMessage
 
+/** 长期记忆里的一条笔记；用户改过的（edited）在再次整理时会保留 */
+export type MemoryNote = {
+  id: string
+  text: string
+  /** 用户手写/手改过，整理时不被新摘要覆盖 */
+  edited?: boolean
+  createdAt: number
+}
+
+/**
+ * 会话的长期记忆：把早期的对话折叠成一组可读笔记。
+ * 被折叠的消息仍留在会话里（可回看、可恢复），只是不再进入请求上下文。
+ */
+export type SessionMemory = {
+  notes: MemoryNote[]
+  /** 已折叠、不再进入上下文的消息 id */
+  foldedIds: string[]
+  /** 已折叠的轮次数，仅用于展示 */
+  foldedRounds: number
+  updatedAt: number
+}
+
 export type Session = {
   id: string
   title: string
@@ -125,6 +147,8 @@ export type Session = {
   rootMessageId?: string | null
   /** 置顶：列表里排在时间分组之前 */
   pinned?: boolean
+  /** 长期记忆（折叠 + 笔记）；没有则视为未整理过 */
+  memory?: SessionMemory
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

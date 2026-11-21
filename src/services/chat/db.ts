@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { fromSettingRecord, toSettingRecord } from './settingsRecord.js'
 import { toSessionSummary, type Session, type SessionSummary } from './types.js'
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
@@ -345,15 +346,43 @@ export const reportStorageError = (action: string) => (error: unknown) => {
 }
 
 /** 大设置项读写（背景图等）：value 直接存字符串 */
-export const getSetting = async (key: string): Promise<string | undefined> =>
-  (await getDB()).get('settings', key)
+
+/**
+ * 设置表兼容两种建表方式：
+ * - 新库：`createObjectStore('settings', { keyPath: 'id' })` → 只能 put({ id, value })
+ * - 旧库：外置键 → put(value, key)
+ * 之前一律按外置键写，新库上 `put(value, key)` 会抛 DataError（背景图一直存不进去）。
+ */
+/** 只用到这几个成员的窄接口：两种建表方式共用 */
+type SettingStore = {
+  keyPath: string | string[] | null
+  get(key: string): Promise<unknown>
+  put(value: unknown, key?: string): Promise<unknown>
+  delete(key: string): Promise<void>
+}
+
+const settingsStore = async (mode: IDBTransactionMode): Promise<SettingStore> => {
+  const db = await getDB()
+  return db.transaction('settings', mode).objectStore('settings') as unknown as SettingStore
+}
+
+export const getSetting = async (key: string): Promise<string | undefined> => {
+  const store = await settingsStore('readonly')
+  return fromSettingRecord(await store.get(key))
+}
 
 export const setSetting = async (key: string, value: string): Promise<void> => {
-  await (await getDB()).put('settings', value, key)
+  const store = await settingsStore('readwrite')
+  if (store.keyPath) {
+    await store.put(toSettingRecord(key, value))
+  } else {
+    await store.put(value, key)
+  }
 }
 
 export const deleteSetting = async (key: string): Promise<void> => {
-  await (await getDB()).delete('settings', key)
+  const store = await settingsStore('readwrite')
+  await store.delete(key)
 }
 
 /** 清理没有被任何会话引用的附件原件；返回清理数量与释放的字节数 */

@@ -7,6 +7,8 @@ import {
   DEFAULT_GLOBAL_PROMPT,
   formatContextWindow,
   setAutoCompact,
+  setCompactBackup,
+  setDocumentBudget,
   setCompactKeep,
   setCompactThreshold,
   setContextWindow,
@@ -14,6 +16,12 @@ import {
   setTemperature,
   useSettings,
 } from '../../services/settings.js'
+import {
+  DOCUMENT_BUDGET_MAX,
+  DOCUMENT_BUDGET_MIN,
+  DOCUMENT_BUDGET_STEP,
+} from '../../services/documents/budget.js'
+import { formatTokens } from '../../services/chat/usage.js'
 import styles from './ChatSettings.module.css'
 
 /** 触发阈值与保留比例的可用区间：保留段必须比阈值更小，否则压缩没有意义 */
@@ -34,6 +42,8 @@ export const ChatSettings = () => {
   const contextWindow = useSettings((state) => state.contextWindow)
   const autoCompact = useSettings((state) => state.autoCompact)
   const compactThreshold = useSettings((state) => state.compactThreshold)
+  const compactBackup = useSettings((state) => state.compactBackup)
+  const documentBudget = useSettings((state) => state.documentBudget)
   const compactKeep = useSettings((state) => state.compactKeep)
   const temperature = useSettings((state) => state.temperature)
   const globalPrompt = useSettings((state) => state.globalPrompt)
@@ -73,6 +83,16 @@ export const ChatSettings = () => {
             />
           }
         />
+        <RangeRow
+          label={t('chatDocumentBudget')}
+          valueText={formatTokens(documentBudget)}
+          min={DOCUMENT_BUDGET_MIN}
+          max={DOCUMENT_BUDGET_MAX}
+          step={DOCUMENT_BUDGET_STEP}
+          value={documentBudget}
+          onChange={(value) => setDocumentBudget(value)}
+        />
+        <p className={styles.note}>{t('chatDocumentBudgetDesc')}</p>
       </Section>
 
       <Section>
@@ -97,6 +117,18 @@ export const ChatSettings = () => {
           value={compactThreshold}
           disabled={compactDisabled}
           onChange={changeThreshold}
+        />
+        <SettingRow
+          label={t('compactBackup')}
+          desc={t('compactBackupDesc')}
+          action={
+            <Select
+              value={compactBackup ? 'on' : 'off'}
+              options={switchOptions}
+              ariaLabel={t('compactBackup')}
+              onChange={(value) => setCompactBackup(value === 'on')}
+            />
+          }
         />
         <RangeRow
           label={t('chatCompactKeep')}

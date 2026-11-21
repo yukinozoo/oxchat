@@ -12,14 +12,20 @@ export const UsageRing = ({ sessionId, onClick }: { sessionId: string; onClick: 
   )
   const usage = summarizeUsage(session)
 
-  // 没有任何回答（或没有 usage 数据）时不显示
-  if (!usage) {
+  // 只要会话里有消息就显示（导入的会话没有 usage，但上下文占用照样要看）
+  if (!usage || usage.contextTokens === 0) {
     return null
   }
 
-  // 50% 起转琥珀色，80% 起转红色
+  // 四档：40% 起提醒、70% 起警告（此时该整理了）
   const tone =
-    usage.contextPercent >= 80 ? styles.danger : usage.contextPercent >= 50 ? styles.warn : ''
+    usage.contextPercent >= 70
+      ? styles.danger
+      : usage.contextPercent >= 40
+        ? styles.warn
+        : usage.contextPercent >= 20
+          ? styles.notice
+          : ''
   const radius = 7
   const circumference = 2 * Math.PI * radius
   const offset = circumference * (1 - usage.contextPercent / 100)

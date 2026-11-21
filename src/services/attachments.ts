@@ -4,6 +4,9 @@ import { uploadFile } from './api/client.js'
 import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
 import type { FilePurpose } from './api/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
+import { extractDocumentText, isExtractableDocument } from './documents/extract.js'
+import { truncateToBudget } from './documents/budget.js'
+import { useSettings } from './settings.js'
 
 /** 允许上传的扩展名，按扩展名白名单过滤，清单见 uploadExts.ts */
 export const ACCEPTED_EXTS = ACCEPT_FILE_EXTS
@@ -189,13 +192,32 @@ const enqueueUpload = (
         if (!prepared) {
           throw new Error('unsupported image')
         }
-        const body =
+        let body =
           prepared.blob instanceof File
             ? prepared.blob
             : new File([prepared.blob], prepared.name, { type: prepared.blob.type })
-        resolve(
-          (await uploadFile(apiKey, body, getUploadPurpose(prepared.name, isImage), signal)).id
-        )
+        // 文档类先本地抽文本：能截断、能告知比例，超大文件也不会把服务端解析撑爆
+        let purpose = getUploadPurpose(prepared.name, isImage)
+        if (!isImage && isExtractableDocument(prepared.name)) {
+          const text = await extractDocumentText(prepared.name, body)
+          if (text) {
+            const budget = useSettings.getState().documentBudget
+            const { text: kept, ratio } = truncateToBudget(text, budget)
+            if (ratio < 1) {
+              const notice: LinkedMessage = {
+                key: 'documentTruncated',
+                params: { percent: Math.max(1, Math.round(ratio * 100)) },
+              }
+              for (const listener of noticeListeners) {
+                listener(notice)
+              }
+            }
+            const txtName = `${prepared.name.replace(/\.[^.]+$/, '')}.txt`
+            body = new File([kept], txtName, { type: 'text/plain' })
+            purpose = 'user_data'
+          }
+        }
+        resolve((await uploadFile(apiKey, body, purpose, signal)).id)
       } catch (error) {
         reject(error)
       }

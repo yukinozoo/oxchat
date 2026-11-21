@@ -60,6 +60,7 @@ export const ThemeSettings = () => {
   const accent = useSettings((state) => state.themeAccent)
   const background = useSettings((state) => state.themeBackground)
   const bgImage = useSettings((state) => state.bgImage)
+  const bgImageMissing = useSettings((state) => state.bgImageMissing)
   const opacity = useSettings((state) => state.bgImageOpacity)
   const blur = useSettings((state) => state.bgImageBlur)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -83,7 +84,10 @@ export const ThemeSettings = () => {
         showToast(t('themeBgImageTooLarge'))
         return
       }
-      setBgImage(dataUrl)
+      const saved = await setBgImage(dataUrl)
+      if (!saved) {
+        showToast(t('themeBgImageSaveFailed'))
+      }
     } catch {
       showToast(t('themeBgImageFailed'))
     }
@@ -237,7 +241,7 @@ export const ThemeSettings = () => {
                   <button
                     type="button"
                     className={clsx(styles.imageAction, styles.imageActionDanger)}
-                    onClick={() => setBgImage('')}
+                    onClick={() => void setBgImage('')}
                   >
                     {t('themeBgImageRemove')}
                   </button>
@@ -272,14 +276,19 @@ export const ThemeSettings = () => {
                 </div>
               </>
             ) : (
-              <button
-                type="button"
-                className={styles.imagePicker}
-                onClick={() => fileRef.current?.click()}
-              >
-                <IconPhotosOutline20 />
-                {t('themeBgImageChoose')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={styles.imagePicker}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <IconPhotosOutline20 />
+                  {t('themeBgImageChoose')}
+                </button>
+                {bgImageMissing ? (
+                  <p className={styles.imageMissing}>{t('themeBgImageMissing')}</p>
+                ) : null}
+              </>
             )}
             <input
               ref={fileRef}

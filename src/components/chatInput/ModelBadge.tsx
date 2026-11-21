@@ -13,7 +13,7 @@ import styles from './ModelBadge.module.css'
  * - 列表来自 GET /models，显示下一次请求将使用的模型
  * - 点开是底部面板，直接列出全部模型（不带「管理模型」入口）
  */
-export const ModelBadge = ({ sessionId }: { sessionId: string | null }) => {
+export const ModelBadge = () => {
   const t = useTranslate()
   const apiKey = useSettings((state) => state.apiKey)
   const selected = useSettings((state) => state.model)
@@ -42,7 +42,7 @@ export const ModelBadge = ({ sessionId }: { sessionId: string | null }) => {
         <span className={styles.label}>{prettyModelName(selected)}</span>
         <IconChevronDownOutline14 />
       </button>
-      {open ? <ModelPicker sessionId={sessionId} onClose={() => setOpen(false)} /> : null}
+      {open ? <ModelPicker onClose={() => setOpen(false)} /> : null}
     </>
   )
 }

@@ -1,9 +1,9 @@
 {
-  "versionCode": 80,
-  "versionName": "0.1.80",
-  "size": 5171963,
-  "sha256": "f070e440f3124d5c2fa3986d248bfad5a68c9fada49fa9be2cd4fa1144a1baa7",
-  "notes": "0.1.80：余额旁「去充值」直达官方充值页；输入框图片可点开放大、× 常显；个性化可显示每条回复的 Token 与缓存命中",
+  "versionCode": 86,
+  "versionName": "0.1.86",
+  "size": 5177767,
+  "sha256": "d02093b5a7bcd0a70e0da693ff72cec82db398c008059590948426de75c5caab",
+  "notes": "0.1.86：去掉顶部多出的 ActionBar 灰色标题条；修正 WebView 内核误报（改按 UA 判断）；首页/对话页不再显示「内容由 AI 生成」并收窄底部留白；背景图读写修复",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

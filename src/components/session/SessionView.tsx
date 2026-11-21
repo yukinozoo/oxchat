@@ -49,7 +49,8 @@ export const SessionView = ({
         footer={
           <div className={styles.inputContainer}>
             <ChatInput sessionId={session.id} />
-            <div className={styles.caveat}>{t('contentCaveat')}</div>
+            {/* 不再显示「内容由 AI 生成」：留同高占位，输入框到底部的间距不变 */}
+            <div className={styles.caveatSpacer} aria-hidden />
           </div>
         }
       />

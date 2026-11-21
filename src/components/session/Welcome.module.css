@@ -105,15 +105,11 @@
     flex-shrink: 0;
   }
 
-  .caveat {
+  /* 输入框下方的留白：原来是那句提示的高度（28px），去掉文案后压到一半 */
+  .caveatSpacer {
     flex-shrink: 0;
     width: 100%;
-    padding: 6px 0;
-    font-size: 11px;
-    line-height: 16px;
-    text-align: center;
-    color: var(--dsw-alias-label-tertiary);
-    user-select: none;
+    height: 14px;
   }
 }
 

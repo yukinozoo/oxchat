@@ -1,4 +1,4 @@
-import { getVisibleMessages } from './branches.js'
+import { contextMessages } from './memory.js'
 import type { Message, Session } from './types.js'
 
 /**
@@ -13,7 +13,8 @@ export type CompactPlan = {
 }
 
 export const getCompactPlan = (session: Session): CompactPlan => {
-  const path = getVisibleMessages(session)
+  // 只规划「还在上下文里」的消息：已经折叠的不再重复摘要
+  const path = contextMessages(session)
   const keep = path.at(-1)?.role === 'assistant' ? 2 : 1
   const start = Math.max(0, path.length - keep)
   return { head: path.slice(0, start), tail: path.slice(start) }

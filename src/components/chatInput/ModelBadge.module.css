@@ -1,3 +1,16 @@
+/* 背景图上胶囊不抢视线：半透明 + 细描边 */
+:global(body.has-bg-image) .badge {
+  border-color: rgba(77, 107, 254, 0.35);
+  background-color: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+:global(body[data-ds-dark-theme].has-bg-image) .badge {
+  border-color: rgba(140, 165, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
 .badge {
   display: inline-flex;
   /* 中间这一段负责吸收剩余宽度：够宽时按内容显示，不够时压缩并省略 */

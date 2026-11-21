@@ -3,6 +3,7 @@ import type { TtsVoice } from './api/speech.js'
 import { DEFAULT_MODEL, type ChatModel } from './api/types.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 import * as db from './chat/db.js'
+import { clampDocumentBudget, DOCUMENT_BUDGET_DEFAULT } from './documents/budget.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -28,6 +29,10 @@ type Settings = {
   resumeLastSession: boolean
   /** 在 AI 回复下方显示官方返回的 token / 缓存用量（默认关） */
   showMessageUsage: boolean
+  /** 整理（压缩）前自动备份一份对话（默认开） */
+  compactBackup: boolean
+  /** 单份文档的 token 预算：超出后本地截断再上传 */
+  documentBudget: number
   /** 上下文窗口（token）：0 表示不限，超出后从最早的消息开始丢弃 */
   contextWindow: number
   /** 达到触发阈值时先把更早的对话总结成摘要，再发送本轮请求 */
@@ -46,6 +51,8 @@ type Settings = {
   themeBackground: string
   /** 背景图片（缩放后的 data URL）；空字符串表示没有图片 */
   bgImage: string
+  /** 记录过背景图但这次没读出来（用来提示"重新选一张"） */
+  bgImageMissing: boolean
   /** 背景图片不透明度：10–100 */
   bgImageOpacity: number
   /** 背景图片模糊 */
@@ -77,6 +84,8 @@ const KEYS = {
   autoCollapseThinking: 'oxchat:auto-collapse-thinking',
   resumeLastSession: 'oxchat:resume-last-session',
   showMessageUsage: 'oxchat:show-message-usage',
+  compactBackup: 'oxchat:compact-backup',
+  documentBudget: 'oxchat:document-budget',
   contextWindow: 'oxchat:context-window',
   autoCompact: 'oxchat:auto-compact',
   compactThreshold: 'oxchat:compact-threshold',
@@ -202,6 +211,10 @@ const initialAutoCollapseThinking = (): boolean => read(KEYS.autoCollapseThinkin
 const initialResumeLastSession = (): boolean => read(KEYS.resumeLastSession) === 'true'
 /** 默认关闭：多数人不想每条回复都挂一串数字 */
 const initialShowMessageUsage = (): boolean => read(KEYS.showMessageUsage) === 'true'
+/** 默认开启：备份很便宜，整理出错时能救回来 */
+const initialCompactBackup = (): boolean => read(KEYS.compactBackup) !== 'false'
+const initialDocumentBudget = (): number =>
+  clampDocumentBudget(readNumber(KEYS.documentBudget) || DOCUMENT_BUDGET_DEFAULT)
 
 /** 读取数字设置：没保存过时给 NaN，避免 Number(null) 被当成 0 而吃掉落默认值 */
 const readNumber = (key: string): number => {
@@ -249,6 +262,8 @@ export const useSettings = create<Settings>(() => {
     autoCollapseThinking: initialAutoCollapseThinking(),
     resumeLastSession: initialResumeLastSession(),
     showMessageUsage: initialShowMessageUsage(),
+    compactBackup: initialCompactBackup(),
+    documentBudget: initialDocumentBudget(),
     contextWindow: initialContextWindow(),
     autoCompact: initialAutoCompact(),
     compactThreshold: initialPercent(KEYS.compactThreshold, 50),
@@ -259,6 +274,7 @@ export const useSettings = create<Settings>(() => {
     themeBackground: initialColor(KEYS.themeBackground),
     // 背景图体积大，放在 IndexedDB，启动后异步载入（见 loadBackgroundImage）
     bgImage: '',
+    bgImageMissing: false,
     bgImageOpacity: initialBgImageOpacity(),
     bgImageBlur: read(KEYS.bgImageBlur) === 'true',
     fontSize: initialFontSize(),
@@ -325,6 +341,17 @@ export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
   useSettings.setState({ autoCollapseThinking })
 }
 
+export const setDocumentBudget = (documentBudget: number) => {
+  const value = clampDocumentBudget(documentBudget)
+  write(KEYS.documentBudget, String(value))
+  useSettings.setState({ documentBudget: value })
+}
+
+export const setCompactBackup = (compactBackup: boolean) => {
+  write(KEYS.compactBackup, String(compactBackup))
+  useSettings.setState({ compactBackup })
+}
+
 export const setShowMessageUsage = (showMessageUsage: boolean) => {
   write(KEYS.showMessageUsage, String(showMessageUsage))
   useSettings.setState({ showMessageUsage })
@@ -384,38 +411,72 @@ export const setThemeBackground = (themeBackground: string) => {
   useSettings.setState({ themeBackground: normalizeColor(themeBackground) })
 }
 
-export const setBgImage = (bgImage: string) => {
-  useSettings.setState({ bgImage })
+/**
+ * 保存背景图：先落一个"曾经设置过"的标记，再写 IndexedDB。
+ * 写库是异步的（应用可能马上被安装/杀进程打断），所以这里 await 并回报结果，
+ * UI 失败时能明确提示，而不是下次启动发现图没了。
+ */
+export const setBgImage = async (bgImage: string): Promise<boolean> => {
+  useSettings.setState({ bgImage, bgImageMissing: false })
   write(KEYS.bgImage, null)
-  if (bgImage) {
-    void db.setSetting(BG_IMAGE_STORAGE_KEY, bgImage).catch(() => undefined)
-  } else {
-    void db.deleteSetting(BG_IMAGE_STORAGE_KEY).catch(() => undefined)
+  if (!bgImage) {
+    write(BG_IMAGE_MARKER_KEY, null)
+    try {
+      await db.deleteSetting(BG_IMAGE_STORAGE_KEY)
+    } catch {
+      // 删不掉也不影响：下次启动读到空图会当作没有
+    }
+    return true
+  }
+  write(BG_IMAGE_MARKER_KEY, '1')
+  try {
+    await db.setSetting(BG_IMAGE_STORAGE_KEY, bgImage)
+    return true
+  } catch (error) {
+    write(BG_IMAGE_MARKER_KEY, null)
+    db.reportStorageError('save background image')(error)
+    return false
   }
 }
 
 /** 背景图在 IndexedDB 里的键 */
 const BG_IMAGE_STORAGE_KEY = 'oxchat:bg-image'
+/** localStorage 里的「设置过背景图」标记：读库失败时用来区分"没设过"和"丢了" */
+const BG_IMAGE_MARKER_KEY = 'oxchat:bg-image-saved'
 
 /**
  * 启动后异步载入背景图；顺手把旧版本存在 localStorage 里的 base64 迁到 IndexedDB，
  * 免得继续和 API Key 抢那 5MB 配额。
  */
-const loadBackgroundImage = async () => {
+const loadBackgroundImage = async (attempt = 0) => {
   try {
     const stored = await db.getSetting(BG_IMAGE_STORAGE_KEY)
     if (stored) {
-      useSettings.setState({ bgImage: stored })
+      useSettings.setState({ bgImage: stored, bgImageMissing: false })
       return
     }
     const legacy = read(KEYS.bgImage)
     if (legacy) {
       await db.setSetting(BG_IMAGE_STORAGE_KEY, legacy)
       write(KEYS.bgImage, null)
-      useSettings.setState({ bgImage: legacy })
+      write(BG_IMAGE_MARKER_KEY, '1')
+      useSettings.setState({ bgImage: legacy, bgImageMissing: false })
+      return
     }
-  } catch {
-    // 没有可用的 IndexedDB（隐私模式等）：背景图功能不可用，其它设置不受影响
+    // 标记在、图不在：要么写库没成功，要么数据被清过 —— 让界面提示重新选一张
+    if (read(BG_IMAGE_MARKER_KEY)) {
+      useSettings.setState({ bgImageMissing: true })
+    }
+  } catch (error) {
+    // 打开数据库可能被阻塞（多标签页升级等）：稍后重试一次，仍失败才放弃
+    if (attempt === 0) {
+      setTimeout(() => void loadBackgroundImage(1), 1500)
+      return
+    }
+    db.reportStorageError('load background image')(error)
+    if (read(BG_IMAGE_MARKER_KEY)) {
+      useSettings.setState({ bgImageMissing: true })
+    }
   }
 }
 

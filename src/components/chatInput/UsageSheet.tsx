@@ -3,10 +3,15 @@ import { useTranslate } from '../../i18n/index.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
 import { formatBalance, loadBalance, useAccount } from '../../services/account.js'
 import { useChatStore } from '../../services/chat/store.js'
-import { summarizeUsage, formatTokens, CONTEXT_LIMIT } from '../../services/chat/usage.js'
+import { summarizeUsage, formatTokens } from '../../services/chat/usage.js'
+import { canCompact } from '../../services/chat/compact.js'
+import { compactSession } from '../../services/chat/store.js'
+import { showToast } from '../base/toastState.js'
+import { Button } from '../base/Button.js'
+import { MemoryDialog } from './MemoryDialog.js'
 import { formatMoney } from '../../services/chat/pricing.js'
 import { useSettings } from '../../services/settings.js'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import styles from './composerSheet.module.css'
 
 /** 用量面板：上下文估算、本对话累计、账户余额 */
@@ -19,6 +24,8 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
   )
   const usage = summarizeUsage(session)
   const balanceLabel = formatBalance(balance)
+  const [compacting, setCompacting] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
   useAndroidBackHandler(Boolean(usage), onClose)
 
   useEffect(() => {
@@ -47,7 +54,7 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
           <div className={styles.row}>
             <span className={styles.label}>{t('usageEstimatedNext')}</span>
             <span className={styles.muted}>
-              {formatTokens(usage.contextTokens)} / {formatTokens(CONTEXT_LIMIT)}
+              {formatTokens(usage.contextTokens)} / {formatTokens(usage.contextLimit)}
             </span>
           </div>
           <div className={styles.row}>
@@ -57,8 +64,41 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
             <div className={styles.barFill} style={{ width: `${usage.contextPercent}%` }} />
           </div>
           <div className={styles.note}>{t('usageContextNote')}</div>
+          <div className={styles.row} style={{ marginTop: 10, gap: 10 }}>
+            <span className={styles.muted}>{t('usageCompactHint')}</span>
+            <Button variant="outlined" size="s" onClick={() => setMemoryOpen(true)}>
+              {t('memoryEntry')}
+            </Button>
+            <Button
+              variant="outlined"
+              size="s"
+              disabled={compacting || !session || !canCompact(session)}
+              onClick={async () => {
+                if (!session) {
+                  return
+                }
+                setCompacting(true)
+                const controller = new AbortController()
+                const result = await compactSession(sessionId, controller.signal)
+                setCompacting(false)
+                if (result.status === 'done') {
+                  showToast({ key: 'compactDone', params: { count: result.messages } })
+                  onClose()
+                } else if (result.status === 'short') {
+                  showToast({ key: 'compactShort' })
+                } else if (result.status === 'error') {
+                  showToast(t('compactFailed', { message: result.message }))
+                }
+              }}
+            >
+              {compacting ? t('compactRunning') : t('usageCompactNow')}
+            </Button>
+          </div>
         </div>
 
+        {memoryOpen ? (
+          <MemoryDialog sessionId={sessionId} onClose={() => setMemoryOpen(false)} />
+        ) : null}
         <div className={styles.groupTitle}>{t('usageSession')}</div>
         <div className={styles.card}>
           <div className={styles.stats}>

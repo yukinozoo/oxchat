@@ -16,6 +16,14 @@ import {
 import { canCompact, getCompactPlan } from './compact.js'
 import { modelCaps } from '../modelCaps.js'
 import { messageTokens, prepareContext, summarizeMessages } from './context.js'
+import {
+  contextMessages,
+  foldMessages,
+  mergeNotes,
+  notesFromSummary,
+  renderMemorySection,
+} from './memory.js'
+import { createBackupSession } from './sessionBackup.js'
 import * as db from './db.js'
 import {
   clearAllDrafts,
@@ -36,6 +44,7 @@ import {
   toSessionSummary,
   type AssistantMessage,
   type FileAttachment,
+  type MemoryNote,
   type Message,
   type Session,
   type SessionSummary,
@@ -319,6 +328,21 @@ export const bindChatPersistence = () => {
     window.removeEventListener('pagehide', save)
     window.removeEventListener('online', onOnline)
   }
+}
+
+/** 请求用的 system：全局提示词 + 会话的长期记忆段落 */
+const memoryAwareSystemPrompt = (sessionId: string): string => {
+  const base = currentSystemPrompt()
+  const session = getSession(sessionId)
+  const memory = session ? renderMemorySection(session) : ''
+  return memory ? `${base}\n\n${memory}` : base
+}
+
+/** 整理前备份：写库并把摘要加到列表最前面，不占详情缓存 */
+const saveBackupSession = async (session: Session): Promise<void> => {
+  const backup = createBackupSession(session)
+  await db.saveSession(backup)
+  set((state) => ({ sessions: sortSessions([toSessionSummary(backup), ...state.sessions]) }))
 }
 
 /** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
@@ -768,15 +792,19 @@ export const compactSession = async (
   if (getVisibleMessages(latest).at(-1)?.id !== getVisibleMessages(session).at(-1)?.id) {
     return { status: 'busy' }
   }
-  const count = head.length + (kept.role === 'user' ? (kept.summaryCount ?? 0) : 0)
+  // 整理前先备份一份（可关）：整理改成"折叠"后消息不会丢，但备份仍能让用户回看整理前的样子
+  if (useSettings.getState().compactBackup !== false) {
+    try {
+      await saveBackupSession(session)
+    } catch {
+      // 备份失败不阻断整理
+    }
+  }
+  const notes = mergeNotes(latest.memory?.notes ?? [], notesFromSummary(text))
   updateSession(sessionId, (current) => ({
     ...current,
-    rootMessageId: undefined,
-    messages: tail.map((message) =>
-      message.id === kept.id && message.role === 'user'
-        ? { ...message, summary: text, summaryCount: count }
-        : message
-    ),
+    // 消息一条都不删：只是把它们折叠出请求上下文，随时可以恢复
+    memory: foldMessages(current.memory, head, notes),
     updatedAt: Date.now(),
   }))
   persist(sessionId)
@@ -825,7 +853,8 @@ export const sendMessage = (targetSessionId: string | null) => {
   if (!current) {
     return false
   }
-  const history = getVisibleMessages(current)
+  // 折叠掉的早期消息不进上下文，但仍然留在会话里可以回看
+  const history = contextMessages(current)
   const question: UserMessage = {
     id: createId(),
     role: 'user',
@@ -936,6 +965,42 @@ export const selectMessageVersion = (sessionId: string, messageId: string) => {
     return
   }
   updateSession(sessionId, (session) => selectVersion(session, messageId))
+  persist(sessionId)
+}
+
+/** 恢复被折叠的消息：清空 foldedIds，笔记保留 */
+export const unfoldMemory = (sessionId: string): boolean => {
+  const session = getSession(sessionId)
+  if (!session?.memory || session.memory.foldedIds.length === 0) {
+    return false
+  }
+  updateSession(sessionId, (current) =>
+    current.memory
+      ? {
+          ...current,
+          memory: { ...current.memory, foldedIds: [], foldedRounds: 0, updatedAt: Date.now() },
+        }
+      : current
+  )
+  persist(sessionId)
+  return true
+}
+
+/** 用户手动改过的笔记：内容与顺序原样保存，标记为 edited 让其不被下次整理覆盖 */
+export const saveMemoryNotes = (sessionId: string, notes: MemoryNote[]): void => {
+  const session = getSession(sessionId)
+  if (!session) {
+    return
+  }
+  updateSession(sessionId, (current) => ({
+    ...current,
+    memory: {
+      notes,
+      foldedIds: current.memory?.foldedIds ?? [],
+      foldedRounds: current.memory?.foldedRounds ?? 0,
+      updatedAt: Date.now(),
+    },
+  }))
   persist(sessionId)
 }
 
@@ -1322,7 +1387,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           apiKey,
           {
             model: initial.model ?? currentModel(),
-            system: currentSystemPrompt(),
+            system: memoryAwareSystemPrompt(sessionId),
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             ...(initial.thinking ? { output_config: { effort: currentEffort() } } : {}),

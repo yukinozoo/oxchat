@@ -66,7 +66,8 @@ export const Welcome = () => {
           </button>
         ) : null}
         <ChatInput sessionId={null} />
-        {isMobile ? <div className={styles.caveat}>{t('contentCaveat')}</div> : null}
+        {/* 首页不再显示「内容由 AI 生成」：留一个同高占位，输入框到底部的间距保持不变 */}
+        {isMobile ? <div className={styles.caveatSpacer} aria-hidden /> : null}
       </div>
     </div>
   )

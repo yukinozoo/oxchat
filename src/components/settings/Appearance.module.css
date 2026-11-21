@@ -544,3 +544,11 @@
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
 }
+
+/* 背景图没读出来时的提示：只占一行，不抢版面 */
+.imageMissing {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
