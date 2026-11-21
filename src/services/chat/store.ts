@@ -743,6 +743,42 @@ export type CompactResult =
  * 其余消息从会话中移除。摘要随后续请求进入上下文，界面单独展示。
  * 生成中不压缩；压缩期间会话位置变化（有新消息、删了会话）则放弃本次结果。
  */
+/**
+ * 整理失败时的提示：把「服务端什么状态码」翻成人话。
+ * 直接把英文原文甩给用户没有意义，尤其是 405（网关不允许）、200 却非流式（网关登录页/WAF）这类。
+ */
+export const describeCompactFailure = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    if (error.kind === 'network') {
+      return translate('compactNetworkError')
+    }
+    if (error.kind === 'interrupted') {
+      return translate('compactInterrupted')
+    }
+    if (error.status === 405) {
+      return translate('compactStatus405')
+    }
+    if (error.status === 200) {
+      // HTTP 200 却进了错误分支：多半是网关/校园网登录页把接口拦了
+      return translate('compactGatewayPage')
+    }
+    if (error.status === 401 || error.status === 403) {
+      return translate('compactStatus401')
+    }
+    if (error.status === 429) {
+      return translate('compactStatus429')
+    }
+    if (error.status === 400) {
+      return translate('compactStatus400')
+    }
+    if (error.status !== undefined) {
+      return translate('compactStatusOther', { status: error.status })
+    }
+    return error.message
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** 超过这么多段就先确认：每段一次请求，超长历史可能是几十次 */
 export const COMPACT_CONFIRM_CHUNKS = 8
 
@@ -797,7 +833,7 @@ export const compactSession = async (
     if (controller.signal.aborted) {
       return { status: 'cancelled' }
     }
-    return { status: 'error', message: error instanceof Error ? error.message : String(error) }
+    return { status: 'error', message: describeCompactFailure(error) }
   } finally {
     signal?.removeEventListener('abort', abort)
     resetCompactProgress()

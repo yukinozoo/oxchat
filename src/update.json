@@ -1,9 +1,9 @@
 {
-  "versionCode": 89,
-  "versionName": "0.1.89",
-  "size": 5191751,
-  "sha256": "86676ab58e82e99af5a9ad0c8ec1d68ff6ebbac4dd5274b63a7bcfe336cd58ee",
-  "notes": "0.1.89：备份管理（Gitee 同步：上传/拉取/合并+冲突副本/自动备份/多端同步/教程/操作记录）；修超长对话整理失败（按模型上限分段，flash 自适应减半）；修荣耀等机型白屏（去掉创建期的窗口特性调用 + 网页/原生白屏兜底）",
+  "versionCode": 90,
+  "versionName": "0.1.90",
+  "size": 5193343,
+  "sha256": "d30dd8bf85bdaa2cf005cd75516012e6ea6b53d2c96fe13880a87a28cf18eb00",
+  "notes": "0.1.90：整理更抗超长——只把失败的那一段对半重切（已成功段不重跑）、单段独立超时、超长转录保留尾部；整理失败文案翻成人话（405 网关 / 认证页拦截 / 401 指向 API Key / 429 限流 / 400 建议调小窗口）",
   "sources": [
     "https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

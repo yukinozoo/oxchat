@@ -217,6 +217,20 @@ export const summarizeMessages = async (
   }
 }
 
+/** 单段请求的超时：给长转录更多时间，但最多 10 分钟，避免一次卡死拖住整个整理 */
+const chunkTimeoutMs = (transcriptLength: number) =>
+  Math.min(600_000, 120_000 + transcriptLength * 2)
+
+/** 转录超过预算时保留尾部（最近的内容更重要），前面标一句省略说明 */
+const cutTranscript = (transcript: string, budgetTokens: number): string => {
+  const tokens = estimateTokens(transcript)
+  if (tokens <= budgetTokens) {
+    return transcript
+  }
+  const keep = Math.max(1, Math.floor((transcript.length * budgetTokens) / tokens))
+  return `（前文过长已省略）\n${transcript.slice(transcript.length - keep)}`
+}
+
 const summarizeInChunks = async (
   messages: Message[],
   budget: number,
@@ -229,45 +243,76 @@ const summarizeInChunks = async (
   }
 ): Promise<string> => {
   const { apiKey, signal, previousSummary } = options
-  const chunks = planTranscriptChunks(messages, budget)
-  const total = chunks.length
+  /** 队列而不是 for-of：撞到"输入过长"时把当前段对半切开插回队首重试，
+      已经成功折叠的段不受影响，不用整轮重跑 */
+  const queue = planTranscriptChunks(messages, budget)
+  let total = queue.length
+  let effectiveBudget = budget
+  let splits = 0
   let carried = previousSummary?.trim() ?? ''
   let summary = carried
   let done = 0
-  for (const chunk of chunks) {
+
+  while (queue.length > 0) {
+    const chunk = queue.shift()
+    if (!chunk) {
+      break
+    }
+    const transcript = cutTranscript(buildTranscript(chunk), effectiveBudget)
+    const controller = new AbortController()
+    const onOuterAbort = () => controller.abort()
+    signal.addEventListener('abort', onOuterAbort, { once: true })
+    const timer = setTimeout(() => controller.abort(), chunkTimeoutMs(transcript.length))
     let piece = ''
-    const events = send(
-      apiKey,
-      {
-        model: useSettings.getState().model ?? DEFAULT_MODEL,
-        system: currentSystemPrompt(),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              carried ? `此前已经压缩过的摘要：\n${carried}` : '',
-              COMPACT_INSTRUCTION,
-              buildTranscript(chunk),
-            ]
-              .filter(Boolean)
-              .join('\n\n'),
-          },
-        ],
-        thinking: { type: 'disabled' },
-        safety_check: { level: 'high' },
-        tools: [],
-      },
-      signal
-    )
-    for await (const event of events) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        piece += event.delta.text
+    try {
+      const events = send(
+        apiKey,
+        {
+          model: useSettings.getState().model ?? DEFAULT_MODEL,
+          system: currentSystemPrompt(),
+          messages: [
+            {
+              role: 'user',
+              content: [
+                carried ? `此前已经压缩过的摘要：\n${carried}` : '',
+                COMPACT_INSTRUCTION,
+                transcript,
+              ]
+                .filter(Boolean)
+                .join('\n\n'),
+            },
+          ],
+          thinking: { type: 'disabled' },
+          safety_check: { level: 'high' },
+          tools: [],
+        },
+        controller.signal
+      )
+      for await (const event of events) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          piece += event.delta.text
+        }
       }
+    } catch (error) {
+      // 400 + 超长：只把这一段对半切开重试，并把后续段预算减半（最多拆 20 次）
+      if (isTooLongError(error) && chunk.length > 1 && splits < 20) {
+        splits += 1
+        total += 1
+        effectiveBudget = Math.max(4_000, Math.floor(effectiveBudget / 2))
+        const half = Math.ceil(chunk.length / 2)
+        queue.unshift(chunk.slice(half))
+        queue.unshift(chunk.slice(0, half))
+        options.onProgress?.(done, total)
+        continue
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onOuterAbort)
     }
     const text = piece.trim()
     if (text) {
       summary = text
-      // 下一段把这段的结果当作"已有摘要"接续，避免每段各说各话
       carried = text
     }
     done += 1
