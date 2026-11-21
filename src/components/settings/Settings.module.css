@@ -721,6 +721,7 @@
 
 .accountTopUp {
   flex-shrink: 0;
+  margin-left: auto;
   padding: 6px 14px;
   border: 1px solid var(--dsw-alias-brand-text);
   border-radius: 999px;
@@ -745,6 +746,7 @@
 
 .accountInfo {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
