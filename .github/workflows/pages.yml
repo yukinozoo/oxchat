@@ -49,6 +49,18 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # 把最新 Release 的安装包一起发布到同一域名：网页版「下载安卓版」不必再走第三方代理
+      - name: Include latest APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download --repo "$GITHUB_REPOSITORY" \
+               --pattern 'OxChat-latest.apk' --dir dist --clobber; then
+            ls -l dist/OxChat-latest.apk
+          else
+            echo "还没有可用的 Release 资产，跳过（网页版下载会回落到直连地址）"
+          fi
+
       # 关闭 Jekyll：资源名带哈希，交给 Pages 原样发布
       - name: Disable Jekyll
         run: touch dist/.nojekyll

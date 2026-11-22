@@ -332,7 +332,7 @@ const SettingsContent = () => {
                       onClick={() => void checkUpdate()}
                     />
                   ) : (
-                    // 网页版没有安装包可检查，改成引导去下 Android 版（走 gh-proxy 转发）
+                    // 网页版没有安装包可检查，改成引导去下 Android 版（站点同源地址，取不到时退回 GitHub 直连）
                     <NavRow
                       icon={<IconDownloadOutline16 />}
                       label={t('settingsDownloadAndroid')}

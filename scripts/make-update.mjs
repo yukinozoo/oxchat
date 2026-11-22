@@ -37,8 +37,9 @@ const manifest = {
   size,
   sha256,
   notes,
+  // 同源地址优先（Pages 构建时会把最新 APK 一起发布），其次 GitHub 直连
   sources: [
-    'https://gh-proxy.com/https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk',
+    'https://yukinozoo.github.io/oxchat/OxChat-latest.apk',
     'https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk',
   ],
 }

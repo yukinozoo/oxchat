@@ -56,11 +56,11 @@ export const currentVersion = async (): Promise<CurrentVersion | null> => {
 
 /**
  * 更新清单地址：优先 GitHub Pages（同域名、无跨域），
- * 国内直连不稳时退到 gh-proxy 转发的仓库原始文件。
+ * 国内直连不稳时退到 jsDelivr 的仓库原始文件。
  */
 const MANIFESTS = [
   'https://yukinozoo.github.io/oxchat/update.json',
-  'https://gh-proxy.com/https://raw.githubusercontent.com/yukinozoo/oxchat/main/src/update.json',
+  'https://cdn.jsdelivr.net/gh/yukinozoo/oxchat@main/src/update.json',
 ]
 
 export type UpdateCheck =
