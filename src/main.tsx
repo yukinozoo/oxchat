@@ -7,11 +7,24 @@ import { registerServiceWorker } from './services/pwa.js'
 import './app/theme.css'
 import './app/global.css'
 
-ensureKatex()
-setupTheme()
-setupAppearance()
+/** 启动阶段直接崩溃时，交给 index.html 的兜底逻辑把真实错误画出来（而不是只留白屏） */
+const reportFatal = (error: unknown) => {
+  const fatal = (window as { __oxchatFatal?: (detail: string) => void }).__oxchatFatal
+  if (typeof fatal === 'function') {
+    fatal(error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error))
+  }
+}
 
-createRoot(document.getElementById('root') as HTMLElement).render(<App />)
+try {
+  ensureKatex()
+  setupTheme()
+  setupAppearance()
 
-// 网页版注册 Service Worker（原生壳里自动跳过）：离线打开 + 二次启动更快
-registerServiceWorker()
+  createRoot(document.getElementById('root') as HTMLElement).render(<App />)
+
+  // 网页版注册 Service Worker（原生壳里自动跳过）：离线打开 + 二次启动更快
+  registerServiceWorker()
+} catch (error) {
+  reportFatal(error)
+  throw error
+}

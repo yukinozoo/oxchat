@@ -18,38 +18,267 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="application-name" content="OxChat" />
     <title>OxChat</title>
+    <!--
+      启动兜底（这段必须是 ES5，且在打包产物之前执行）：
+      1. 补齐旧内核/国产浏览器缺失的新 API，缺谁补谁，避免整个应用直接起不来；
+      2. 收集报错但不抢页面——只有真的没渲染出来（或应用主动报告致命错误）才铺满屏，
+         避免浏览器注入脚本报的「Script error.」把能用的页面盖住；
+      3. 铺屏时把 UA、缺失特性、脚本地址、资源加载失败一起打出来，便于定位。
+    -->
     <script>
-      // 启动兜底：脚本报错或长时间没渲染时，把原因直接画在页面上，而不是留一片白屏
       (function () {
-        var shown = false
-        function show(text) {
-          if (shown) return
-          shown = true
-          window.__oxchatBootError = text
+        var w = window
+        var d = document
+        var reports = []
+        var painted = false
+
+        function add(text) {
+          if (text && reports.length < 12) reports.push(String(text))
+        }
+
+        // ---- 1. 缺失特性检测（结果会写进兜底信息） ----
+        var missing = []
+        function check(name, ok) {
+          if (!ok) missing.push(name)
+        }
+        check('Object.hasOwn', typeof Object.hasOwn === 'function')
+        check('Array.prototype.at', typeof Array.prototype.at === 'function')
+        check('Array.prototype.findLast', typeof Array.prototype.findLast === 'function')
+        check('Array.prototype.toReversed', typeof Array.prototype.toReversed === 'function')
+        check('Array.prototype.toSorted', typeof Array.prototype.toSorted === 'function')
+        check('String.prototype.replaceAll', typeof String.prototype.replaceAll === 'function')
+        check('Promise.allSettled', typeof Promise.allSettled === 'function')
+        check('crypto.randomUUID', !!(w.crypto && typeof w.crypto.randomUUID === 'function'))
+        check('fetch', typeof w.fetch === 'function')
+        check('ReadableStream', typeof w.ReadableStream === 'function')
+        check('TextDecoder', typeof w.TextDecoder === 'function')
+        check('indexedDB', !!w.indexedDB)
+        check('AbortSignal.throwIfAborted', !!(
+          w.AbortSignal &&
+          w.AbortSignal.prototype &&
+          typeof w.AbortSignal.prototype.throwIfAborted === 'function'
+        ))
+
+        // ---- 2. 补齐缺失的 API（能补的都补，补不了的记进 missing） ----
+        function polyfill() {
+          if (typeof Object.hasOwn !== 'function') {
+            Object.hasOwn = function (target, key) {
+              return Object.prototype.hasOwnProperty.call(target, key)
+            }
+          }
+          var ap = Array.prototype
+          if (typeof ap.at !== 'function') {
+            ap.at = function (index) {
+              var length = this.length >>> 0
+              var real = index < 0 ? length + index : index
+              return real < 0 || real >= length ? undefined : this[real]
+            }
+          }
+          if (typeof ap.findLast !== 'function') {
+            ap.findLast = function (predicate, thisArg) {
+              for (var i = this.length - 1; i >= 0; i -= 1) {
+                if (predicate.call(thisArg, this[i], i, this)) return this[i]
+              }
+              return undefined
+            }
+          }
+          if (typeof ap.findLastIndex !== 'function') {
+            ap.findLastIndex = function (predicate, thisArg) {
+              for (var i = this.length - 1; i >= 0; i -= 1) {
+                if (predicate.call(thisArg, this[i], i, this)) return i
+              }
+              return -1
+            }
+          }
+          if (typeof ap.toReversed !== 'function') {
+            ap.toReversed = function () {
+              return Array.prototype.slice.call(this).reverse()
+            }
+          }
+          if (typeof ap.toSorted !== 'function') {
+            ap.toSorted = function (compare) {
+              return Array.prototype.slice.call(this).sort(compare)
+            }
+          }
+          if (typeof ap.toSpliced !== 'function') {
+            ap.toSpliced = function (start, removeCount) {
+              var copy = Array.prototype.slice.call(this)
+              var rest = Array.prototype.slice.call(arguments, 2)
+              var args = [start >>> 0, removeCount === undefined ? copy.length : removeCount >>> 0]
+              copy.splice.apply(copy, args.concat(rest))
+              return copy
+            }
+          }
+          if (typeof String.prototype.replaceAll !== 'function') {
+            String.prototype.replaceAll = function (find, replacement) {
+              if (find instanceof RegExp && !find.global) {
+                throw new TypeError('replaceAll 的正则必须带 g 标志')
+              }
+              if (find instanceof RegExp) {
+                return this.replace(find, replacement)
+              }
+              return this.split(String(find)).join(String(replacement))
+            }
+          }
+          if (typeof Promise.allSettled !== 'function') {
+            Promise.allSettled = function (items) {
+              return Promise.all(
+                Array.prototype.map.call(items, function (item) {
+                  return Promise.resolve(item).then(
+                    function (value) {
+                      return { status: 'fulfilled', value: value }
+                    },
+                    function (reason) {
+                      return { status: 'rejected', reason: reason }
+                    }
+                  )
+                })
+              )
+            }
+          }
+          if (w.crypto && typeof w.crypto.randomUUID !== 'function' && typeof w.crypto.getRandomValues === 'function') {
+            w.crypto.randomUUID = function () {
+              var bytes = w.crypto.getRandomValues(new Uint8Array(16))
+              /* RFC 4122 v4 */
+              bytes[6] = (bytes[6] & 0x0f) | 0x40
+              bytes[8] = (bytes[8] & 0x3f) | 0x80
+              var hex = []
+              for (var i = 0; i < 16; i += 1) {
+                hex.push((bytes[i] + 0x100).toString(16).slice(1))
+              }
+              return (
+                hex.slice(0, 4).join('') +
+                '-' +
+                hex.slice(4, 6).join('') +
+                '-' +
+                hex.slice(6, 8).join('') +
+                '-' +
+                hex.slice(8, 10).join('') +
+                '-' +
+                hex.slice(10, 16).join('')
+              )
+            }
+          }
+          if (
+            w.AbortSignal &&
+            w.AbortSignal.prototype &&
+            typeof w.AbortSignal.prototype.throwIfAborted !== 'function'
+          ) {
+            w.AbortSignal.prototype.throwIfAborted = function () {
+              if (this.aborted) {
+                /* 旧内核没有 signal.reason，退化成标准 AbortError */
+                var error = this.reason
+                if (!error) {
+                  error = new Error('已中止')
+                  error.name = 'AbortError'
+                }
+                throw error
+              }
+            }
+          }
+        }
+
+        try {
+          polyfill()
+        } catch (error) {
+          add('补齐缺失 API 时出错：' + (error && error.message))
+        }
+
+        // 补完之后仍未就位的，才是真正补不了的
+        var unrecoverable = missing.filter(function (name) {
+          if (name === 'fetch' || name === 'indexedDB') return true
+          if (name === 'ReadableStream') return typeof w.ReadableStream !== 'function'
+          if (name === 'TextDecoder') return typeof w.TextDecoder !== 'function'
+          return false
+        })
+
+        // ---- 3. 报错收集（不抢页面） ----
+        function rendered() {
+          var root = document.getElementById('root')
+          return !!(root && root.childElementCount > 0)
+        }
+
+        function environment() {
+          var scripts = []
+          var list = document.getElementsByTagName('script')
+          for (var i = 0; i < list.length && i < 6; i += 1) {
+            if (list[i].src) scripts.push(list[i].src)
+          }
+          return (
+            'UA: ' + navigator.userAgent +
+            '\n脚本: ' + (scripts.join(' , ') || '(无外链脚本)') +
+            '\n缺失特性: ' + (missing.length ? missing.join(', ') : '无')
+          )
+        }
+
+        function paint(reason) {
+          if (painted) return
+          painted = true
+          var text =
+            'OxChat 启动失败\n\n' +
+            (reason ? reason + '\n\n' : '') +
+            (reports.length ? reports.join('\n---\n') + '\n\n' : '') +
+            environment() +
+            '\n\n请把这段文字反馈给开发者。'
+          w.__oxchatBootError = text
           try {
             var box = document.createElement('pre')
             box.style.cssText =
               'position:fixed;inset:0;margin:0;padding:16px;background:#fff;color:#b3261e;' +
               'font:12px/1.6 monospace;white-space:pre-wrap;overflow:auto;z-index:2147483647'
-            box.textContent =
-              'OxChat 启动失败\n\n' + text + '\n\n请把这段文字反馈给开发者（版本见 APK 文件名）。'
+            box.textContent = text
             document.body.appendChild(box)
           } catch (_) {}
         }
-        window.addEventListener('error', function (event) {
-          show(
-            (event.message || '未知错误') +
-              (event.filename ? '\n' + event.filename + ':' + event.lineno : '')
-          )
-        })
-        window.addEventListener('unhandledrejection', function (event) {
+
+        // 应用自己崩了可以直接调用，立刻铺屏
+        w.__oxchatFatal = function (detail) {
+          add('应用启动异常：' + detail)
+          paint('应用初始化过程中抛出错误。')
+        }
+
+        w.addEventListener(
+          'error',
+          function (event) {
+            // 捕获阶段也会收到资源加载失败（event.target 是元素而不是 window）
+            var target = event.target
+            if (target && target !== w && (target.src || target.href)) {
+              add('资源加载失败：' + (target.src || target.href))
+              return
+            }
+            var where = event.filename
+              ? '\n' + event.filename + ':' + event.lineno + ':' + event.colno
+              : '\n（浏览器未给出位置：常见于跨域脚本、浏览器注入的脚本或被拦截的加载）'
+            add((event.message || '未知错误') + where)
+          },
+          true
+        )
+
+        w.addEventListener('unhandledrejection', function (event) {
           var reason = event.reason
-          show('Promise 拒绝：' + (reason && reason.stack ? reason.stack : String(reason)))
+          add('Promise 拒绝：' + (reason && reason.stack ? reason.stack : String(reason)))
         })
+
+        // 连 fetch / indexedDB 都没有：不用等 15 秒，3 秒后直接铺屏
         setTimeout(function () {
-          var root = document.getElementById('root')
-          if (!root || root.childElementCount === 0) {
-            show('页面在 15 秒内没有渲染出内容（JS 未执行或被系统拦截）。\nUA: ' + navigator.userAgent)
+          if (!rendered() && unrecoverable.length) {
+            paint('当前浏览器缺少必要能力：' + unrecoverable.join(', '))
+          }
+        }, 3000)
+
+        // 有内容就不打扰；15 秒还空着才铺屏，并把已收集到的信息一起打出来
+        setTimeout(function () {
+          if (!rendered()) {
+            paint(
+              unrecoverable.length
+                ? '当前浏览器缺少必要能力：' + unrecoverable.join(', ')
+                : '页面在 15 秒内没有渲染出内容（脚本没执行、被拦截，或启动时就崩了）。'
+            )
+          } else if (reports.length) {
+            // 页面正常：只留在控制台，方便用户按 F12 / 远程调试时看到
+            if (w.console && w.console.warn) {
+              w.console.warn('[OxChat] 启动期间有报错，但页面已渲染：\n' + reports.join('\n'))
+            }
           }
         }, 15000)
       })()
