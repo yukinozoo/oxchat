@@ -30,6 +30,11 @@ const readVersion = (): string => {
 
 const version = readVersion()
 
+/** 构建标记：网页版「关于」显示，用来确认手机上跑的是不是最新一次部署（本地时间 MM-DD HH:mm） */
+const buildTime = new Date()
+const pad = (value: number) => String(value).padStart(2, '0')
+const stamp = `${pad(buildTime.getMonth() + 1)}-${pad(buildTime.getDate())} ${pad(buildTime.getHours())}:${pad(buildTime.getMinutes())}`
+
 const cssLoader = {
   loader: 'builtin:lightningcss-loader',
   options: { targets },
@@ -103,7 +108,10 @@ export const createConfig = ({
       scriptLoading: 'defer',
       meta: { 'application-version': version },
     }),
-    new rspack.DefinePlugin({ __API_ORIGIN__: JSON.stringify(apiOrigin) }),
+    new rspack.DefinePlugin({
+      __API_ORIGIN__: JSON.stringify(apiOrigin),
+      __BUILD_STAMP__: JSON.stringify(stamp),
+    }),
     new rspack.CopyRspackPlugin({
       patterns: [
         { from: path.resolve(root, 'LICENSE'), to: 'LICENSE', toType: 'file' },

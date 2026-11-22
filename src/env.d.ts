@@ -10,6 +10,9 @@ declare module '*.png' {
   export default url
 }
 
+/** 构建时间戳（MM-DD HH:mm），见 rspack.config.ts */
+declare const __BUILD_STAMP__: string
+
 /** 公开 API 的地址，见 rspack.config.ts 的 createConfig */
 declare const __API_ORIGIN__: string
 

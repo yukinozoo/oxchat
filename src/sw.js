@@ -9,7 +9,7 @@
  * 这个文件不参与打包，由 rspack 的 Copy 插件原样复制到站点根目录（作用域才能是整站）。
  */
 // 缓存名带版本：换名后 activate 会删掉旧缓存，避免旧外壳 index.html 一直顶着新产物
-const CACHE = 'oxchat-shell-v2'
+const CACHE = 'oxchat-shell-v3'
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png']
 
 self.addEventListener('install', (event) => {
@@ -48,7 +48,8 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const cache = await caches.open(CACHE)
         try {
-          const response = await fetch(request)
+          // no-cache：Pages 给 HTML 的 max-age 是 600，不加这一条就会吃掉十分钟内的新版本
+          const response = await fetch(request, { cache: 'no-cache' })
           if (response.ok) {
             await cache.put('./index.html', response.clone())
           }

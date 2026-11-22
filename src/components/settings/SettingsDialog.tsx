@@ -318,7 +318,7 @@ const SettingsContent = () => {
                   <NavRow
                     icon={<IconInfoOutline16 />}
                     label={t('settingsVersion')}
-                    value={version}
+                    value={version ? `${version} · ${__BUILD_STAMP__}` : version}
                   />
                   {updateAvailable() ? (
                     <NavRow
