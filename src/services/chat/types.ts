@@ -102,8 +102,8 @@ export type AssistantMessage = MessageBranch & {
   /** 最近一次请求的用量，续写后更新 */
   usage?: MessageUsage
   error?: {
-    /** upload：发送前补传附件失败，请求没有发出 */
-    kind: ApiErrorKind | 'upload'
+    /** upload：发送前补传附件失败，请求没有发出；crash：发送前准备阶段抛了非接口异常（环境不支持某 API 等） */
+    kind: ApiErrorKind | 'upload' | 'crash'
     message: string
     status?: number
     localMessage?: TranslationMessage

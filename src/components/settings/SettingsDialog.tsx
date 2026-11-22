@@ -348,7 +348,7 @@ const SettingsContent = () => {
                     type="button"
                     className={clsx(styles.cell, styles.row, styles.navRow, styles.signOut)}
                     onClick={() => {
-                      // 退出登录：清本地 API Key、余额缓存与官网登录凭据，三处一起清干净
+                      // 删除 API KEY：清本地 API Key、余额缓存与官网登录凭据，三处一起清干净
                       setApiKey(null)
                       clearAccount()
                       void logoutWebsite()

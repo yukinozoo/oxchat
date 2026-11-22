@@ -1220,7 +1220,8 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   }
 
   const pending = new Map<string, FileAttachment>()
-  for (const [user] of getContextRounds(request.history).toReversed()) {
+  // 不用 toReversed：iOS Safari 16.4 以下没有这个原型方法，会让每次发送都报错（曾表现为「上传失败」）
+  for (const [user] of getContextRounds(request.history).slice().reverse()) {
     for (const file of user.files) {
       if (!file.serverId && !serverIds.has(file.id) && !pending.has(file.id)) {
         pending.set(file.id, file)
@@ -1485,12 +1486,19 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           break
         }
         if (preparing) {
-          reply = settleReply(reply, 'error', Date.now(), {
-            kind: 'upload',
-            message: '',
-            localMessage: describeUploadError(error),
-            retryable: isRetryableApiError(error),
-          })
+          // 只有接口类失败才算「上传失败」；准备阶段的环境异常单独记，避免真实原因被「上传失败」盖住
+          reply =
+            error instanceof ApiError
+              ? settleReply(reply, 'error', Date.now(), {
+                  kind: 'upload',
+                  message: '',
+                  localMessage: describeUploadError(error),
+                  retryable: isRetryableApiError(error),
+                })
+              : settleReply(reply, 'error', Date.now(), {
+                  kind: 'crash',
+                  message: error instanceof Error ? error.message : String(error),
+                })
           break
         }
         // 附件失效：重新补传后重发。收到过内容块（含丢弃的客户端工具）后不自动重发。

@@ -28,7 +28,7 @@ export const loadBalance = async (apiKey: string): Promise<void> => {
   }
 }
 
-/** 清空账户状态：退出登录时调用，余额不再残留 */
+/** 清空账户状态：删除 API KEY 时调用，余额不再残留 */
 export const clearAccount = (): void => {
   useAccount.setState({ balance: null, loading: false, loadedFor: null })
 }

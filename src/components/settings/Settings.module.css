@@ -564,12 +564,14 @@
   width: 48px;
   height: 28px;
   border-radius: 14px;
-  background-color: var(--dsw-static-neutral-bluish-300);
+  /* 关闭态跟随主题（深浅两套都有合适对比度），不再写死浅灰 */
+  background-color: var(--oxchat-switch-off);
   transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .switchOn {
-  background-color: var(--dsw-static-green-500);
+  /* 打开态跟随主题强调色（品牌色），不再写死绿色 */
+  background-color: var(--dsw-alias-brand-primary);
 }
 
 .switchKnob {
