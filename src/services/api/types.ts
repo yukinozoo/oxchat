@@ -183,7 +183,8 @@ export type CreateMessageRequest = {
   thinking: { type: 'enabled' | 'disabled' }
   /** 思考强度（仅 Anthropic 兼容格式）：low / high / max */
   output_config?: { effort: 'low' | 'high' | 'max' }
-  tools: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
+  /** 服务端工具；v4-pro 这类不支持的模型直接不带该字段 */
+  tools?: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
   safety_check: { level: 'high' }
   /** 采样温度 0–2；不传时服务端按官方默认 1.0 */
   temperature?: number

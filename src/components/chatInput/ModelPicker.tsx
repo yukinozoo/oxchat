@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { createPortal } from 'react-dom'
 import { useTranslate } from '../../i18n/index.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
+import { modelCaps } from '../../services/modelCaps.js'
 import { useModels } from '../../services/models.js'
 import {
   setModel,
@@ -34,6 +35,8 @@ export const ModelPicker = ({ onClose }: { onClose: () => void }) => {
   const search = useSettings((state) => state.search)
   const models = useModels((state) => state.models)
   const options = models.length > 0 ? models : [selected]
+  /** v4-pro 之类不支持服务端工具：开关留着只会让人以为开了就有用，直接不显示 */
+  const canSearch = modelCaps(selected).serverTools
   useAndroidBackHandler(true, onClose)
 
   return createPortal(
@@ -92,19 +95,21 @@ export const ModelPicker = ({ onClose }: { onClose: () => void }) => {
           </div>
 
           {/* 智能搜索：从输入框上方的按钮挪到这里，跟模型 / 思考强度放一起 */}
-          <div className={styles.optionRow}>
-            <span className={styles.optionLabel}>{t('search')}</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={search}
-              aria-label={t('search')}
-              className={clsx(styles.switch, search && styles.switchOn)}
-              onClick={() => setSearch(!search)}
-            >
-              <span className={styles.switchKnob} />
-            </button>
-          </div>
+          {canSearch ? (
+            <div className={styles.optionRow}>
+              <span className={styles.optionLabel}>{t('search')}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={search}
+                aria-label={t('search')}
+                className={clsx(styles.switch, search && styles.switchOn)}
+                onClick={() => setSearch(!search)}
+              >
+                <span className={styles.switchKnob} />
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </>,

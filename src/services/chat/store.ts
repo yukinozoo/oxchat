@@ -73,6 +73,15 @@ const FILE_RETRY_LIMIT = 2
 /** 退避基数，第 n 次重试等待 2^n 倍；连续失败达到上限就放弃，把原始报错展示出来 */
 const FILE_RETRY_BASE_DELAY = 1000
 
+/** 不支持的模型拿不到服务端标题时，用第一句提问兜底，别让会话一直叫「新对话」 */
+const localTitle = (text: string): string => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (!flat) {
+    return ''
+  }
+  return flat.length > 24 ? `${flat.slice(0, 24)}…` : flat
+}
+
 /** 阅读链接始终开启，智能搜索开关控制是否另行声明搜索工具（含边想边搜）。 */
 const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
   const tools: CreateMessageRequest['tools'] = [
@@ -1314,7 +1323,6 @@ const reuploadInvalidatedFiles = (sessionId: string, request: Request, error: un
   return true
 }
 
-
 /**
  * 服务端拒绝图片尺寸（宽高需 ≤ 4096）时：把该会话图片的 serverId 清空，
  * 下一次上传会走降采样，或用不到本地原件时自动跳过这张图。
@@ -1421,10 +1429,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           const budget =
             context.reduce((total, message) => total + messageTokens(message), 0) +
             messageTokens(prepared.question) +
-            prepared.question.files.reduce(
-              (total, file) => total + Math.ceil(file.size / 4),
-              0
-            )
+            prepared.question.files.reduce((total, file) => total + Math.ceil(file.size / 4), 0)
           if (budget > caps.inputLimit) {
             reply = settleReply(reply, 'error', Date.now(), {
               kind: 'protocol',
@@ -1441,18 +1446,20 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             break
           }
         }
+        const model = initial.model ?? currentModel()
         const events = streamMessage(
           apiKey,
           {
-            model: initial.model ?? currentModel(),
+            model,
             system: memoryAwareSystemPrompt(sessionId),
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             ...(initial.thinking ? { output_config: { effort: currentEffort() } } : {}),
             safety_check: SAFETY_CHECK,
             temperature: useSettings.getState().temperature,
-            tools: serverTools(initial.search ?? false),
-            ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
+            // v4-pro 不接受服务端工具与标题生成：带了会 400，按能力表决定是否发送
+            ...(caps.serverTools ? { tools: serverTools(initial.search ?? false) } : {}),
+            ...(caps.title && titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },
           controller.signal
         )
@@ -1479,6 +1486,15 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           }
         }
         reply = settleReply(reply, 'done', Date.now())
+        if (!caps.title) {
+          // 服务端不给标题（v4-pro）：用第一句提问兜底
+          const fallback = localTitle(request.question.content)
+          if (fallback) {
+            updateSession(sessionId, (session) =>
+              session.title ? session : { ...session, title: fallback }
+            )
+          }
+        }
         break
       } catch (error) {
         if (controller.signal.aborted) {
