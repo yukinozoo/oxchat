@@ -11,7 +11,7 @@ export const ANDROID_APK_DIRECT_URL =
   'https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk'
 
 /** 用 a 标签在新标签打开，避免 window.open 被拦截 */
-const openLink = (url: string): void => {
+export const openApkLink = (url: string): void => {
   const link = document.createElement('a')
   link.href = url
   link.target = '_blank'
@@ -35,5 +35,5 @@ const resolveApkUrl = async (): Promise<string> => {
 }
 
 export const downloadAndroidApk = async (): Promise<void> => {
-  openLink(await resolveApkUrl())
+  openApkLink(await resolveApkUrl())
 }

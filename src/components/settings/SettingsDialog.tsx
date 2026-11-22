@@ -55,7 +55,7 @@ import { CostSettings } from './CostSettings.js'
 import { UpdateDialog } from './UpdateDialog.js'
 import { BackupSettings } from './BackupSettings.js'
 import { BackupGuide } from './BackupGuide.js'
-import { downloadAndroidApk } from '../../services/androidDownload.js'
+import { ApkDownloadDialog } from './ApkDownloadDialog.js'
 import { DEEPSEEK_TOP_UP_URL } from '../../services/platformLinks.js'
 import { exportSessionsToFile } from '../../services/chat/exportSession.js'
 import {
@@ -119,6 +119,8 @@ const SettingsContent = () => {
   /** 在线更新：检查发现的清单，弹窗展示 */
   const [update, setUpdate] = useState<{ manifest: UpdateManifest; current: CurrentVersion } | null>(null)
   const [checking, setChecking] = useState(false)
+  /** 网页版的「下载安卓版」：打开弹窗，分片并行下载并显示进度 */
+  const [apkDownloadOpen, setApkDownloadOpen] = useState(false)
 
   const checkUpdate = async () => {
     if (!updateAvailable()) {
@@ -337,7 +339,7 @@ const SettingsContent = () => {
                       icon={<IconDownloadOutline16 />}
                       label={t('settingsDownloadAndroid')}
                       value={t('settingsDownloadAndroidValue')}
-                      onClick={downloadAndroidApk}
+                      onClick={() => setApkDownloadOpen(true)}
                     />
                   )}
                 </div>
@@ -553,6 +555,7 @@ const SettingsContent = () => {
           onClose={() => setUpdate(null)}
         />
       ) : null}
+      {apkDownloadOpen ? <ApkDownloadDialog onClose={() => setApkDownloadOpen(false)} /> : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}
     </>
   )
