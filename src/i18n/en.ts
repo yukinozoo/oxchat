@@ -584,6 +584,8 @@ export const en = {
   apkDownloadProgress: '{done} / {total} downloaded',
   apkDownloadSpeed: '{speed}/s',
   apkDownloadParts: ' · {count} parallel parts',
+  apkDownloadSlowHint: 'Still slow? Try a mirror download: ',
+  apkDownloadRemaining: ' · about {time} left',
   apkDownloadCancel: 'Cancel',
   apkDownloadRetry: 'Retry',
   apkDownloadFallback: 'Browser download',

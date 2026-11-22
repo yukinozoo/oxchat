@@ -565,6 +565,8 @@ export const zh = {
   apkDownloadProgress: '已下载 {done} / {total}',
   apkDownloadSpeed: '{speed}/s',
   apkDownloadParts: ' · {count} 段并行',
+  apkDownloadSlowHint: '速度偏慢的话，可以点这里走镜像整包下载：',
+  apkDownloadRemaining: ' · 剩余约 {time}',
   apkDownloadCancel: '取消',
   apkDownloadRetry: '重试',
   apkDownloadFallback: '浏览器直接下载',
