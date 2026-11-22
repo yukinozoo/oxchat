@@ -14,7 +14,14 @@ type Stage = 'downloading' | 'failed'
  * 网页版下载安装包：打开即开始下载，显示进度与速度。
  * GitHub Pages 单线程很慢，所以走 services/apkDownload 的分片并行；失败时可退到浏览器直接下载。
  */
-export const ApkDownloadDialog = ({ onClose }: { onClose: () => void }) => {
+export const ApkDownloadDialog = ({
+  onClose,
+  overlayClassName,
+}: {
+  onClose: () => void
+  /** 必须传入：设置页本身是 z-index 1100 的整屏层，弹窗要用更高层级才看得见 */
+  overlayClassName: string
+}) => {
   const t = useTranslate()
   const [stage, setStage] = useState<Stage>('downloading')
   const [progress, setProgress] = useState<ApkProgress | null>(null)
@@ -64,6 +71,7 @@ export const ApkDownloadDialog = ({ onClose }: { onClose: () => void }) => {
         onClose()
       }}
       className={styles.dialog}
+      overlayClassName={overlayClassName}
       footer={
         downloading ? (
           <Button

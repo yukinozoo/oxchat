@@ -555,7 +555,12 @@ const SettingsContent = () => {
           onClose={() => setUpdate(null)}
         />
       ) : null}
-      {apkDownloadOpen ? <ApkDownloadDialog onClose={() => setApkDownloadOpen(false)} /> : null}
+      {apkDownloadOpen ? (
+        <ApkDownloadDialog
+          overlayClassName={styles.dialogOverlay}
+          onClose={() => setApkDownloadOpen(false)}
+        />
+      ) : null}
       {historyDelete.opened ? <DeleteAllConfirm historyDelete={historyDelete} /> : null}
     </>
   )
