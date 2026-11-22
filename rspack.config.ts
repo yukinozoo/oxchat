@@ -30,10 +30,13 @@ const readVersion = (): string => {
 
 const version = readVersion()
 
-/** 构建标记：网页版「关于」显示，用来确认手机上跑的是不是最新一次部署（本地时间 MM-DD HH:mm） */
-const buildTime = new Date()
+/**
+ * 构建标记：网页版「关于」显示，用来确认手机上跑的是不是最新一次部署。
+ * 固定按 UTC+8 取时间：Actions 机器是 UTC，直接取本地时间会显示成早八小时的数。
+ */
+const buildTime = new Date(Date.now() + 8 * 60 * 60 * 1000)
 const pad = (value: number) => String(value).padStart(2, '0')
-const stamp = `${pad(buildTime.getMonth() + 1)}-${pad(buildTime.getDate())} ${pad(buildTime.getHours())}:${pad(buildTime.getMinutes())}`
+const stamp = `${pad(buildTime.getUTCMonth() + 1)}-${pad(buildTime.getUTCDate())} ${pad(buildTime.getUTCHours())}:${pad(buildTime.getUTCMinutes())}`
 
 const cssLoader = {
   loader: 'builtin:lightningcss-loader',
