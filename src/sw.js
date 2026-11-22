@@ -8,7 +8,8 @@
  *
  * 这个文件不参与打包，由 rspack 的 Copy 插件原样复制到站点根目录（作用域才能是整站）。
  */
-const CACHE = 'oxchat-shell-v1'
+// 缓存名带版本：换名后 activate 会删掉旧缓存，避免旧外壳 index.html 一直顶着新产物
+const CACHE = 'oxchat-shell-v2'
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png']
 
 self.addEventListener('install', (event) => {
