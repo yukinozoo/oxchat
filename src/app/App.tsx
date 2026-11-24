@@ -19,6 +19,8 @@ import { UsageDeclaration } from '../components/session/UsageDeclaration.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { ImportProgressBar } from '../components/ImportProgressBar.js'
+import { UpdateNotice } from '../components/base/UpdateNotice.js'
+import { useWebUpdateCheck } from '../services/webUpdate.js'
 import { CompactConfirmDialog } from '../components/chatInput/CompactConfirmDialog.js'
 import { ChangelogDialog } from '../components/settings/ChangelogDialog.js'
 import { useChangelog } from '../components/settings/changelogState.js'
@@ -33,6 +35,7 @@ import { useEdgeSwipe } from '../components/sider/useEdgeSwipe.js'
 import { UpdateDialog } from '../components/settings/UpdateDialog.js'
 import {
   currentVersion,
+  updateAvailable,
   useSilentUpdateCheck,
   type CurrentVersion,
   type UpdateManifest,
@@ -68,6 +71,8 @@ export const App = () => {
     null
   )
   useSilentUpdateCheck((manifest, current) => setUpdate({ manifest, current }))
+  // 网页版没有原生更新插件：自己比对线上 update.json，比本页新就弹「刷新」提示
+  useWebUpdateCheck(!updateAvailable())
 
   // 本版更新了什么：装的是哪一版就展示哪一版的记录，一个版本只弹一次
   const maybeShowChangelog = useChangelog((state) => state.maybeShow)
@@ -144,6 +149,7 @@ export const App = () => {
   return (
     <>
       <ImportProgressBar />
+      <UpdateNotice />
       <CompactConfirmDialog />
       <ChangelogDialog />
       <div

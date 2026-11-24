@@ -987,6 +987,8 @@ export const zh = {
   settingsCheckUpdate: '检查更新',
   settingsDownloadAndroid: '下载 Android 版',
   settingsDownloadAndroidValue: 'APK',
+  webUpdateAvailable: '新版本 {version} 已发布',
+  webUpdateRefresh: '刷新',
   updateChecking: '检查中…',
   updateLatest: '已是最新',
   updateFound: '新版本 {version}',

@@ -15,6 +15,12 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 100,
+    versionName: '0.1.100',
+    date: '2026-11-25',
+    items: ['网页版打开时自动检查更新，有新版本会在顶部提示「刷新」'],
+  },
+  {
     versionCode: 99,
     versionName: '0.1.99',
     date: '2026-11-25',

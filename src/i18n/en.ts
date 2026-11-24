@@ -1004,6 +1004,8 @@ export const en = {
   settingsCheckUpdate: 'Check for updates',
   settingsDownloadAndroid: 'Download for Android',
   settingsDownloadAndroidValue: 'APK',
+  webUpdateAvailable: 'Version {version} is available',
+  webUpdateRefresh: 'Reload',
   updateChecking: 'Checking…',
   updateLatest: 'Up to date',
   updateFound: 'New version {version}',

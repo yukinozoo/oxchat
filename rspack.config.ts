@@ -11,13 +11,16 @@ const root = path.dirname(fileURLToPath(import.meta.url))
  * 版本号来源：优先 src/update.json（每次发布由 make-update.mjs 写入，与 APK 同步），
  * 没有时退回 package.json。网页版「关于 → 当前版本」读的就是这里注入的 meta。
  */
-const readVersion = (): string => {
+const readManifest = (): { versionName: string; versionCode: number } => {
   try {
     const manifest = JSON.parse(
       readFileSync(new URL('./src/update.json', import.meta.url), 'utf8')
-    ) as { versionName?: string }
+    ) as { versionName?: string; versionCode?: number }
     if (manifest.versionName) {
-      return manifest.versionName
+      return {
+        versionName: manifest.versionName,
+        versionCode: typeof manifest.versionCode === 'number' ? manifest.versionCode : 0,
+      }
     }
   } catch {
     // 首次构建还没有清单时退回 package.json
@@ -25,10 +28,10 @@ const readVersion = (): string => {
   const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
     version: string
   }
-  return pkg.version
+  return { versionName: pkg.version, versionCode: 0 }
 }
 
-const version = readVersion()
+const { versionName: version, versionCode } = readManifest()
 
 /**
  * 构建标记：网页版「关于」显示，用来确认手机上跑的是不是最新一次部署。
@@ -109,7 +112,11 @@ export const createConfig = ({
     new rspack.HtmlRspackPlugin({
       template: './src/index.html',
       scriptLoading: 'defer',
-      meta: { 'application-version': version },
+      meta: {
+        'application-version': version,
+        // 网页版靠这两个值判断「线上清单比本页新」，见 services/webUpdate.ts
+        'application-version-code': String(versionCode),
+      },
     }),
     new rspack.DefinePlugin({
       __API_ORIGIN__: JSON.stringify(apiOrigin),

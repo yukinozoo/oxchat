@@ -1,0 +1,39 @@
+/* 「有新版本」提示条：顶部一条细窄横条，压住顶栏但不挡点击（除按钮本身） */
+.bar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: calc(var(--oxchat-safe-top) + 6px) 12px 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.action {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-button-primary-fill, var(--dsw-alias-brand-primary));
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.close {
+  flex-shrink: 0;
+}
