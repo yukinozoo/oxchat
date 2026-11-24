@@ -17,15 +17,41 @@ export type UserLocation = {
 }
 
 const regions = new Set(regionCodes)
+
+/**
+ * `Intl.DisplayNames` 在较老的 Safari / 被裁剪过的内核里不存在。
+ * 它在模块顶层执行，直接 new 会让整个 bundle 启动即崩，所以拿不到就退化成只显示代码。
+ */
+const displayNames = (locale: 'zh-CN' | 'en-US'): Intl.DisplayNames | null => {
+  const Ctor = (Intl as unknown as { DisplayNames?: typeof Intl.DisplayNames }).DisplayNames
+  if (typeof Ctor !== 'function') {
+    return null
+  }
+  try {
+    return new Ctor([locale], { type: 'region' })
+  } catch {
+    return null
+  }
+}
 const regionNames = {
-  'zh-CN': new Intl.DisplayNames(['zh-CN'], { type: 'region' }),
-  'en-US': new Intl.DisplayNames(['en-US'], { type: 'region' }),
+  'zh-CN': displayNames('zh-CN'),
+  'en-US': displayNames('en-US'),
 }
 
-export const getRegionName = (code: string, locale: 'zh-CN' | 'en-US'): string =>
-  regions.has(code)
-    ? (regionNameOverrides[locale][code] ?? regionNames[locale].of(code) ?? code)
-    : ''
+export const getRegionName = (code: string, locale: 'zh-CN' | 'en-US'): string => {
+  if (!regions.has(code)) {
+    return ''
+  }
+  const override = regionNameOverrides[locale][code]
+  if (override) {
+    return override
+  }
+  try {
+    return regionNames[locale]?.of(code) ?? code
+  } catch {
+    return code
+  }
+}
 
 export const normalizeLocation = (value: unknown): UserLocation | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

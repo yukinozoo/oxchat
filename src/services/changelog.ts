@@ -15,6 +15,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 97,
+    versionName: '0.1.97',
+    date: '2026-11-25',
+    items: [
+      '修复 iOS 上网页版偶发白屏：缺 matchMedia / Intl.DisplayNames 时不再启动即崩',
+      '白屏兜底页补充诊断信息（地址、存储、缺失 API、控制台报错），并加一个「强制刷新（清缓存）」按钮',
+    ],
+  },
+  {
     versionCode: 96,
     versionName: '0.1.96',
     date: '2026-11-24',

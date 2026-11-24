@@ -6,7 +6,23 @@ import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
  */
 const MOBILE_QUERY = '(max-width: 767.98px)'
 
-const mobileQuery = typeof window === 'undefined' ? null : window.matchMedia(MOBILE_QUERY)
+/**
+ * 安全版的 matchMedia：极少数环境（旧内核、被裁掉 API 的 WebView、某些隐私模式）里
+ * `window.matchMedia` 不存在。模块顶层直接调用会让整个 bundle 启动即崩、白屏，
+ * 所以这里给一个「永远不匹配」的替身。
+ */
+export const safeMatchMedia = (query: string): MediaQueryList | null => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null
+  }
+  try {
+    return window.matchMedia(query)
+  } catch {
+    return null
+  }
+}
+
+const mobileQuery = safeMatchMedia(MOBILE_QUERY)
 
 const subscribeMobile = (listener: () => void) => {
   mobileQuery?.addEventListener('change', listener)

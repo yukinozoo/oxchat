@@ -1,17 +1,19 @@
 import { useSyncExternalStore } from 'react'
 import { useSettings, type ThemePreference } from '../services/settings.js'
 import { applyAppearance } from './appearance.js'
+import { safeMatchMedia } from './viewport.js'
 
 export type Theme = 'light' | 'dark'
 
-const query = window.matchMedia('(prefers-color-scheme: dark)')
+/** 用 safeMatchMedia：模块顶层直接调 window.matchMedia，缺 API 的环境会启动即白屏 */
+const query = safeMatchMedia('(prefers-color-scheme: dark)')
 
 const subscribeOsTheme = (listener: () => void) => {
-  query.addEventListener('change', listener)
-  return () => query.removeEventListener('change', listener)
+  query?.addEventListener('change', listener)
+  return () => query?.removeEventListener('change', listener)
 }
 
-const getOsTheme = (): Theme => (query.matches ? 'dark' : 'light')
+const getOsTheme = (): Theme => (query?.matches ? 'dark' : 'light')
 
 const resolveTheme = (preference: ThemePreference, osTheme: Theme): Theme =>
   preference === 'system' ? osTheme : preference
@@ -96,6 +98,6 @@ export const setupTheme = () => {
   if (document.readyState !== 'complete') {
     window.addEventListener('load', syncPageBackground, { once: true })
   }
-  query.addEventListener('change', syncTheme)
+  query?.addEventListener('change', syncTheme)
   useSettings.subscribe(syncTheme)
 }

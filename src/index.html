@@ -217,10 +217,20 @@
           for (var i = 0; i < list.length && i < 6; i += 1) {
             if (list[i].src) scripts.push(list[i].src)
           }
+          var storage = 'ok'
+          try {
+            w.localStorage.getItem('oxchat:probe')
+          } catch (error) {
+            storage = (error && error.name) || 'blocked'
+          }
           return (
             'UA: ' + navigator.userAgent +
+            '\n地址: ' + (w.location ? w.location.href : '?') +
             '\n脚本: ' + (scripts.join(' , ') || '(无外链脚本)') +
             '\n缺失特性: ' + (missing.length ? missing.join(', ') : '无') +
+            '\n存储: localStorage ' + storage + ' / indexedDB ' + typeof w.indexedDB +
+            ' / matchMedia ' + typeof w.matchMedia +
+            '\n页面状态: ' + document.readyState +
             '\n根节点高度: ' + rootHeight() + 'px'
           )
         }
@@ -242,8 +252,73 @@
               'font:12px/1.6 monospace;white-space:pre-wrap;overflow:auto;z-index:2147483647'
             box.textContent = text
             document.body.appendChild(box)
+            // 卡在旧 Service Worker / 旧外壳上时，用户可以自己清掉缓存重来
+            var fix = document.createElement('button')
+            fix.textContent = '强制刷新（清缓存）'
+            fix.style.cssText =
+              'position:fixed;left:16px;bottom:16px;z-index:2147483647;padding:10px 16px;' +
+              'border:0;border-radius:999px;background:#b3261e;color:#fff;font:14px/1.2 sans-serif'
+            fix.onclick = function () {
+              fix.disabled = true
+              var done = function () {
+                w.location.reload()
+              }
+              var tasks = []
+              try {
+                if (w.caches && w.caches.keys) {
+                  tasks.push(
+                    w.caches.keys().then(function (keys) {
+                      return Promise.all(
+                        keys.map(function (key) {
+                          return w.caches.delete(key)
+                        })
+                      )
+                    })
+                  )
+                }
+              } catch (_) {}
+              try {
+                if (w.navigator.serviceWorker && w.navigator.serviceWorker.getRegistrations) {
+                  tasks.push(
+                    w.navigator.serviceWorker.getRegistrations().then(function (list) {
+                      return Promise.all(
+                        list.map(function (item) {
+                          return item.unregister()
+                        })
+                      )
+                    })
+                  )
+                }
+              } catch (_) {}
+              if (!tasks.length) {
+                done()
+                return
+              }
+              Promise.all(tasks).then(done, done)
+            }
+            document.body.appendChild(fix)
           } catch (_) {}
         }
+
+        // 控制台里的报错也收一份：iOS Safari 没法开控制台，这是白屏时唯一能带出来的线索
+        ;(function () {
+          if (!w.console) return
+          for (var i = 0; i < 2; i += 1) {
+            var name = i === 0 ? 'error' : 'warn'
+            var original = w.console[name]
+            if (typeof original !== 'function') continue
+            w.console[name] = (function (fn) {
+              return function () {
+                try {
+                  var parts = []
+                  for (var j = 0; j < arguments.length; j += 1) parts.push(String(arguments[j]))
+                  add('console.' + name + ': ' + parts.join(' '))
+                } catch (_) {}
+                return fn.apply(w.console, arguments)
+              }
+            })(original)
+          }
+        })()
 
         // 应用自己崩了可以直接调用，立刻铺屏
         w.__oxchatFatal = function (detail) {
