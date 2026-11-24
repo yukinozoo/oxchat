@@ -39,6 +39,9 @@ const ACCENT_VARS = [
   '--dsw-alias-button-ghost-active-hover',
   '--dsw-specific-bubble',
   '--dsw-specific-sidebar-nav-item-active-accent',
+  /* 高亮/闪一下这类浅底：JS 算好 rgba，别用 color-mix（Chromium 90 不支持） */
+  '--oxchat-accent-soft',
+  '--oxchat-accent-mark',
 ] as const
 
 /** 背景色覆盖的变量：页面底色与浅底容器 */
@@ -98,8 +101,17 @@ export const applyAppearance = () => {
     return
   }
   const style = body.style
-  const { themeAccent, themeBackground, bgImage, bgImageOpacity, bgImageBlur } =
-    useSettings.getState()
+  const {
+    themeAccent,
+    themeBackground,
+    bgImage,
+    bgImageOpacity,
+    bgImageBlur,
+    bubbleUser,
+    bubbleAi,
+    bubbleUserAlpha,
+    bubbleAiAlpha,
+  } = useSettings.getState()
   const dark = body.hasAttribute('data-ds-dark-theme')
 
   if (themeAccent) {
@@ -124,8 +136,33 @@ export const applyAppearance = () => {
       '--dsw-specific-sidebar-nav-item-active-accent',
       withAlpha(themeAccent, dark ? 0.26 : 0.14)
     )
+    style.setProperty('--oxchat-accent-soft', withAlpha(themeAccent, dark ? 0.32 : 0.14))
+    style.setProperty('--oxchat-accent-mark', withAlpha(themeAccent, dark ? 0.4 : 0.22))
   } else {
     clearVars(style, ACCENT_VARS)
+  }
+
+  /**
+   * 气泡色：单独一组变量，别复用 --dsw-specific-bubble ——
+   * 那个变量同时给按钮/侧栏用，改它会把整站强调色一起改掉。
+   *
+   * 透明度在 JS 里算好成完整颜色（rgba），不用 CSS color-mix：
+   * 我们打包目标是 Chromium 90，color-mix 要 111 才支持，安卓老内核会直接失效。
+   */
+  const baseAlpha = dark ? 0.22 : 0.12
+  const bubbleUserBg = bubbleUser
+    ? withAlpha(bubbleUser, baseAlpha * (bubbleUserAlpha / 100))
+    : ''
+  const bubbleAiBg = bubbleAi ? withAlpha(bubbleAi, baseAlpha * (bubbleAiAlpha / 100)) : ''
+  for (const [name, value] of [
+    ['--oxchat-bubble-user-bg', bubbleUserBg],
+    ['--oxchat-bubble-ai-bg', bubbleAiBg],
+  ] as const) {
+    if (value) {
+      style.setProperty(name, value)
+    } else {
+      style.removeProperty(name)
+    }
   }
 
   // 深色下把浅色底压进夜色里，色相不变但不刺眼

@@ -1,4 +1,46 @@
+/* 整页外壳：记忆文本量大，弹窗塞不下；和压缩面板用同一套铺满写法 */
+.overlay.overlay {
+  z-index: 1260;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--dsw-alias-bg-base);
+  backdrop-filter: none;
+}
+
+.dialog.dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: var(--app-dvh, 100vh);
+  max-height: none;
+  padding: calc(var(--oxchat-safe-top) + 14px) 20px
+    calc(var(--oxchat-safe-bottom) + 12px);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--dsw-alias-bg-base);
+}
+
+.panelTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 主体：摘要 / 预览 / 笔记列表撑满，滚动只交给列表 */
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .summary {
+  flex-shrink: 0;
   margin: 0 0 10px;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
@@ -15,8 +57,13 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 46vh;
-  overflow-y: auto;
+}
+
+/* 高度限制放在滚动容器外层：放在内容上会导致「内容刚好等于高度」，滚动条永远不出现 */
+.listPane {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .note {
@@ -31,6 +78,36 @@
   font-size: 14px;
   line-height: 21px;
   white-space: pre-wrap;
+}
+
+.noteHead {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.badgeManual,
+.badgeSummary {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* 不用 color-mix：打包目标是 Chromium 87/90，缺这个函数会整条失效 */
+.badgeManual {
+  background: var(--dsw-static-blue-100);
+  color: var(--dsw-static-blue-800);
+
+  [data-ds-dark-theme] & {
+    background: var(--dsw-static-blue-900);
+    color: var(--dsw-static-blue-200);
+  }
+}
+
+.badgeSummary {
+  background: var(--dsw-alias-bg-subtle);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .actions {
@@ -58,11 +135,20 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+/* 新增笔记：输入框独占一行，两个按钮另起一行右对齐（原来挤在一行里按钮被压扁） */
 .addRow {
   display: flex;
-  align-items: flex-end;
+  flex-shrink: 0;
+  flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+
+.addActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .input {
@@ -76,4 +162,126 @@
   font: inherit;
   font-size: 14px;
   resize: vertical;
+}
+
+/*
+ * 聚焦描边跟主题强调色：不写这条，WebView 会画系统默认焦点环，
+ * 部分机型（小米/三星）是琥珀色，跟蓝/青的主题色完全不是一回事。
+ */
+.input:focus {
+  border-color: var(--dsw-alias-brand-primary);
+  outline: none;
+}
+
+/* 注入预览：摘要行右侧的开关 + 下面原样展示的段落 */
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.previewToggle {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-brand-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.previewMeta {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.previewText {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 底部三个按钮：窄屏换行，不互相挤压 */
+.footerRow {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 停用标记：灰底，提示这条不会进 system */
+.badgeOff {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-skeleton);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* 资料记忆：与笔记同款卡片，但换成独立的一块，标题带数量 */
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.attachmentsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attachmentsTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.attachmentsHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 文件名标签：笔记用的是「手写 / 压缩」，资料记忆直接用文件名 */
+.badgeAttachment {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-skeleton);
+  border-radius: 999px;
 }

@@ -1,0 +1,58 @@
+.wrap {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  /* 兜底：父容器若是 flex 列，这里靠 flex:1 拿高度；溢出绝不外泄到页面 */
+  overflow: hidden;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 原生滚动条不显示：位置由 overlay thumb 表达，避免双条 */
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.track {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  bottom: 4px;
+  width: 6px;
+  pointer-events: none;
+}
+
+.thumb {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--dsw-alias-label-tertiary);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+
+.thumb:active {
+  cursor: grabbing;
+}
+
+.thumbVisible {
+  opacity: 0.45;
+}
+
+.thumbVisible:hover,
+.thumbVisible:active {
+  opacity: 0.7;
+}

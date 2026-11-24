@@ -1,0 +1,501 @@
+/* 用量面板是 1050，面板要压在它上面；双写类名提高优先级 */
+.overlay.overlay {
+  z-index: 1300;
+  /* 整屏面板：不再居中小卡 */
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background-color: var(--dsw-alias-bg-base);
+  backdrop-filter: none;
+}
+
+/* 双写类名压过 Modal 自带的 .content（同为单类选择器，靠优先级取胜） */
+.dialog.dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: var(--app-dvh, 100vh);
+  max-height: none;
+  padding: calc(var(--oxchat-safe-top) + 14px) 20px
+    calc(var(--oxchat-safe-bottom) + 12px);
+  border-radius: 0;
+  box-shadow: none;
+  background-color: var(--dsw-alias-bg-base);
+}
+
+/* 面板标题比弹窗标题大一号 */
+.panelTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.runningNote {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-brand-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  /* 整屏面板：高度由 flex 撑开，滚到底部时给底栏留一点呼吸 */
+  max-height: none;
+  padding-bottom: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lead {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ── 小标题行：标题 + 右侧动作 ── */
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.blockTitle {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.blockHead .blockTitle {
+  margin-top: 0;
+}
+
+.blockAction {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── 模板 chips ── */
+.chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.chip {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chipActive {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ── 行按钮（模型、记忆笔记） ── */
+.rowButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelLogo {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background-color: var(--dsw-alias-brand-text);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowLabel {
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowDesc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowChevron {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 18px;
+}
+
+
+
+
+
+
+.scopeItem {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 36px 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scopeItemActive {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.scopeTitle {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.scopeDesc {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.scopeCheck {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  color: var(--dsw-alias-brand-text);
+  transform: translateY(-50%);
+}
+
+/* ── 数字行 ── */
+.numberRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.numberLabel {
+  flex: 1;
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.numberInput {
+  box-sizing: border-box;
+  width: 104px;
+  padding: 9px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.numberUnit {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.estimate {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 折叠块 ── */
+.foldHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.foldTitle {
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.foldArrow {
+  display: flex;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 0.16s ease;
+}
+
+.foldArrowOpen {
+  transform: rotate(180deg);
+}
+
+.foldBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 2px 2px;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.toggleMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 27px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-skeleton);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.switchOn {
+  background: var(--dsw-alias-brand-primary, #4d6bfe);
+}
+
+.switchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+  transition: transform 140ms ease;
+}
+
+.switchOn .switchKnob {
+  transform: translateX(19px);
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+  resize: none;
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+/* ── 用量与余额 ── */
+.statRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.statRow:last-child {
+  border-bottom: 0;
+}
+
+.statLabel {
+  font-size: 14px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.balanceButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.balanceButton:disabled {
+  cursor: default;
+}
+
+.balancePeak {
+  color: #e08b2c;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.balanceOffPeak {
+  color: #2f7fd6;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  .balancePeak {
+    color: #ffb457;
+  }
+
+  .balanceOffPeak {
+    color: #6fb2ff;
+  }
+}
+
+/* ── 嵌套弹窗 ── */
+.modelOverlay.modelOverlay,
+.memoryOverlay.memoryOverlay {
+  z-index: 1400;
+}
+
+.modelList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modelItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelItemActive {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.modelName {
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.modelDesc {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.modelCheck {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: flex;
+  color: var(--dsw-alias-brand-text);
+  transform: translateY(-50%);
+}

@@ -145,3 +145,11 @@
   font-size: 12px;
   line-height: 18px;
 }
+
+/* AI 回答气泡：默认关闭（设置里可开），开启后给正文加一层底色 */
+.bubble {
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-radius: 18px;
+  background-color: var(--oxchat-bubble-ai-bg, var(--dsw-alias-bg-subtle));
+}

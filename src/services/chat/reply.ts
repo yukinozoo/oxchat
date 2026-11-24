@@ -3,9 +3,12 @@ import type {
   FileBlockParam,
   MessageParam,
   MessageStreamEvent,
+  MessageUsage,
   OutputBlockStart,
   TextBlockParam,
 } from '../api/types.js'
+import { sanitizeSurrogates } from '../../utils/safeText.js'
+import { cleanOutboundText } from './clean.js'
 import type {
   AssistantMessage,
   FileAttachment,
@@ -20,12 +23,14 @@ import type {
  * 发送前 streamReply 会先补齐 serverId；仍为 null 的是本地没有原件的附件，不进入请求。
  */
 const toFileBlocks = (files: FileAttachment[]): FileBlockParam[] =>
-  files.flatMap(({ serverId, isImage }) =>
+  files.flatMap(({ id, serverId, isImage }) =>
     serverId
       ? [
           {
             type: isImage ? 'image' : 'document',
             source: { type: 'file', file_id: serverId },
+            // 自定义渠道读本地原件转 base64；DeepSeek 侧忽略这个字段
+            local_id: id,
           },
         ]
       : []
@@ -69,6 +74,40 @@ const updateBlock = (
  * 把一个流式事件合并进回复：只追加可识别的内容块，用本次请求的临时索引映射处理增量。
  * 跳过的块不占位；续写直接追加到已有内容之后，message_delta 更新结束原因与累计用量。
  */
+/**
+ * 合并两轮用量。
+ *
+ * `message_start` 里只有输入相关的数字、`output_tokens` 恒为 0；`message_delta` 才是全轮累计。
+ * 以前两处都写成 `event.usage ?? next.usage` —— 直接覆盖，于是：
+ * - message_start 的 0 会把上一版累计的输出冲掉（续写时数字突然归零）；
+ * - 反过来 message_delta 缺字段时又会把输入信息丢掉。
+ * 现在逐字段合并：**新值为 0 或缺失时保留旧值**，有值才覆盖。
+ */
+export const mergeUsage = (
+  previous: MessageUsage | undefined,
+  next: MessageUsage | undefined
+): MessageUsage | undefined => {
+  if (!next) {
+    return previous
+  }
+  if (!previous) {
+    return next
+  }
+  const pick = (a: number, b: number) => (b === 0 ? a : b)
+  return {
+    input_tokens: pick(previous.input_tokens, next.input_tokens),
+    cache_creation_input_tokens: pick(
+      previous.cache_creation_input_tokens,
+      next.cache_creation_input_tokens
+    ),
+    cache_read_input_tokens: pick(previous.cache_read_input_tokens, next.cache_read_input_tokens),
+    output_tokens: pick(previous.output_tokens, next.output_tokens),
+    ...(previous.server_tool_use || next.server_tool_use
+      ? { server_tool_use: next.server_tool_use ?? previous.server_tool_use }
+      : {}),
+  }
+}
+
 export const applyEvent = (
   reply: AssistantMessage,
   event: MessageStreamEvent,
@@ -81,7 +120,7 @@ export const applyEvent = (
     case 'message_start': {
       // 服务端会返回真正执行的模型标识，优先于本地请求里的模型名展示
       const resolvedModel = event.message.model || next.resolvedModel
-      return { ...next, resolvedModel, usage: event.message.usage ?? next.usage }
+      return { ...next, resolvedModel, usage: mergeUsage(next.usage, event.message.usage) }
     }
     case 'content_block_start': {
       blockIndexes.delete(event.index)
@@ -132,7 +171,7 @@ export const applyEvent = (
         ...next,
         stopReason: event.delta.stop_reason,
         stopDetails: event.delta.stop_details,
-        usage: event.usage ?? next.usage,
+        usage: mergeUsage(next.usage, event.usage),
       }
     default:
       return next
@@ -208,8 +247,14 @@ const SUMMARY_HEADER = '【此前对话的压缩摘要，作为已发生的上�
 const SUMMARY_FOOTER = '【摘要结束】'
 
 /** 提问正文：有压缩摘要时把摘要拼在原文之前，一起作为这条 user 消息进入上下文 */
+/**
+ * 用户侧出站文本：只兜孤立代理（切坏 emoji 会让服务端 JSON 解析 400），
+ * 内容本身不改 —— 用户怎么写就怎么发。
+ */
 const toUserText = ({ content, summary }: UserMessage) =>
-  summary ? `${SUMMARY_HEADER}\n${summary}\n${SUMMARY_FOOTER}\n\n${content}` : content
+  sanitizeSurrogates(
+    summary ? `${SUMMARY_HEADER}\n${summary}\n${SUMMARY_FOOTER}\n\n${content}` : content
+  )
 
 /** 有文件时用内容块数组：先文件后文本，文件按 Files API 的 file_id 引用 */
 const toUserParam = (message: UserMessage): MessageParam => {
@@ -256,13 +301,18 @@ const toAssistantParam = (
       continue
     }
     if (block.type === 'text') {
+      // 出站兜底：协议标记不能回传给服务端（含保留 token 的历史会被整条拒收）
+      const chunk = cleanOutboundText(block.text)
+      if (!chunk) {
+        continue
+      }
       if (text) {
-        text.text += block.text
+        text.text += chunk
       } else {
         const previous = content.at(-1)
         text = {
           type: 'text',
-          text: `${previous?.type === 'text' ? '\n\n' : ''}${block.text}`,
+          text: `${previous?.type === 'text' ? '\n\n' : ''}${chunk}`,
         }
         content.push(text)
       }

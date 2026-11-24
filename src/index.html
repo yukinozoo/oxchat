@@ -193,9 +193,22 @@
         })
 
         // ---- 3. 报错收集（不抢页面） ----
+        function rootHeight() {
+          var root = document.getElementById('root')
+          if (!root) return 0
+          try {
+            return Math.round(root.getBoundingClientRect().height)
+          } catch (e) {
+            return 0
+          }
+        }
+
+        // 渲染出子节点但高度塌成 0，同样算「没起来」：
+        // 老内核（荣耀/华为自带 WebView）不认识 dvh 时，高度会整个塌掉、只剩白屏
         function rendered() {
           var root = document.getElementById('root')
-          return !!(root && root.childElementCount > 0)
+          if (!root || root.childElementCount === 0) return false
+          return rootHeight() >= 120
         }
 
         function environment() {
@@ -207,7 +220,8 @@
           return (
             'UA: ' + navigator.userAgent +
             '\n脚本: ' + (scripts.join(' , ') || '(无外链脚本)') +
-            '\n缺失特性: ' + (missing.length ? missing.join(', ') : '无')
+            '\n缺失特性: ' + (missing.length ? missing.join(', ') : '无') +
+            '\n根节点高度: ' + rootHeight() + 'px'
           )
         }
 

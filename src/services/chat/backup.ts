@@ -1,6 +1,6 @@
 import { formatDate } from '../../utils/format.js'
 import * as db from './db.js'
-import { replaceHistory, useChatStore } from './store.js'
+import { removeSession, replaceHistory, useChatStore } from './store.js'
 import {
   beginImportJob,
   endImportJob,
@@ -65,7 +65,7 @@ const readSessions = async function* (only?: ReadonlySet<string>): AsyncGenerato
  * 网页端导出：分片拼成 Blob 一次性下载。
  * 原生端请用 exportHistoryStream，避免大库整包进内存。
  */
-export type ExportOptions = { includeImages?: boolean }
+export type ExportOptions = { includeImages?: boolean; includeExtras?: boolean }
 
 export const exportHistory = (
   only?: ReadonlySet<string>,
@@ -180,9 +180,16 @@ export const importSelectedSessions = (
   })
 
 /** 读第三方整包的会话索引（官网导出包）：只解析索引条目，其余跳过 */
-export const readArchiveIndex = async (
-  file: File
-): Promise<{ id: string; title: string }[]> => {
+export type ArchiveIndexItem = {
+  id: string
+  title: string
+  /** 会话里的消息条数（索引里直接有，列表上显示「22 条消息」） */
+  messageCount: number
+  /** 最后更新时间（ISO8601），列表上显示成日期 */
+  updatedAt: string
+}
+
+export const readArchiveIndex = async (file: File): Promise<ArchiveIndexItem[]> => {
   const { readEntryByPath } = await import('./history/zipReader.js')
   const { readSessionIndex } = await import('./history/schema.js')
   const { INDEX_PATH } = await import('./history/paths.js')
@@ -192,7 +199,12 @@ export const readArchiveIndex = async (
     return []
   }
   const list = readSessionIndex(JSON.parse(await blob.text()))
-  return list.map((entry) => ({ id: entry.id, title: entry.title ?? '' }))
+  return list.map((entry) => ({
+    id: entry.id,
+    title: entry.title ?? '',
+    messageCount: entry.message_count,
+    updatedAt: entry.updated_at,
+  }))
 }
 
 /**
@@ -219,6 +231,38 @@ export const syncImportSessions = (
       const localUpdatedAt = new Map(
         useChatStore.getState().sessions.map((session) => [session.id, session.updatedAt])
       )
+      /**
+       * 删除同步：
+       * 1. 先读远端包里的墓碑与本地并起来（本地也就记住了这些删除，下次再传出去）；
+       * 2. 本地存在、且删除时间不早于本地更新时间的会话 → 真的删掉（走 removeSession，会再记一条墓碑）；
+       * 3. 导入时把墓碑传给 importArchive，跳过「远端那份比删除还老」的会话。
+       */
+      const { readExtrasFromArchive } = await import('./history/extras.js')
+      const { mergeTombstones, loadTombstones } = await import('./tombstones.js')
+      const extras = await readExtrasFromArchive(file).catch(() => null)
+      const remoteDeleted = extras?.deleted ?? {}
+      mergeTombstones(
+        Object.entries(remoteDeleted).map(([id, at]) => ({ id, at }))
+      )
+      const tombstones = new Map<string, number>()
+      for (const item of loadTombstones()) {
+        tombstones.set(item.id, item.at)
+      }
+      for (const [id, at] of Object.entries(remoteDeleted)) {
+        const existing = tombstones.get(id) ?? 0
+        if (at > existing) {
+          tombstones.set(id, at)
+        }
+      }
+      const toRemove = [...tombstones.entries()]
+        .filter(([id, at]) => {
+          const local = localUpdatedAt.get(id)
+          return local !== undefined && at >= local
+        })
+        .map(([id]) => id)
+      for (const id of toRemove) {
+        await removeSession(id).catch(() => false)
+      }
       const result = await replaceHistory(
         () =>
           importArchive(file, {
@@ -226,6 +270,7 @@ export const syncImportSessions = (
             localUpdatedAt,
             onlyIds: ids,
             totalSessions: ids.size,
+            tombstones,
             onProgress: (done, total) => {
               reportImportProgress(done, total)
               options.onProgress?.(done, total)

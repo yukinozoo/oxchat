@@ -1,0 +1,28 @@
+.avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.circle {
+  border-radius: 50%;
+}
+
+.rounded {
+  border-radius: 12px;
+}
+
+/* 没有头像时的默认样式：灰底 + 名字首字 */
+.fallback {
+  background: var(--dsw-alias-bg-skeleton);
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.image {
+  object-fit: cover;
+  background: var(--dsw-alias-bg-skeleton);
+}

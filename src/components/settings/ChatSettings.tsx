@@ -4,49 +4,34 @@ import { useTranslate } from '../../i18n/index.js'
 import { Select } from '../base/Select.js'
 import {
   CONTEXT_WINDOWS,
-  DEFAULT_GLOBAL_PROMPT,
   formatContextWindow,
-  setAutoCompact,
   setCompactBackup,
-  setDocumentBudget,
-  setCompactKeep,
+  setCompactKeepRounds,
   setCompactThreshold,
   setContextWindow,
-  setGlobalPrompt,
   setTemperature,
   useSettings,
 } from '../../services/settings.js'
-import {
-  DOCUMENT_BUDGET_MAX,
-  DOCUMENT_BUDGET_MIN,
-  DOCUMENT_BUDGET_STEP,
-} from '../../services/documents/budget.js'
-import { formatTokens } from '../../services/chat/usage.js'
 import styles from './ChatSettings.module.css'
 
 /** 触发阈值与保留比例的可用区间：保留段必须比阈值更小，否则压缩没有意义 */
 const THRESHOLD_MIN = 20
 const THRESHOLD_MAX = 90
-const KEEP_MIN = 5
-const KEEP_MAX = 50
-const KEEP_GAP = 10
 
 const percentText = (value: number) => `${Math.round(value)}%`
 
 /**
- * 对话设置：上下文窗口、自动压缩（含触发阈值与保留比例）、温度、全局提示词。
+ * 对话设置：上下文窗口、自动压缩（含触发阈值与保留比例）、温度。
+ * 原来的「全局提示词」已移除 —— system 由角色卡（设置 → 用户 → 角色管理）负责。
  * 设置即时保存并立即作用于下一次请求。
  */
 export const ChatSettings = () => {
   const t = useTranslate()
   const contextWindow = useSettings((state) => state.contextWindow)
-  const autoCompact = useSettings((state) => state.autoCompact)
   const compactThreshold = useSettings((state) => state.compactThreshold)
   const compactBackup = useSettings((state) => state.compactBackup)
-  const documentBudget = useSettings((state) => state.documentBudget)
-  const compactKeep = useSettings((state) => state.compactKeep)
+  const compactKeepRounds = useSettings((state) => state.compactKeepRounds)
   const temperature = useSettings((state) => state.temperature)
-  const globalPrompt = useSettings((state) => state.globalPrompt)
 
   const windowOptions = CONTEXT_WINDOWS.map((value) => ({
     value: String(value),
@@ -56,16 +41,11 @@ export const ChatSettings = () => {
     { value: 'on', label: t('chatOn') },
     { value: 'off', label: t('chatOff') },
   ]
-  const compactDisabled = contextWindow === 0 || !autoCompact
+  /** 窗口选「不限」时没有阈值可言，下面两项一起禁用 */
+  const compactDisabled = contextWindow === 0
 
   const changeThreshold = (value: number) => {
     setCompactThreshold(value)
-    if (compactKeep > value - KEEP_GAP) {
-      setCompactKeep(Math.max(KEEP_MIN, value - KEEP_GAP))
-    }
-  }
-  const changeKeep = (value: number) => {
-    setCompactKeep(Math.min(value, Math.max(KEEP_MIN, compactThreshold - KEEP_GAP)))
   }
 
   return (
@@ -83,31 +63,10 @@ export const ChatSettings = () => {
             />
           }
         />
-        <RangeRow
-          label={t('chatDocumentBudget')}
-          valueText={formatTokens(documentBudget)}
-          min={DOCUMENT_BUDGET_MIN}
-          max={DOCUMENT_BUDGET_MAX}
-          step={DOCUMENT_BUDGET_STEP}
-          value={documentBudget}
-          onChange={(value) => setDocumentBudget(value)}
-        />
-        <p className={styles.note}>{t('chatDocumentBudgetDesc')}</p>
       </Section>
 
       <Section>
-        <SettingRow
-          label={t('chatAutoCompact')}
-          desc={t('chatAutoCompactDesc')}
-          action={
-            <Select
-              value={autoCompact ? 'on' : 'off'}
-              options={switchOptions}
-              ariaLabel={t('chatAutoCompact')}
-              onChange={(value) => setAutoCompact(value === 'on')}
-            />
-          }
-        />
+        <div className={styles.note}>{t('chatCompactPerSessionNote')}</div>
         <RangeRow
           label={t('chatCompactThreshold')}
           valueText={percentText(compactThreshold)}
@@ -132,13 +91,13 @@ export const ChatSettings = () => {
         />
         <RangeRow
           label={t('chatCompactKeep')}
-          valueText={percentText(compactKeep)}
-          min={KEEP_MIN}
-          max={KEEP_MAX}
-          step={5}
-          value={compactKeep}
+          valueText={t('chatCompactKeepRoundsValue', { rounds: compactKeepRounds })}
+          min={1}
+          max={20}
+          step={1}
+          value={compactKeepRounds}
           disabled={compactDisabled}
-          onChange={changeKeep}
+          onChange={setCompactKeepRounds}
         />
         <div className={styles.note}>
           {contextWindow === 0 ? t('chatCompactWindowOff') : t('chatCompactKeepDesc')}
@@ -168,30 +127,6 @@ export const ChatSettings = () => {
         </div>
       </Section>
 
-      <Section>
-        <div className={styles.setting}>
-          <div className={styles.head}>
-            <span className={styles.label}>{t('chatGlobalPrompt')}</span>
-            <button
-              type="button"
-              className={styles.reset}
-              disabled={globalPrompt === DEFAULT_GLOBAL_PROMPT}
-              onClick={() => setGlobalPrompt(DEFAULT_GLOBAL_PROMPT)}
-            >
-              {t('chatGlobalPromptReset')}
-            </button>
-          </div>
-          <textarea
-            className={styles.textarea}
-            aria-label={t('chatGlobalPrompt')}
-            rows={5}
-            value={globalPrompt}
-            placeholder={DEFAULT_GLOBAL_PROMPT}
-            onChange={(event) => setGlobalPrompt(event.target.value)}
-          />
-          <div className={styles.note}>{t('chatGlobalPromptDesc')}</div>
-        </div>
-      </Section>
     </div>
   )
 }

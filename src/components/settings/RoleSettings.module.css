@@ -1,0 +1,285 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.sectionTitle {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+/* 「导入」与「＋ 新建」并排放在「AI 角色」标题右侧 */
+.headTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 「我的角色」整卡可点 */
+.userCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.userMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userName {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.userHint {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.newButton {
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-subtle);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.rowSelected {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowName {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 徽标槽：作为 .row 的 flex 子项，天然跟头像、按钮同一条中线 */
+.badges {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.inUseBadge {
+  /* inline-flex + 固定高度：行内文本的 line-height 会把徽标顶偏，靠这个对齐名字中线 */
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-brand-primary);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.customBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-skeleton);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.rowHint {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowActions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.actionText {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.actionDanger {
+  composes: actionText;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.actionDisabled {
+  composes: actionText;
+  color: var(--dsw-alias-label-caption);
+  cursor: default;
+}
+
+/* ── 弹窗内容 ── */
+.overlay {
+  z-index: 1250;
+}
+
+.confirmDialog {
+  width: 340px;
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.avatarRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.avatarButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-brand-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.avatarEdit {
+  color: var(--dsw-alias-brand-text);
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.input,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.textarea {
+  resize: none;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.empty {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}

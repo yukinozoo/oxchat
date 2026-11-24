@@ -5,6 +5,7 @@ import * as db from '../db.js'
 import type { Session } from '../types.js'
 import { BackupError, fail } from './errors.js'
 import type { SessionIndexEntry } from './format.js'
+import { applyExtras, EXTRAS_PATH, parseExtras, type ExtrasFile } from './extras.js'
 import { INDEX_PATH, MANIFEST_PATH, USER_PATH, parseSessionPath } from './paths.js'
 import { checkManifest, readSessionIndex } from './schema.js'
 import { parseSessionAsync } from './sessionParser.js'
@@ -147,6 +148,11 @@ export type ImportOptions = {
    * 与 localIds 的去重独立：同一 id 既在 onlyIds 里又已存在于本地时按「跳过」计数。
    */
   onlyIds?: ReadonlySet<string>
+  /**
+   * 删除墓碑（id → 删除时间）：远端那份比删除还老时直接跳过，
+   * 避免「A 设备删掉、B 设备又把它拉回来」。
+   */
+  tombstones?: ReadonlyMap<string, number>
   onProgress?: (done: number, total: number) => void
 }
 
@@ -259,6 +265,23 @@ export const importArchive = async (
     const manifest = (await readEntryByPath(file, MANIFEST_PATH)) ?? fail('backupUnrecognized')
     checkManifest(JSON.parse(await manifest.text()))
 
+    // 本机数据（记忆笔记 / 折叠状态 / 置顶）：官方格式没有，放在 sidecar 里。
+    // 按偏移直接读，不依赖条目顺序；没有这个文件就是官方原包或旧版本打的包。
+    const extrasBlob = await readEntryByPath(file, EXTRAS_PATH).catch(() => null)
+    const extras: ExtrasFile | null = extrasBlob ? parseExtras(await extrasBlob.text()) : null
+    const withExtras = (session: Session) =>
+      applyExtras(session, extras?.sessions[session.id])
+    // 角色卡：只追加本地没有的 id，绝不覆盖本机已有的卡
+    if (extras?.characters?.length) {
+      const { mergeCharacterCards } = await import('../characters.js')
+      mergeCharacterCards(extras.characters)
+    }
+    // 本机配置（自定义渠道 / 摘要模板）：只补空缺，不覆盖你正在用的
+    if (extras?.prefs) {
+      const { applyPortablePrefs } = await import('../portablePrefs.js')
+      applyPortablePrefs(extras.prefs)
+    }
+
     /**
      * 第一遍只处理清单、会话与索引：图片条目直接跳过、一个字节都不读，
      * 这是「几百兆的包也能秒进」的关键（以前为了 CRC 校验会把图片全读一遍）。
@@ -271,7 +294,7 @@ export const importArchive = async (
       if (path === MANIFEST_PATH) {
         continue
       }
-      if (path === USER_PATH) {
+      if (path === USER_PATH || path === EXTRAS_PATH) {
         continue
       }
       const sessionId = parseSessionPath(path)
@@ -284,6 +307,7 @@ export const importArchive = async (
           fail('backupIncomplete')
         }
         const localAt = options.localUpdatedAt?.get(sessionId)
+        const deletedAt = options.tombstones?.get(sessionId)
         const merging = existing.has(sessionId) && options.localUpdatedAt !== undefined
         if (existing.has(sessionId) && !merging) {
           skipped += 1
@@ -295,6 +319,13 @@ export const importArchive = async (
         const parsed = await parseSessionAsync(await blob.text())
         if (parsed.session.id !== sessionId) {
           fail('backupIncomplete')
+        }
+        // 删除时间不早于远端更新时间：这条在别处已经删了，别再导回来
+        if (deletedAt !== undefined && deletedAt >= (parsed.session.updatedAt ?? 0)) {
+          skipped += 1
+          done += 1
+          report()
+          continue
         }
         if (merging) {
           // 远端不比本地新就不动本地，避免同步把本地更近的续聊冲掉
@@ -331,9 +362,11 @@ export const importArchive = async (
         }
         maxTokens = Math.max(maxTokens, historyTokens(parsed.session.messages))
         pendingSessions.push(
-          available === undefined
-            ? parsed.session
-            : dropMissingFiles(parsed.session, parsed.images, available)
+          withExtras(
+            available === undefined
+              ? parsed.session
+              : dropMissingFiles(parsed.session, parsed.images, available)
+          )
         )
         if (pendingSessions.length >= SESSION_BATCH) {
           await flushSessions()

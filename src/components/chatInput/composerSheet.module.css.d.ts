@@ -30,5 +30,26 @@ declare const styles: {
   readonly depthTrack: string
   readonly depthOption: string
   readonly depthOptionActive: string
+  readonly contextHead: string
+  readonly contextTitle: string
+  readonly contextValue: string
+  readonly contextPercent: string
+  readonly contextEstimate: string
+  readonly breakRow: string
+  readonly breakDot: string
+  readonly breakDotFree: string
+  readonly breakLabel: string
+  readonly breakValue: string
+  readonly actionCard: string
+  readonly actionRow: string
+  readonly actionRowButton: string
+  readonly actionIcon: string
+  readonly actionMain: string
+  readonly actionLabel: string
+  readonly actionDesc: string
+  readonly actionDivider: string
+  readonly actionChevron: string
+  readonly actionRowDisabled: string
+  readonly switchDisabled: string
 }
 export = styles

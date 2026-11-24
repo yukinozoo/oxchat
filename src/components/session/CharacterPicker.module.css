@@ -1,0 +1,155 @@
+/* 顶栏的角色胶囊：符号 + 名字，尽量窄，给标题留地方 */
+.chip {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  max-width: 40vw;
+  margin-left: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.avatarCircle {
+  border-radius: 50%;
+}
+
+.avatarRounded {
+  border-radius: 12px;
+}
+
+/* 没有头像时的默认样子：灰色底 + 人形剪影 */
+.avatarFallback {
+  background: var(--dsw-alias-bg-skeleton);
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.avatarImage {
+  object-fit: cover;
+  background: var(--dsw-alias-bg-skeleton);
+}
+
+.chipLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.overlay {
+  z-index: 1250;
+}
+
+.dialog {
+  width: 420px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.titleMeta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.editButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardActive {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.cardMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardName {
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.cardHint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.check {
+  flex-shrink: 0;
+  color: var(--dsw-alias-brand-text);
+}

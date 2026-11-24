@@ -44,6 +44,8 @@ export type ExportOptions = {
   /** 只导出这些会话；省略表示全部 */
   only?: ReadonlySet<string>
   includeImages?: boolean
+  /** 是否附带记忆/角色卡/置顶等附加数据（`oxchat-extras.json`）；默认带 */
+  includeExtras?: boolean
   /** 文件名（不含路径）：原生壳写 CACHE、网页版做默认文件名 */
   fileName: string
   /** 已写入字节数，约每 1MB 回调一次 */
@@ -109,7 +111,7 @@ const exportNative = async (native: NativeBackupPlugins, options: ExportOptions)
         await flush()
       }
     },
-    { includeImages: options.includeImages }
+    { includeImages: options.includeImages, includeExtras: options.includeExtras }
   )
   await flush()
   options.onProgress?.(written)
@@ -126,7 +128,10 @@ const exportNative = async (native: NativeBackupPlugins, options: ExportOptions)
 
 /** 网页版兜底：整包拼 Blob 再触发下载 */
 const downloadAsBlob = async (options: ExportOptions) => {
-  const { blob } = await exportHistory(options.only, { includeImages: options.includeImages })
+  const { blob } = await exportHistory(options.only, {
+    includeImages: options.includeImages,
+    includeExtras: options.includeExtras,
+  })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

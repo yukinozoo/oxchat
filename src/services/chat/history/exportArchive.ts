@@ -1,6 +1,10 @@
 import * as db from '../db.js'
 import type { Session } from '../types.js'
 import { EXPORT_FORMAT_VERSION, type Manifest, type SessionIndexEntry } from './format.js'
+import { EXTRAS_PATH, toExtrasFile } from './extras.js'
+import { exportCharacterCards } from '../characters.js'
+import { collectPortablePrefs } from '../portablePrefs.js'
+import { tombstoneMap } from '../tombstones.js'
 import { INDEX_PATH, MANIFEST_PATH, imagePath, sessionPath } from './paths.js'
 import { toIndexEntry, toSessionFile } from './toArchive.js'
 import type { ArchiveEntryInput } from './zipWriter.js'
@@ -17,13 +21,18 @@ const json = (value: unknown) => new Blob([JSON.stringify(value)], { type: 'appl
 export async function* archiveEntries(
   sessions: Iterable<Session> | AsyncIterable<Session>,
   loadImage: (id: string) => Promise<Blob | undefined> = db.loadFile,
-  options: { includeImages?: boolean } = {}
+  options: { includeImages?: boolean; includeExtras?: boolean } = {}
 ): AsyncGenerator<ArchiveEntryInput> {
   const includeImages = options.includeImages !== false
+  /** 附加数据（记忆/角色/置顶/墓碑/偏好）默认带；关掉时整包只剩官方四段 */
+  const includeExtras = options.includeExtras !== false
   const manifest: Manifest = { export_format_version: EXPORT_FORMAT_VERSION }
   yield { name: MANIFEST_PATH, blob: json(manifest) }
   const index: SessionIndexEntry[] = []
+  /** 官方格式装不下的本机数据（记忆笔记、折叠状态、置顶），最后单独写一个文件 */
+  const extrasSessions: Session[] = []
   for await (const session of sessions) {
+    extrasSessions.push(session)
     // 先取本会话引用的图片原件，会话写完即释放；不导出图片时完全不读原件
     const originals = new Map<string, Blob | undefined>()
     if (includeImages) {
@@ -57,4 +66,17 @@ export async function* archiveEntries(
     index.push(toIndexEntry(data))
   }
   yield { name: INDEX_PATH, blob: json(index) }
+  if (!includeExtras) {
+    return
+  }
+  // 墓碑随包走：别的设备拉到包之后才知道哪些会话是「被删了」而不是「没打包」
+  const extras = toExtrasFile(
+    extrasSessions,
+    tombstoneMap(),
+    exportCharacterCards(),
+    collectPortablePrefs()
+  )
+  if (extras) {
+    yield { name: EXTRAS_PATH, blob: json(extras) }
+  }
 }

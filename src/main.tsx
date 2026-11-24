@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './app/App.js'
+import { CrashScreen } from './app/CrashScreen.js'
 import { setupAppearance } from './app/appearance.js'
 import { setupTheme } from './app/theme.js'
 import { ensureKatex } from './services/markdown/katex.js'
@@ -20,7 +21,11 @@ try {
   setupTheme()
   setupAppearance()
 
-  createRoot(document.getElementById('root') as HTMLElement).render(<App />)
+  createRoot(document.getElementById('root') as HTMLElement).render(
+    <CrashScreen>
+      <App />
+    </CrashScreen>
+  )
 
   // 网页版注册 Service Worker（原生壳里自动跳过）：离线打开 + 二次启动更快
   registerServiceWorker()

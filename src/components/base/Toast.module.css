@@ -1,6 +1,6 @@
 .toast {
   position: fixed;
-  top: calc(40px + env(safe-area-inset-top));
+  top: calc(40px + var(--oxchat-safe-top));
   right: 0;
   left: 0;
   z-index: 2000;

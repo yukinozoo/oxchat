@@ -18,10 +18,15 @@ import {
   setThemePreference,
   useSettings,
   type ThemePreference,
+  setBubbleUser,
+  setBubbleAi,
+  setBubbleUserAlpha,
+  setBubbleAiAlpha,
+  setAiBubble,
 } from '../../services/settings.js'
-import { readBackgroundImage } from '../../utils/image.js'
 import { showToast } from '../base/toastState.js'
 import { ColorPickerDialog } from './ColorPickerDialog.js'
+import { ImageCropDialog } from './ImageCropDialog.js'
 import styles from './Appearance.module.css'
 
 /** 主题色预设：淡紫 / 蓝 / 青 / 绿 / 粉 */
@@ -41,6 +46,16 @@ const BACKGROUNDS: { hex: string; label: TranslationKey }[] = [
   { hex: '#f2f9ff', label: 'themeBgIce' },
   { hex: '#fff5f7', label: 'themeBgSakura' },
   { hex: '#fff7f2', label: 'themeBgPeach' },
+]
+
+/** 气泡底色预设：都是低饱和，叠在浅底上不抢正文 */
+const BUBBLES: { hex: string; label: TranslationKey }[] = [
+  { hex: '#7c5cff', label: 'themeAccentPurple' },
+  { hex: '#2f6bff', label: 'themeAccentBlue' },
+  { hex: '#12a468', label: 'themeAccentGreen' },
+  { hex: '#e0a13a', label: 'themeBubbleAmber' },
+  { hex: '#ff2d84', label: 'themeAccentPink' },
+  { hex: '#6b7280', label: 'themeBubbleGray' },
 ]
 
 const MODES: { value: ThemePreference; label: TranslationKey; icon: ReactElement }[] = [
@@ -63,8 +78,15 @@ export const ThemeSettings = () => {
   const bgImageMissing = useSettings((state) => state.bgImageMissing)
   const opacity = useSettings((state) => state.bgImageOpacity)
   const blur = useSettings((state) => state.bgImageBlur)
+  const bubbleUser = useSettings((state) => state.bubbleUser)
+  const bubbleAi = useSettings((state) => state.bubbleAi)
+  const bubbleUserAlpha = useSettings((state) => state.bubbleUserAlpha)
+  const bubbleAiAlpha = useSettings((state) => state.bubbleAiAlpha)
+  const aiBubble = useSettings((state) => state.aiBubble)
   const fileRef = useRef<HTMLInputElement>(null)
   const [picking, setPicking] = useState<'accent' | 'background' | null>(null)
+  /** 待裁剪的图片：选中文件或「调整裁剪」时设置 */
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   const accentPreset = ACCENTS.find((item) => item.hex === accent)
   const backgroundPreset = BACKGROUNDS.find((item) => item.hex === background)
@@ -72,18 +94,24 @@ export const ThemeSettings = () => {
   const backgroundLabel = backgroundPreset ? t(backgroundPreset.label) : t('themeColorCustom')
   const opacityFill = ((opacity - 10) / 90) * 100
 
-  const chooseImage = async (event: ChangeEvent<HTMLInputElement>) => {
+  /** 选文件后先进裁剪：竖图/长图不再被拉伸或只露中间一条 */
+  const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) {
       return
     }
+    setCropSrc(URL.createObjectURL(file))
+  }
+
+  /** 裁剪确认：输出已是 1600 宽的 JPEG，再做一次体积兜底 */
+  const applyCrop = async (dataUrl: string) => {
+    setCropSrc(null)
+    if (dataUrl.length > 3_000_000) {
+      showToast(t('themeBgImageTooLarge'))
+      return
+    }
     try {
-      const dataUrl = await readBackgroundImage(file)
-      if (dataUrl.length > 3_000_000) {
-        showToast(t('themeBgImageTooLarge'))
-        return
-      }
       const saved = await setBgImage(dataUrl)
       if (!saved) {
         showToast(t('themeBgImageSaveFailed'))
@@ -223,6 +251,115 @@ export const ThemeSettings = () => {
           </div>
 
           <div className={styles.section}>
+            <div className={styles.sectionTitle}>{t('themeBubbleTitle')}</div>
+            <div className={styles.row}>
+              <span className={styles.label}>{t('themeBubbleUser')}</span>
+              <span className={styles.value}>
+                {bubbleUser ? bubbleUser.toUpperCase() : t('themeBubbleDefault')}
+              </span>
+            </div>
+            <div className={styles.swatches}>
+              <button
+                type="button"
+                className={clsx(styles.swatch, !bubbleUser && styles.swatchActive)}
+                aria-label={t('themeBubbleDefault')}
+                style={{ background: 'var(--dsw-specific-bubble)' }}
+                onClick={() => setBubbleUser('')}
+              >
+                {!bubbleUser ? <IconCheckOutline16 /> : null}
+              </button>
+              {BUBBLES.map((item) => (
+                <button
+                  key={`user-${item.hex}`}
+                  type="button"
+                  className={clsx(
+                    styles.swatch,
+                    bubbleUser.toLowerCase() === item.hex && styles.swatchActive
+                  )}
+                  aria-label={t(item.label)}
+                  title={t(item.label)}
+                  style={{ background: item.hex }}
+                  onClick={() => setBubbleUser(item.hex)}
+                >
+                  {bubbleUser.toLowerCase() === item.hex ? <IconCheckOutline16 /> : null}
+                </button>
+              ))}
+            </div>
+            <div className={styles.row}>
+              <span className={styles.label}>{t('themeBubbleUserAlpha')}</span>
+              <span className={styles.value}>{bubbleUserAlpha}%</span>
+            </div>
+            <input
+              type="range"
+              className={styles.range}
+              aria-label={t('themeBubbleUserAlpha')}
+              min={10}
+              max={100}
+              step={5}
+              value={bubbleUserAlpha}
+              onChange={(event) => setBubbleUserAlpha(Number(event.target.value))}
+            />
+            <div className={styles.row}>
+              <span className={styles.label}>{t('themeAiBubble')}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={aiBubble}
+                aria-label={t('themeAiBubble')}
+                className={clsx(styles.switch, aiBubble && styles.switchOn)}
+                onClick={() => setAiBubble(!aiBubble)}
+              >
+                <span className={styles.switchKnob} />
+              </button>
+            </div>
+            {aiBubble ? (
+              <>
+                <div className={styles.swatches}>
+                  <button
+                    type="button"
+                    className={clsx(styles.swatch, !bubbleAi && styles.swatchActive)}
+                    aria-label={t('themeBubbleDefault')}
+                    style={{ background: 'var(--dsw-alias-bg-subtle)' }}
+                    onClick={() => setBubbleAi('')}
+                  >
+                    {!bubbleAi ? <IconCheckOutline16 /> : null}
+                  </button>
+                  {BUBBLES.map((item) => (
+                    <button
+                      key={`ai-${item.hex}`}
+                      type="button"
+                      className={clsx(
+                        styles.swatch,
+                        bubbleAi.toLowerCase() === item.hex && styles.swatchActive
+                      )}
+                      aria-label={t(item.label)}
+                      title={t(item.label)}
+                      style={{ background: item.hex }}
+                      onClick={() => setBubbleAi(item.hex)}
+                    >
+                      {bubbleAi.toLowerCase() === item.hex ? <IconCheckOutline16 /> : null}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.row}>
+                  <span className={styles.label}>{t('themeBubbleAiAlpha')}</span>
+                  <span className={styles.value}>{bubbleAiAlpha}%</span>
+                </div>
+                <input
+                  type="range"
+                  className={styles.range}
+                  aria-label={t('themeBubbleAiAlpha')}
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={bubbleAiAlpha}
+                  onChange={(event) => setBubbleAiAlpha(Number(event.target.value))}
+                />
+              </>
+            ) : null}
+          </div>
+
+          <div className={styles.section}>
             <div className={styles.sectionTitle}>{t('themeBgImage')}</div>
             {bgImage ? (
               <>
@@ -237,6 +374,13 @@ export const ThemeSettings = () => {
                     onClick={() => fileRef.current?.click()}
                   >
                     {t('themeBgImageReplace')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.imageAction}
+                    onClick={() => setCropSrc(bgImage)}
+                  >
+                    {t('themeBgImageCrop')}
                   </button>
                   <button
                     type="button"
@@ -301,6 +445,13 @@ export const ThemeSettings = () => {
         </div>
       </div>
 
+      {cropSrc ? (
+        <ImageCropDialog
+          src={cropSrc}
+          onCancel={() => setCropSrc(null)}
+          onConfirm={(dataUrl) => void applyCrop(dataUrl)}
+        />
+      ) : null}
       {picking ? (
         <ColorPickerDialog
           value={picking === 'accent' ? accent : background}

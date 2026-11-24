@@ -1,44 +1,65 @@
 import { createPortal } from 'react-dom'
+import clsx from 'clsx'
+import { useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
-import { formatBalance, loadBalance, useAccount } from '../../services/account.js'
-import { useChatStore } from '../../services/chat/store.js'
-import { summarizeUsage, formatTokens } from '../../services/chat/usage.js'
-import { canCompact } from '../../services/chat/compact.js'
-import { compactSession } from '../../services/chat/store.js'
-import { showToast } from '../base/toastState.js'
-import { Button } from '../base/Button.js'
-import { MemoryDialog } from './MemoryDialog.js'
-import { CompactDialog } from './CompactDialog.js'
-import { formatMoney } from '../../services/chat/pricing.js'
+import { setSessionAutoCompact, useChatStore } from '../../services/chat/store.js'
+import {
+  CONTEXT_LIMIT,
+  formatCharCount,
+  formatTokens,
+  summarizeUsage,
+} from '../../services/chat/usage.js'
 import { useSettings } from '../../services/settings.js'
-import { useEffect, useState } from 'react'
+import {
+  IconChevronRightOutline14,
+  IconLayersOutline16,
+  IconSparkleOutline16,
+} from '../base/icons.js'
+import { CompactContextDialog } from './CompactContextDialog.js'
 import styles from './composerSheet.module.css'
 
-/** 用量面板：上下文估算、本对话累计、账户余额 */
-export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose: () => void }) => {
+/**
+ * 用量面板：只留三块，从上往下读一遍就知道该不该压缩。
+ *
+ * ① 上下文信息：窗口、当前估算、占比条与「消息历史 / 剩余空间」两项明细；
+ * ② 自动压缩开关：直接改全局设置（与「设置 → 对话」里的同一个键）；
+ * ③ 压缩上下文：点开弹窗看会话统计、写压缩要求、真正执行压缩。
+ * 累计输入输出、缓存、费用与余额都收进了第 ③ 块的弹窗，面板本身不再铺一屏数字。
+ */
+export const UsageSheet = ({
+  sessionId,
+  onClose,
+}: {
+  /** 还没开始对话时为 null：面板照样能开，只是没有可压缩的内容 */
+  sessionId: string | null
+  onClose: () => void
+}) => {
   const t = useTranslate()
-  const apiKey = useSettings((state) => state.apiKey)
-  const balance = useAccount((state) => state.balance)
+  /** 全局默认只作兜底：本会话设过就按会话走 */
+  const globalAutoCompact = useSettings((state) => state.autoCompact)
+  const compactThreshold = useSettings((state) => state.compactThreshold)
+  const contextWindow = useSettings((state) => state.contextWindow)
   const session = useChatStore((state) =>
-    Object.hasOwn(state.sessionCache, sessionId) ? state.sessionCache[sessionId] : undefined
+    sessionId !== null && Object.hasOwn(state.sessionCache, sessionId)
+      ? state.sessionCache[sessionId]
+      : undefined
   )
   const usage = summarizeUsage(session)
-  const balanceLabel = formatBalance(balance)
-  const [compacting, setCompacting] = useState(false)
-  const [memoryOpen, setMemoryOpen] = useState(false)
-  const [compactOpen, setCompactOpen] = useState(false)
-  useAndroidBackHandler(Boolean(usage), onClose)
+  const autoCompact = session?.autoCompact ?? globalAutoCompact
+  const [statsOpen, setStatsOpen] = useState(false)
+  useAndroidBackHandler(true, onClose)
 
-  useEffect(() => {
-    if (apiKey) {
-      void loadBalance(apiKey)
-    }
-  }, [apiKey])
-
-  if (!usage) {
-    return null
-  }
+  // 新对话还没有会话对象：按设置里的窗口显示 0%，压缩入口暂时不可用
+  const contextTokens = usage?.contextTokens ?? 0
+  const contextLimit = usage?.contextLimit ?? (contextWindow > 0 ? contextWindow : CONTEXT_LIMIT)
+  const contextPercent = usage?.contextPercent ?? 0
+  const compactReady = sessionId !== null && session !== undefined
+  const free = Math.max(0, contextLimit - contextTokens)
+  const autoCompactDesc =
+    contextWindow > 0
+      ? t('usageAutoCompactDesc', { percent: compactThreshold })
+      : t('usageAutoCompactNoWindow')
 
   return createPortal(
     <div className={styles.overlay} role="presentation" onClick={onClose}>
@@ -51,106 +72,95 @@ export const UsageSheet = ({ sessionId, onClose }: { sessionId: string; onClose:
         <div className={styles.grabber} />
         <div className={styles.title}>{t('usageTitle')}</div>
 
-        <div className={styles.groupTitle}>{t('usageContext')}</div>
+        {/* ① 上下文信息 */}
         <div className={styles.card}>
-          <div className={styles.row}>
-            <span className={styles.label}>{t('usageEstimatedNext')}</span>
-            <span className={styles.muted}>
-              {formatTokens(usage.contextTokens)} / {formatTokens(usage.contextLimit)}
+          <div className={styles.contextHead}>
+            <span className={styles.contextTitle}>{t('usageContextWindow')}</span>
+            <span className={styles.contextValue}>
+              {formatTokens(contextTokens)} / {formatTokens(contextLimit)}
+              <span className={styles.contextPercent}>{contextPercent}%</span>
+              <span className={styles.contextEstimate}>{t('usageEstimateLabel')}</span>
             </span>
           </div>
-          <div className={styles.row}>
-            <span className={styles.big}>{usage.contextPercent}%</span>
-          </div>
           <div className={styles.bar}>
-            <div className={styles.barFill} style={{ width: `${usage.contextPercent}%` }} />
+            <div className={styles.barFill} style={{ width: `${contextPercent}%` }} />
+          </div>
+          <div className={styles.breakRow}>
+            <span className={styles.breakDot} />
+            <span className={styles.breakLabel}>{t('usageBreakdownMessages')}</span>
+            <span className={styles.breakValue}>{formatTokens(contextTokens)}</span>
+          </div>
+          <div className={styles.breakRow}>
+            <span className={clsx(styles.breakDot, styles.breakDotFree)} />
+            <span className={styles.breakLabel}>{t('usageBreakdownFree')}</span>
+            <span className={styles.breakValue}>{formatTokens(free)}</span>
+          </div>
+          <div className={styles.note}>
+            {t('usageCharsHint', {
+              used: formatCharCount(contextTokens),
+              left: formatCharCount(free),
+            })}
           </div>
           <div className={styles.note}>{t('usageContextNote')}</div>
-          <div className={styles.row} style={{ marginTop: 10, gap: 10 }}>
-            <span className={styles.muted}>{t('usageCompactHint')}</span>
-            <Button variant="outlined" size="s" onClick={() => setMemoryOpen(true)}>
-              {t('memoryEntry')}
-            </Button>
-            <Button
-              variant="outlined"
-              size="s"
-              disabled={compacting || !session || !canCompact(session)}
-              onClick={async () => {
-                if (!session) {
-                  return
-                }
-                setCompacting(true)
-                const controller = new AbortController()
-                const result = await compactSession(sessionId, controller.signal)
-                setCompacting(false)
-                if (result.status === 'confirm') {
-                  // 历史太长：交给整理弹窗去说明分段开销并二次确认
-                  setCompactOpen(true)
-                  return
-                }
-                if (result.status === 'done') {
-                  showToast({ key: 'compactDone', params: { count: result.messages } })
-                  onClose()
-                } else if (result.status === 'short') {
-                  showToast({ key: 'compactShort' })
-                } else if (result.status === 'error') {
-                  showToast(t('compactFailed', { message: result.message }))
+        </div>
+
+        {/* ② 自动压缩开关 + ③ 压缩上下文入口 */}
+        <div className={clsx(styles.card, styles.actionCard)}>
+          <div className={styles.actionRow}>
+            <span className={styles.actionIcon}>
+              <IconSparkleOutline16 />
+            </span>
+            <span className={styles.actionMain}>
+              <span className={styles.actionLabel}>{t('usageAutoCompact')}</span>
+              <span className={styles.actionDesc}>{autoCompactDesc}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoCompact}
+              aria-label={t('usageAutoCompact')}
+              disabled={sessionId === null}
+              className={clsx(
+                styles.switch,
+                autoCompact && styles.switchOn,
+                sessionId === null && styles.switchDisabled
+              )}
+              onClick={() => {
+                if (sessionId !== null) {
+                  setSessionAutoCompact(sessionId, !autoCompact)
                 }
               }}
             >
-              {compacting ? t('compactRunning') : t('usageCompactNow')}
-            </Button>
+              <span className={styles.switchKnob} />
+            </button>
           </div>
-        </div>
-
-        {memoryOpen ? (
-          <MemoryDialog sessionId={sessionId} onClose={() => setMemoryOpen(false)} />
-        ) : null}
-        {compactOpen ? (
-          <CompactDialog sessionId={sessionId} onClose={() => setCompactOpen(false)} />
-        ) : null}
-        <div className={styles.groupTitle}>{t('usageSession')}</div>
-        <div className={styles.card}>
-          <div className={styles.stats}>
-            <div className={styles.stat}>
-              <span className={styles.statValue}>{formatTokens(usage.input)}</span>
-              <span className={styles.statLabel}>{t('usageInput')}</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statValue}>{formatTokens(usage.output)}</span>
-              <span className={styles.statLabel}>{t('usageOutput')}</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statValue}>{usage.cacheHitRate}%</span>
-              <span className={styles.statLabel}>{t('usageCacheHit')}</span>
-            </div>
-          </div>
-          <div className={styles.row} style={{ marginTop: 12 }}>
-            <span className={styles.label}>{t('usageCost')}</span>
-            <span className={styles.big}>
-              {usage.cost === null ? '—' : formatMoney(usage.cost)}
+          <div className={styles.actionDivider} />
+          <button
+            type="button"
+            className={clsx(
+              styles.actionRow,
+              styles.actionRowButton,
+              !compactReady && styles.actionRowDisabled
+            )}
+            disabled={!compactReady}
+            onClick={() => setStatsOpen(true)}
+          >
+            <span className={styles.actionIcon}>
+              <IconLayersOutline16 />
             </span>
-          </div>
-          <div className={styles.note}>
-            {t('usageCostNote', { period: t(usage.peak ? 'usagePeak' : 'usageOffPeak') })}
-          </div>
-          <div className={styles.note}>{t('usageRounds', { count: usage.rounds })}</div>
+            <span className={styles.actionMain}>
+              <span className={styles.actionLabel}>{t('usageCompactContext')}</span>
+              <span className={styles.actionDesc}>{t('usageCompactHint')}</span>
+            </span>
+            <span className={styles.actionChevron}>
+              <IconChevronRightOutline14 />
+            </span>
+          </button>
         </div>
 
-        <div className={styles.groupTitle}>{t('usageBalance')}</div>
-        <div className={styles.card}>
-          <div className={styles.balanceRow}>
-            <span className={styles.balanceAmount}>{balanceLabel ?? '—'}</span>
-            <a
-              className={styles.link}
-              href="https://platform.deepseek.com/top_up"
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t('usageTopUp')}
-            </a>
-          </div>
-        </div>
+        {statsOpen && sessionId !== null ? (
+          <CompactContextDialog sessionId={sessionId} onClose={() => setStatsOpen(false)} />
+        ) : null}
       </div>
     </div>,
     document.body

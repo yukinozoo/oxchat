@@ -28,7 +28,11 @@ export const LinkImportEntry = ({ disabled }: { disabled: boolean }) => {
       setArchive(file)
       setUrl('')
     } catch (error) {
-      showToast(t('websiteLinkFailed', { message: error instanceof Error ? error.message : String(error) }))
+      showToast(
+        t('websiteLinkFailed', {
+          message: error instanceof Error ? error.message : String(error),
+        })
+      )
     } finally {
       setBusy(false)
     }

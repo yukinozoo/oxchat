@@ -11,7 +11,7 @@
 .sheet {
   box-sizing: border-box;
   max-height: 82vh;
-  padding: 10px 16px calc(20px + env(safe-area-inset-bottom));
+  padding: 10px 16px calc(20px + var(--oxchat-safe-bottom));
   border-radius: 20px 20px 0 0;
   background: var(--dsw-alias-bg-subtle, #f5f6f8);
   overflow-y: auto;
@@ -118,6 +118,27 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.requirement {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.requirementInput {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 19px;
+  resize: none;
+}
+
 .balanceRow {
   display: flex;
   align-items: center;
@@ -126,9 +147,52 @@
 }
 
 .balanceAmount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
   font-size: 26px;
   font-weight: 700;
   color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.balanceAmount:disabled {
+  cursor: default;
+}
+
+/* 空闲时段是半价：蓝色；高峰时段：橙色。暗色下各提亮一档，保证在深底上看得清 */
+.balancePeak {
+  color: #e08b2c;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.balanceOffPeak {
+  color: #2f7fd6;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  .balancePeak {
+    color: #ffb457;
+  }
+
+  .balanceOffPeak {
+    color: #6fb2ff;
+  }
+}
+
+.balancePeriod {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .link {
@@ -299,4 +363,265 @@
 
 .switchOn .switchKnob {
   transform: translateX(19px);
+}
+
+/* ── 用量面板：上下文信息块 ── */
+.contextHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.contextTitle {
+  padding-top: 2px;
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.contextValue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.contextPercent {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.contextEstimate {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.breakRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.breakDot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--dsw-alias-brand-text);
+}
+
+.breakDotFree {
+  background: var(--dsw-alias-border-l2);
+}
+
+.breakLabel {
+  flex: 1;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.breakValue {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 用量面板：自动压缩 / 压缩上下文 两行 ── */
+.actionCard {
+  margin-top: 12px;
+  padding: 4px 16px;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+}
+
+.actionRowButton {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.actionRowButton:active {
+  opacity: 0.6;
+}
+
+/* 还没开始对话：压缩入口与开关先别点 */
+.actionRowDisabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.switchDisabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.actionIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+.actionMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.actionLabel {
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.actionDesc {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.actionDivider {
+  height: 1px;
+  margin-left: 28px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.actionChevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 模型分组标题：官方 / 自定义 */
+.groupTitle {
+  margin: 6px 4px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.channelMeta {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.channelHint {
+  margin: 2px 4px 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* ── 多渠道模型选择：手风琴 ── */
+.channelList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.channelBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+.channelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.channelHeadOpen {
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.channelName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelHeadOpen .channelName {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.channelCount {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.channelChevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 0.18s var(--ds-ease-in-out, ease);
+}
+
+.channelChevronOpen {
+  transform: rotate(180deg);
+}
+
+.channelModels {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 8px;
+}
+
+.channelEmpty {
+  margin: 6px 16px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 模型行：比渠道标题缩进，选中项加底色并加粗 */
+.channelModelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 8px 0 16px;
+  padding: 13px 14px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.channelModelRowActive {
+  background: var(--dsw-alias-bg-subtle);
+  color: var(--dsw-alias-brand-primary);
+  font-weight: 700;
 }

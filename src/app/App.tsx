@@ -20,6 +20,8 @@ import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { ImportProgressBar } from '../components/ImportProgressBar.js'
 import { CompactConfirmDialog } from '../components/chatInput/CompactConfirmDialog.js'
+import { ChangelogDialog } from '../components/settings/ChangelogDialog.js'
+import { useChangelog } from '../components/settings/changelogState.js'
 import { showToast } from '../components/base/toastState.js'
 import { onUploadNotice } from '../services/attachments.js'
 import { Button } from '../components/base/Button.js'
@@ -29,7 +31,12 @@ import { closeMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import { useEdgeSwipe } from '../components/sider/useEdgeSwipe.js'
 import { UpdateDialog } from '../components/settings/UpdateDialog.js'
-import { useSilentUpdateCheck, type CurrentVersion, type UpdateManifest } from '../services/update.js'
+import {
+  currentVersion,
+  useSilentUpdateCheck,
+  type CurrentVersion,
+  type UpdateManifest,
+} from '../services/update.js'
 import { registerAutoPullMerge, runAutoPull } from '../services/chat/giteeAutoPull.js'
 import styles from './App.module.css'
 
@@ -61,6 +68,16 @@ export const App = () => {
     null
   )
   useSilentUpdateCheck((manifest, current) => setUpdate({ manifest, current }))
+
+  // 本版更新了什么：装的是哪一版就展示哪一版的记录，一个版本只弹一次
+  const maybeShowChangelog = useChangelog((state) => state.maybeShow)
+  const apiKey = useSettings((state) => state.apiKey)
+  useEffect(() => {
+    if (!ready) {
+      return
+    }
+    void currentVersion().then((info) => maybeShowChangelog(info?.build ?? null, Boolean(apiKey)))
+  }, [ready, maybeShowChangelog, apiKey])
 
   usePreventPageScroll(isMobile)
   // 移动端从左边缘右滑打开侧边栏
@@ -128,6 +145,7 @@ export const App = () => {
     <>
       <ImportProgressBar />
       <CompactConfirmDialog />
+      <ChangelogDialog />
       <div
         ref={frameRef}
         className={importingHistory ? `${styles.frame} ${styles.frameWithBar}` : styles.frame}

@@ -40,3 +40,16 @@
   line-height: 22px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* 减少透明度：拖拽蒙层用不透明底 */
+@media (prefers-reduced-transparency: reduce) {
+  .mask {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: rgba(255, 255, 255, 0.94);
+  }
+
+  [data-ds-dark-theme] .mask {
+    background-color: rgba(20, 20, 24, 0.94);
+  }
+}

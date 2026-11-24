@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslate } from '../../i18n/index.js'
 import { searchSessions, type SessionSearchHit } from '../../services/chat/localSearch.js'
@@ -12,6 +12,7 @@ import {
   IconPersonOutline20,
   IconSearchOutline16,
 } from '../base/icons.js'
+import { ScrollPane } from '../base/ScrollPane.js'
 import { requestJumpToMessage } from '../messages/jumpTarget.js'
 import { closeMobileSider } from './mobileSiderState.js'
 import {
@@ -36,6 +37,38 @@ const shortDate = (time: number, locale: string) => {
     : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** 把片段按命中区间切开渲染：<mark> 高亮，不做 HTML 拼接 */
+const Highlighted = ({ hit }: { hit: SessionSearchHit }) => {
+  if (hit.ranges.length === 0) {
+    return <>{hit.snippet}</>
+  }
+  const parts: { text: string; mark: boolean }[] = []
+  let cursor = 0
+  for (const range of hit.ranges) {
+    if (range.start > cursor) {
+      parts.push({ text: hit.snippet.slice(cursor, range.start), mark: false })
+    }
+    parts.push({ text: hit.snippet.slice(range.start, range.end), mark: true })
+    cursor = range.end
+  }
+  if (cursor < hit.snippet.length) {
+    parts.push({ text: hit.snippet.slice(cursor), mark: false })
+  }
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.mark ? (
+          <mark key={index} className={styles.mark}>
+            {part.text}
+          </mark>
+        ) : (
+          <Fragment key={index}>{part.text}</Fragment>
+        )
+      )}
+    </>
+  )
+}
+
 /** 侧边栏里的对话搜索：标题与消息内容都搜，命中给出来源与上下文片段 */
 export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
   const t = useTranslate()
@@ -54,7 +87,16 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
   /** 命中缓冲：定时整批刷进 state */
   const bufferRef = useRef<SessionSearchHit[]>([])
   const flushTimerRef = useRef<number | null>(null)
-  const resultsRef = useRef<HTMLDivElement>(null)
+  /** 中文输入组字期间不发起搜索：拼音中途的 onChange 会把结果刷成乱码命中 */
+  const composingRef = useRef(false)
+  /** 每个会话的命中总数（按会话分组时的计数，用全部命中算，不受分页影响） */
+  const groupCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const hit of hits) {
+      counts.set(hit.sessionId, (counts.get(hit.sessionId) ?? 0) + 1)
+    }
+    return counts
+  }, [hits])
 
   const flushHits = () => {
     if (bufferRef.current.length === 0) {
@@ -201,7 +243,19 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              if (composingRef.current) {
+                return
+              }
+              setQuery(event.target.value)
+            }}
+            onCompositionStart={() => {
+              composingRef.current = true
+            }}
+            onCompositionEnd={(event) => {
+              composingRef.current = false
+              setQuery(event.currentTarget.value)
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 onBack()
@@ -224,11 +278,9 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
         </div>
       </div>
 
-      <div
-        ref={resultsRef}
-        className={styles.results}
-        onScroll={(event) => {
-          const element = event.currentTarget
+      <ScrollPane
+        contentClassName={styles.results}
+        onScroll={(element) => {
           if (
             hits.length > limit &&
             element.scrollHeight - element.scrollTop - element.clientHeight < 320
@@ -237,26 +289,37 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
           }
         }}
       >
-        {hits.slice(0, limit).map((hit, index) => (
-          <button
-            type="button"
-            // 同一会话可能有多条命中，键里带上序号
-            key={`${hit.sessionId}-${index}`}
-            className={styles.result}
-            onClick={() => open(hit)}
-          >
-            <span className={clsx(styles.avatar, hit.source === 'user' && styles.avatarUser)}>
-              {hit.source === 'user' ? <IconPersonOutline20 /> : <IconChatOutline20 />}
-            </span>
-            <span className={styles.body}>
-              <span className={styles.line}>
-                <span className={styles.title}>{hit.title || t('untitledChat')}</span>
-                <span className={styles.date}>{shortDate(hit.updatedAt, locale)}</span>
-              </span>
-              {hit.snippet ? <span className={styles.snippet}>{hit.snippet}</span> : null}
-            </span>
-          </button>
-        ))}
+        {hits.slice(0, limit).map((hit, index) => {
+          // 命中按会话顺序到达：同一会话的第一条前面插一条分组头（标题 + 该会话命中数）
+          const newGroup = index === 0 || hits[index - 1].sessionId !== hit.sessionId
+          return (
+            <Fragment key={`${hit.sessionId}-${index}`}>
+              {newGroup ? (
+                <div className={styles.group}>
+                  <span className={styles.groupTitle}>{hit.title || t('untitledChat')}</span>
+                  <span className={styles.groupCount}>
+                    {t('searchGroupCount', { count: groupCounts.get(hit.sessionId) ?? 1 })}
+                  </span>
+                  <span className={styles.date}>{shortDate(hit.updatedAt, locale)}</span>
+                </div>
+              ) : null}
+              <button type="button" className={styles.result} onClick={() => open(hit)}>
+                <span className={clsx(styles.avatar, hit.source === 'user' && styles.avatarUser)}>
+                  {hit.source === 'user' ? <IconPersonOutline20 /> : <IconChatOutline20 />}
+                </span>
+                <span className={styles.body}>
+                  {hit.snippet ? (
+                    <span className={styles.snippet}>
+                      <Highlighted hit={hit} />
+                    </span>
+                  ) : (
+                    <span className={styles.snippetMuted}>{t('searchTitleHit')}</span>
+                  )}
+                </span>
+              </button>
+            </Fragment>
+          )
+        })}
         {hits.length > limit ? (
           <button
             type="button"
@@ -276,7 +339,7 @@ export const SessionSearch = ({ onBack }: { onBack: () => void }) => {
             {t('searchSessionsEmptyKeyword', { query: query.trim() })}
           </div>
         ) : null}
-      </div>
+      </ScrollPane>
     </div>,
     document.body
   )

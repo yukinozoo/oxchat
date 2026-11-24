@@ -176,6 +176,45 @@ type Entry = {
   offset: number
 }
 
+/**
+ * 剥掉「多套了一层目录」的包裹。
+ *
+ * 用户把备份解压出来看、再从网盘/微信转存、或用系统压缩重新打包时，条目常被包进
+ * `backup/`、`oxchat-backup/` 这类单层目录（真正的 DeepSeek 导出包不会这样）。
+ * 以前按精确路径找不到 manifest.json，直接报「无法识别的备份文件」，看着像文件坏了。
+ *
+ * 规则很保守：只有在①根目录没有 manifest.json、②所有条目共享同一个顶层目录、
+ * ③剥掉之后确实能看到 manifest.json 时才动手，正常归档完全不受影响。
+ */
+const stripWrapperDir = (entries: Entry[]): Entry[] => {
+  if (entries.length === 0 || entries.some((entry) => entry.path === 'manifest.json')) {
+    return entries
+  }
+  let prefix: string | null = null
+  for (const entry of entries) {
+    const slash = entry.path.indexOf('/')
+    if (slash <= 0) {
+      return entries
+    }
+    const head = entry.path.slice(0, slash)
+    if (prefix === null) {
+      prefix = head
+    } else if (prefix !== head) {
+      return entries
+    }
+  }
+  if (prefix === null) {
+    return entries
+  }
+  const wrapper = `${prefix}/`
+  if (!entries.some((entry) => entry.path === `${wrapper}manifest.json`)) {
+    return entries
+  }
+  return entries
+    .filter((entry) => entry.path.startsWith(wrapper))
+    .map((entry) => ({ ...entry, path: entry.path.slice(wrapper.length) }))
+}
+
 const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
   if (file.size < 22) {
     invalid()
@@ -268,7 +307,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
   if (cursor !== size) {
     invalid()
   }
-  return { entries: entries.sort((a, b) => a.offset - b.offset), offset }
+  return { entries: stripWrapperDir(entries).sort((a, b) => a.offset - b.offset), offset }
 }
 
 /**

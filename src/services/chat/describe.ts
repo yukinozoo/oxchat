@@ -16,6 +16,9 @@ const getTemplateText = (reply: AssistantMessage) =>
     .join('')
 
 /** 服务端内容安全审核拒绝：原文为英文，换成可读提示并保留追踪 ID 便于反馈 */
+/** 服务端报「输入过长」的几种写法（扩展模式 32768 上限最常见） */
+const INPUT_TOO_LONG = /too long|exceeds max|context_length_exceeded|input length/i
+
 const CONTENT_RISK = /content\s+exists\s+risk/i
 
 const contentRiskNotice = (message: string): Notice | null => {
@@ -55,6 +58,18 @@ export const describeReply = (reply: AssistantMessage): Notice | null => {
         return { text: translate('replyRateLimited') }
       case 'serverBusy':
         return { text: translate('completionServerBusyToast') }
+      case 'badRequest':
+        // 400 最常见的是「输入过长」：直接给可操作的下一步，而不是丢一段英文原文
+        if (INPUT_TOO_LONG.test(message)) {
+          return { text: translate('replyInputTooLongHint') }
+        }
+        return { text: translate('replyBadRequest', { message }) }
+      case 'forbidden':
+        return { text: translate('replyForbidden'), action: 'apiKey' }
+      case 'notFound':
+        return { text: translate('replyNotFound') }
+      case 'methodNotAllowed':
+        return { text: translate('replyMethodNotAllowed') }
       default: {
         const risk = contentRiskNotice(message)
         if (risk) {

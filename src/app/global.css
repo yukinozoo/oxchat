@@ -1,6 +1,13 @@
 :root {
   --message-list-max-width: 840px;
   --message-list-padding-horizontal: 44px;
+  /*
+   * 安全区：优先用浏览器给的 env(safe-area-inset-*)；部分老内核 WebView 里它恒为 0，
+   * 这时用原生侧（MainActivity 的 insets 监听）注入的 --oxchat-status-inset / --oxchat-nav-inset 兜底。
+   * 取 max() 避免「两个都有效」时叠加。
+   */
+  --oxchat-safe-top: max(env(safe-area-inset-top, 0px), var(--oxchat-status-inset, 0px));
+  --oxchat-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--oxchat-nav-inset, 0px));
 }
 
 @media (max-width: 1023px) {
@@ -49,4 +56,97 @@ body,
   height: 100%;
   overflow: hidden;
   overscroll-behavior-y: none;
+}
+
+/* 崩溃兜底：渲染期抛错时铺满屏幕，把真实错误给人看（而不是白屏） */
+.oxchat-crash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #f7f7f9;
+  overflow: auto;
+}
+
+.oxchat-crash-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  padding: 20px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  color: #1f2328;
+}
+
+.oxchat-crash-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.oxchat-crash-hint {
+  font-size: 13px;
+  line-height: 20px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.oxchat-crash-detail {
+  margin: 0 0 14px;
+  padding: 12px;
+  max-height: 46vh;
+  overflow: auto;
+  border-radius: 10px;
+  background: #f3f4f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.oxchat-crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.oxchat-crash-actions button {
+  padding: 9px 16px;
+  min-height: 40px;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  color: #1f2328;
+  cursor: pointer;
+}
+
+.oxchat-crash-actions button:active {
+  background: #eef1f4;
+}
+
+/*
+ * 系统开启「高对比度」：把细边框和分隔线加粗一档。
+ * 我们大量用 --dsw-alias-border-l1/l2 画卡片与单元格边界，
+ * 默认 0.04~0.12 的透明度在「增加对比度」模式下几乎看不见。
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --dsw-alias-border-l1: rgba(0, 0, 0, 0.22);
+    --dsw-alias-border-l2: rgba(0, 0, 0, 0.32);
+    --dsw-alias-border-l3: rgba(0, 0, 0, 0.4);
+    --dsw-alias-border-inverted: rgba(0, 0, 0, 0.22);
+  }
+
+  body[data-ds-dark-theme] {
+    --dsw-alias-border-l1: rgba(255, 255, 255, 0.24);
+    --dsw-alias-border-l2: rgba(255, 255, 255, 0.34);
+    --dsw-alias-border-l3: rgba(255, 255, 255, 0.42);
+    --dsw-alias-border-inverted: rgba(255, 255, 255, 0.24);
+  }
 }

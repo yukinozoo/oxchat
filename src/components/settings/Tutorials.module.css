@@ -1,0 +1,180 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.note {
+  margin: 0;
+  padding: 10px 12px;
+  /* 整页改白底后，浅灰块需要一圈描边才看得出是一块提示 */
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-subtle);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 术语表：一行一个词，解释跟在下面，手机上也能看清 */
+.glossary {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.glossaryRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.term {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.explain {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* 配图：宽度跟随内容区，圆角卡片里放一张流程示意图 */
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.figureImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-subtle);
+}
+
+.figureCaption {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 演示对话：用户右侧、AI 左侧，每轮下面跟一句标注 */
+.demo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.demoRound {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.demoRoundLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+.bubbleUser,
+.bubbleAi {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+/* 用户靠右、AI 靠左，跟聊天页的观感一致 */
+.bubbleUser {
+  align-self: flex-end;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-subtle);
+  align-items: flex-end;
+}
+
+.bubbleAi {
+  align-self: flex-start;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.bubbleTag {
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.bubbleText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* 每轮的小字标注：说明这一步发生了什么 */
+.demoNote {
+  margin: 2px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--dsw-alias-brand-primary);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.demoAfter {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}

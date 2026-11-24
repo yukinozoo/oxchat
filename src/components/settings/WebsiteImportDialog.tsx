@@ -21,6 +21,7 @@ import {
 import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
+import { OptionFold } from './OptionFold.js'
 import styles from './WebsiteImport.module.css'
 
 type Stage = 'login' | 'loading' | 'list' | 'importing'
@@ -190,14 +191,21 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
   }
 
   const addable = sessions.filter((item) => !isExisting(item.id)).length
+  /** 只有列表阶段才把弹窗撑满：登录、连接中内容很少，撑满会显得空 */
+  const listStage = stage === 'list' || stage === 'importing'
   const selectedCount = sessions.filter((item) => selected.has(item.id)).length
+  /** 收起时的状态摘要：不开面板也知道当前用什么方式导入 */
+  const optionsSummary =
+    [skipFiles ? t('importSkipFiles') : null, cleanMissing ? t('importCleanMissing') : null]
+      .filter(Boolean)
+      .join(' · ') || t('importOptionsNone')
 
   return (
     <Modal
       title={t('websiteImportTitle')}
-      className={styles.dialog}
+      className={clsx(styles.dialog, listStage && styles.dialogFill)}
       overlayClassName={styles.overlay}
-      mainClassName={styles.body}
+      mainClassName={clsx(styles.body, listStage && styles.bodyFill)}
       closable
       onClose={stage === 'importing' ? () => undefined : onClose}
       footer={
@@ -309,32 +317,34 @@ export const WebsiteImportDialog = ({ onClose }: { onClose: () => void }) => {
             ) : null}
           </div>
           {error ? <div className={styles.error}>{error}</div> : null}
-          <label className={styles.skip}>
-            <input
-              type="checkbox"
-              className={styles.skipCheck}
-              checked={skipFiles}
-              disabled={stage === 'importing'}
-              onChange={() => setSkipFiles((value) => !value)}
-            />
-            <span className={styles.skipText}>
-              <span className={styles.skipTitle}>{t('importSkipFiles')}</span>
-              <span className={styles.skipDesc}>{t('importSkipFilesDesc')}</span>
-            </span>
-          </label>
-          <label className={styles.skip}>
-            <input
-              type="checkbox"
-              className={styles.skipCheck}
-              checked={cleanMissing}
-              disabled={stage === 'importing'}
-              onChange={() => setCleanMissing((value) => !value)}
-            />
-            <span className={styles.skipText}>
-              <span className={styles.skipTitle}>{t('importCleanMissing')}</span>
-              <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
-            </span>
-          </label>
+          <OptionFold title={t('importOptionsTitle')} summary={optionsSummary}>
+            <label className={styles.skip}>
+              <input
+                type="checkbox"
+                className={styles.skipCheck}
+                checked={skipFiles}
+                disabled={stage === 'importing'}
+                onChange={() => setSkipFiles((value) => !value)}
+              />
+              <span className={styles.skipText}>
+                <span className={styles.skipTitle}>{t('importSkipFiles')}</span>
+                <span className={styles.skipDesc}>{t('importSkipFilesDesc')}</span>
+              </span>
+            </label>
+            <label className={styles.skip}>
+              <input
+                type="checkbox"
+                className={styles.skipCheck}
+                checked={cleanMissing}
+                disabled={stage === 'importing'}
+                onChange={() => setCleanMissing((value) => !value)}
+              />
+              <span className={styles.skipText}>
+                <span className={styles.skipTitle}>{t('importCleanMissing')}</span>
+                <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
+              </span>
+            </label>
+          </OptionFold>
         </>
       ) : null}
     </Modal>

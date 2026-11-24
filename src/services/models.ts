@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { fetchModels } from './api/client.js'
+import { fetchModels, fetchModelsForChannel } from './api/client.js'
+import { channelById } from './channels.js'
 import { DEFAULT_MODEL } from './api/types.js'
 
 /**
@@ -11,13 +12,42 @@ type ModelsState = {
   loading: boolean
   /** 已经拉取成功时对应的 Key，用于避免重复请求 */
   loadedFor: string | null
+  /** 每个自定义渠道各自拉到的模型列表（展开时才拉） */
+  channelModels: Record<string, string[]>
+  channelLoading: Record<string, boolean>
 }
 
 export const useModels = create<ModelsState>(() => ({
   models: [],
   loading: false,
   loadedFor: null,
+  channelModels: {},
+  channelLoading: {},
 }))
+
+/** 按渠道拉模型（展开某个自定义渠道时调用，同一个渠道只拉一次） */
+export const loadChannelModels = async (channelId: string): Promise<void> => {
+  const state = useModels.getState()
+  if (channelId === 'deepseek' || state.channelModels[channelId] || state.channelLoading[channelId]) {
+    return
+  }
+  const channel = channelById(channelId)
+  if (!channel.apiKey.trim() || !channel.baseUrl.trim()) {
+    return
+  }
+  useModels.setState((current) => ({ channelLoading: { ...current.channelLoading, [channelId]: true } }))
+  try {
+    const models = await fetchModelsForChannel(channel)
+    useModels.setState((current) => ({
+      channelModels: { ...current.channelModels, [channelId]: models },
+      channelLoading: { ...current.channelLoading, [channelId]: false },
+    }))
+  } catch {
+    useModels.setState((current) => ({
+      channelLoading: { ...current.channelLoading, [channelId]: false },
+    }))
+  }
+}
 
 /** 拉取模型列表；同一把 Key 只请求一次（失败的 Key 允许重试） */
 export const loadModels = async (apiKey: string): Promise<void> => {

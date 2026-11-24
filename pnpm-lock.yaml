@@ -84,6 +84,9 @@ importers:
       '@types/node':
         specifier: ~20.9.2
         version: 20.9.2
+      fake-indexeddb:
+        specifier: ^6.2.8
+        version: 6.2.8
       jsdom:
         specifier: ^31.0.1
         version: 31.0.1
@@ -1008,6 +1011,10 @@ packages:
 
   exsolve@1.2.0:
     resolution: {integrity: sha512-h1pQPR9XoeSMdntRNCjyTznaume4UpfXrULBnlkZ2CUM/G5eSa+pBByGldO5uR8dxbPC+OuJXsPPNf+JZ81ADg==}
+
+  fake-indexeddb@6.2.8:
+    resolution: {integrity: sha512-mpVW/HLUqwKXJ6F/s0hMgdK1eQfM4ncTHDioNGHWL0WKV3VcZCoZq1NKgboBbAge07aRCO7L48yziKssL59XEQ==}
+    engines: {node: '>=18'}
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
@@ -2217,6 +2224,8 @@ snapshots:
   escape-string-regexp@5.0.0: {}
 
   exsolve@1.2.0: {}
+
+  fake-indexeddb@6.2.8: {}
 
   fflate@0.8.3: {}
 

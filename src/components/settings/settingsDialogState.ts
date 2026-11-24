@@ -15,15 +15,23 @@ export type SettingsSection =
   | 'cost'
   | 'backup'
   | 'backupGuide'
+  | 'tutorials'
+  | 'changelog'
+  | 'roles'
+  | 'roleGuide'
+  | 'memoryManage'
+  | 'memoryGuide'
 
 /** 设置弹窗：侧边栏底部、没有 API Key 时的操作与 401 提示都可以打开；section 为打开时选中的分组 */
 export const useSettingsDialog = create(() => ({
   open: false,
   section: 'general' as SettingsSection,
+  /** true：从聊天页跳进来的临时页，左上角返回＝直接关设置回对话，而不是退到设置首页 */
+  closeOnBack: false,
 }))
 
-export const openSettings = (section: SettingsSection) =>
-  useSettingsDialog.setState({ open: true, section })
+export const openSettings = (section: SettingsSection, options: { closeOnBack?: boolean } = {}) =>
+  useSettingsDialog.setState({ open: true, section, closeOnBack: Boolean(options.closeOnBack) })
 
 export const closeSettings = () => useSettingsDialog.setState({ open: false })
 

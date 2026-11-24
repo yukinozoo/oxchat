@@ -1,11 +1,15 @@
 import clsx from 'clsx'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
+  IconCollapseOutline16,
+  IconExpandOutline16,
   IconPaperclipOutline16,
   IconSendOutline16,
   IconStopFill16,
 } from '../base/icons.js'
+import { useAndroidBackHandler } from '../../services/androidBack.js'
 import { useSettings } from '../../services/settings.js'
+import { channelById } from '../../services/channels.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import { getVisibleMessages } from '../../services/chat/branches.js'
@@ -75,6 +79,69 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const [attachSheetOpen, setAttachSheetOpen] = useState(false)
   const [usageOpen, setUsageOpen] = useState(false)
+  /** 放大编辑：输入框铺满全屏，方便写长文 */
+  const [expanded, setExpanded] = useState(false)
+  /** 收起时先播完动画再还原布局 */
+  const [collapsing, setCollapsing] = useState(false)
+
+  const collapseTimer = useRef<number | null>(null)
+
+  const expandComposer = useCallback(() => {
+    if (collapseTimer.current !== null) {
+      window.clearTimeout(collapseTimer.current)
+      collapseTimer.current = null
+    }
+    setCollapsing(false)
+    setExpanded(true)
+    requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }))
+  }, [])
+
+  const collapseComposer = useCallback(() => {
+    setCollapsing(true)
+    collapseTimer.current = window.setTimeout(() => {
+      collapseTimer.current = null
+      setExpanded(false)
+      setCollapsing(false)
+    }, 180)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (collapseTimer.current !== null) {
+        window.clearTimeout(collapseTimer.current)
+      }
+    },
+    []
+  )
+
+  useAndroidBackHandler(expanded && !collapsing, collapseComposer)
+
+  // 展开时锁住背后的页面滚动，避免长文输入时整页跟着弹
+  useEffect(() => {
+    if (!expanded) {
+      return
+    }
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [expanded])
+
+  // 展开时按 Esc 收起
+  useEffect(() => {
+    if (!expanded) {
+      return
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        collapseComposer()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [expanded, collapseComposer])
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   /** 输入法组词守卫：Android WebView 只在组词时给 keyCode 229，iOS 只给 isComposing */
   const ime = useImeGuard()
@@ -161,6 +228,19 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }
 
   const sendNow = () => {
+    // 自定义渠道：要有自己的 Key，协议得是实现了的两种（OpenAI 兼容 / Anthropic）
+    const channel = channelById(useSettings.getState().activeChannel)
+    const custom = channel.id !== 'deepseek'
+    if (custom) {
+      if (!channel.apiKey.trim()) {
+        showToast({ key: 'modelChannelNeedKey' })
+        return
+      }
+      if (channel.protocol === 'responses') {
+        showToast({ key: 'modelChannelUnsupported' })
+        return
+      }
+    }
     if (useChatStore.getState().importingHistory) {
       // 导入会整体替换历史并中止正在生成的回答，这里明确告诉用户为什么发不出去
       showToast({ key: 'importBusyHint' })
@@ -173,7 +253,11 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
-    if (!ensureApiKey() || !sendMessage(sessionId)) {
+    // 自定义渠道用自己的 Key，不需要 DeepSeek 的 Key
+    if (!custom && !ensureApiKey()) {
+      return
+    }
+    if (!sendMessage(sessionId)) {
       return
     }
     // 首次发送时顺手申请持久化存储：放在用户手势里成功率最高
@@ -192,7 +276,12 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   return (
     <>
       <div
-        className={clsx(styles.wrapper, sessionId === null ? styles.home : styles.session)}
+        className={clsx(
+          styles.wrapper,
+          sessionId === null ? styles.home : styles.session,
+          expanded && styles.wrapperExpanded,
+          collapsing && styles.wrapperClosing
+        )}
         onClick={(event) => {
           if (event.target !== event.currentTarget) {
             return
@@ -268,6 +357,22 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               }
             }}
           />
+          <button
+            type="button"
+            className={styles.expandButton}
+            aria-label={t(expanded ? 'chatInputCollapse' : 'chatInputExpand')}
+            title={t(expanded ? 'chatInputCollapse' : 'chatInputExpand')}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (expanded) {
+                collapseComposer()
+              } else {
+                expandComposer()
+              }
+            }}
+          >
+            {expanded ? <IconCollapseOutline16 /> : <IconExpandOutline16 />}
+          </button>
           {recording && isMobile ? <Spectrum getAnalyser={voice.getAnalyser} /> : null}
           <div className={styles.mirror} aria-hidden>
             {`${text}\n`}
@@ -330,9 +435,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           />
           <ModelBadge />
           <div className={styles.right}>
-            {sessionId ? (
-              <UsageRing sessionId={sessionId} onClick={() => setUsageOpen(true)} />
-            ) : null}
+            <UsageRing sessionId={sessionId} onClick={() => setUsageOpen(true)} />
             <VoiceButton
               status={voice.status}
               disabled={!voice.available}
@@ -378,7 +481,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           onFiles={() => fileInputRef.current?.click()}
           onClose={() => setAttachSheetOpen(false)}
         />
-        {sessionId && usageOpen ? (
+        {usageOpen ? (
           <UsageSheet sessionId={sessionId} onClose={() => setUsageOpen(false)} />
         ) : null}
         {dragging ? <DragMask /> : null}

@@ -1,24 +1,30 @@
 declare const styles: {
-  readonly wrapper: string
-  readonly session: string
-  readonly home: string
-  readonly attachments: string
   readonly attachment: string
-  readonly remove: string
-  readonly uploading: string
-  readonly spin: string
-  readonly failed: string
-  readonly textareaWrapper: string
-  readonly textarea: string
-  readonly mirror: string
-  readonly functionRow: string
-  readonly toggles: string
+  readonly attachmentFailed: string
+  readonly attachments: string
   readonly collapsedToggles: string
-  readonly toggleLabel: string
-  readonly toggle: string
-  readonly selected: string
+  readonly expandButton: string
+  readonly failed: string
+  readonly failedReason: string
+  readonly failedStatic: string
+  readonly functionRow: string
+  readonly home: string
+  readonly invalidRemove: string
+  readonly mirror: string
+  readonly remove: string
   readonly right: string
   readonly sendButton: string
-  readonly disabled: string
+  readonly session: string
+  readonly textarea: string
+  readonly textareaHidden: string
+  readonly textareaWrapper: string
+  readonly thumbnail: string
+  readonly toggle: string
+  readonly toggles: string
+  readonly togglesRow: string
+  readonly uploading: string
+  readonly wrapper: string
+  readonly wrapperClosing: string
+  readonly wrapperExpanded: string
 }
 export = styles

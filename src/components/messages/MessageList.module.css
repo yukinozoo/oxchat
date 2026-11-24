@@ -45,7 +45,7 @@
 @keyframes hit-flash {
   0%,
   40% {
-    background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4d6bfe) 14%, transparent);
+    background: var(--oxchat-accent-soft, rgba(57, 100, 254, 0.14));
   }
   100% {
     background: transparent;
@@ -74,15 +74,19 @@
   }
 }
 
-/* 离开底部时出现的圆形按钮，贴在输入框上方右侧 */
+/* 离开底部时出现的圆形按钮，贴在输入框上方右侧。
+   18px 是「看得见的呼吸距离」：10px 时圆钮的阴影会贴到输入框上沿，像粘在一起 */
 .toBottomWrap {
-  position: sticky;
-  bottom: 10px;
+  /* 关键：以前用 position:sticky + bottom:18/30px，这是相对「滚动容器」算的，
+     而输入框就在同一个容器底部 —— 无论怎么调都会贴着输入框。
+     现在改成普通 flex 子项（排在消息区与输入框之间），靠 margin-bottom 固定间距。 */
+  position: relative;
   z-index: 5;
   display: flex;
   flex-shrink: 0;
   justify-content: flex-end;
-  margin-top: -48px;
+  margin-top: -64px;
+  margin-bottom: 10px;
   padding: 0 14px;
   pointer-events: none;
 }

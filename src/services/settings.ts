@@ -3,7 +3,6 @@ import type { TtsVoice } from './api/speech.js'
 import { DEFAULT_MODEL, type ChatModel } from './api/types.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 import * as db from './chat/db.js'
-import { clampDocumentBudget, DOCUMENT_BUDGET_DEFAULT } from './documents/budget.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -23,8 +22,24 @@ type Settings = {
   model: ChatModel
   /** 思考深度：off 关闭思考；low/high/max 对应接口的 effort */
   thinkingDepth: ThinkingDepth
+  /** 当前使用的模型渠道 id（'deepseek' 或自定义渠道） */
+  activeChannel: string
   /** 思考结束后自动折叠思考内容 */
   autoCollapseThinking: boolean
+  /** 是否在提问尾部附带极小的时间标记（`[环境时钟: HH:mm]`），规则句另有一句静态进 system */
+  sendClockTime: boolean
+  /** 附件原件存哪：native = App 私有目录（安卓），idb = WebView 的 IndexedDB（网页版/逃生） */
+  fileStore: 'native' | 'idb'
+  /** 我的气泡底色（#rrggbb）；空串表示跟随强调色 */
+  bubbleUser: string
+  /** AI 气泡底色（#rrggbb）；空串表示跟随强调色 */
+  bubbleAi: string
+  /** 我的气泡不透明度（10~100，100 = 沿用按主题算出的默认值） */
+  bubbleUserAlpha: number
+  /** AI 气泡不透明度（10~100） */
+  bubbleAiAlpha: number
+  /** 给 AI 回答套气泡（默认关：多数人习惯无边框正文） */
+  aiBubble: boolean
   /** 重新打开 App 时回到上次看的那条对话，而不是新对话 */
   resumeLastSession: boolean
   /** 在 AI 回复下方显示官方返回的 token / 缓存用量（默认关） */
@@ -32,7 +47,6 @@ type Settings = {
   /** 整理（压缩）前自动备份一份对话（默认开） */
   compactBackup: boolean
   /** 单份文档的 token 预算：超出后本地截断再上传 */
-  documentBudget: number
   /** Gitee 同步：仓库所有者 / 仓库名 / 私人令牌（原生壳里同时写加密存储） */
   giteeOwner: string
   giteeRepo: string
@@ -51,10 +65,30 @@ type Settings = {
   compactThreshold: number
   /** 自动压缩后保留最近原文的比例：占窗口的百分比 */
   compactKeep: number
+  /** 压缩面板：压缩范围（keepRecent / all / earlier / nearer） */
+  compactScope: string
+  /** 压缩面板：保留最近原文的轮数 */
+  compactKeepRounds: number
+  /** 压缩面板：「较早 / 较近历史」的字数限制 */
+  compactChars: number
+  /** 压缩面板：摘要用哪个模型；空字符串表示跟随当前对话模型 */
+  compactModel: string
+  /** 压缩面板：摘要目标字数 */
+  compactSummaryChars: number
+  /** 压缩面板：总输出上限（token）；0 表示不传，交给服务端默认 */
+  compactMaxOutput: number
+  /** 压缩面板：把被压缩的用户提问原文一起带上 */
+  compactVerbatimUser: boolean
+  /** 压缩面板：选中的摘要模板 id（内置：general/roleplay/debug/plan/study） */
+  compactTemplate: string
   /** 采样温度：0–2，官方默认 1.0 */
   temperature: number
   /** 全局提示词：作为每次请求的 system */
   globalPrompt: string
+  /** 「我的角色」的名字（用于界面显示与 system 里的称呼） */
+  userName: string
+  /** 「我的角色」的头像（data URL，正方形）；空字符串表示用名字首字占位 */
+  userAvatar: string
   /** 主题颜色（强调色）；空字符串表示使用默认蓝 */
   themeAccent: string
   /** 背景颜色；空字符串表示使用默认底色 */
@@ -91,11 +125,18 @@ const KEYS = {
   siderCollapsed: 'oxchat:sider-collapsed',
   model: 'oxchat:model',
   thinkingDepth: 'oxchat:thinking-depth',
+  activeChannel: 'oxchat:active-channel',
   autoCollapseThinking: 'oxchat:auto-collapse-thinking',
+  sendClockTime: 'oxchat:send-clock-time',
+  fileStore: 'oxchat:file-store',
+  bubbleUser: 'oxchat:bubble-user',
+  bubbleAi: 'oxchat:bubble-ai',
+  bubbleUserAlpha: 'oxchat:bubble-user-alpha',
+  bubbleAiAlpha: 'oxchat:bubble-ai-alpha',
+  aiBubble: 'oxchat:ai-bubble',
   resumeLastSession: 'oxchat:resume-last-session',
   showMessageUsage: 'oxchat:show-message-usage',
   compactBackup: 'oxchat:compact-backup',
-  documentBudget: 'oxchat:document-budget',
   giteeOwner: 'oxchat:gitee-owner',
   giteeRepo: 'oxchat:gitee-repo',
   giteeToken: 'oxchat:gitee-token',
@@ -106,8 +147,18 @@ const KEYS = {
   autoCompact: 'oxchat:auto-compact',
   compactThreshold: 'oxchat:compact-threshold',
   compactKeep: 'oxchat:compact-keep',
+  compactScope: 'oxchat:compact-scope',
+  compactKeepRounds: 'oxchat:compact-keep-rounds',
+  compactChars: 'oxchat:compact-chars',
+  compactModel: 'oxchat:compact-model',
+  compactSummaryChars: 'oxchat:compact-summary-chars',
+  compactMaxOutput: 'oxchat:compact-max-output',
+  compactVerbatimUser: 'oxchat:compact-verbatim-user',
+  compactTemplate: 'oxchat:compact-template',
   temperature: 'oxchat:temperature',
   globalPrompt: 'oxchat:global-prompt',
+  userName: 'oxchat:user-name',
+  userAvatar: 'oxchat:user-avatar',
   themeAccent: 'oxchat:theme-accent',
   themeBackground: 'oxchat:theme-background',
   bgImage: 'oxchat:bg-image',
@@ -223,15 +274,30 @@ const initialThinkingDepth = (): ThinkingDepth => {
 
 /** 未保存过时默认开启：与官方客户端行为一致 */
 const initialAutoCollapseThinking = (): boolean => read(KEYS.autoCollapseThinking) !== 'false'
+
+/** 具体时刻默认开启：off 才算关闭（用户问「现在几点」时模型才有据可依） */
+const initialSendClockTime = (): boolean => read(KEYS.sendClockTime) !== 'false'
+
+/** 附件存储位置：只有显式选过 IndexedDB 才算 idb；网页版由调用方判断插件是否存在 */
+const initialFileStore = (): 'native' | 'idb' =>
+  read(KEYS.fileStore) === 'idb' ? 'idb' : 'native'
+
+const initialBubbleColor = (key: string): string => normalizeColor(read(key))
+
+/** 气泡不透明度：10~100，默认 100（= 沿用强调色派生的默认值） */
+const initialBubbleAlpha = (key: string): number => {
+  const raw = Number(read(key))
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 100
+  }
+  return Math.min(100, Math.max(10, Math.round(raw)))
+}
 /** 默认关闭：不打扰「每次都是新对话」的习惯 */
 const initialResumeLastSession = (): boolean => read(KEYS.resumeLastSession) === 'true'
 /** 默认关闭：多数人不想每条回复都挂一串数字 */
 const initialShowMessageUsage = (): boolean => read(KEYS.showMessageUsage) === 'true'
 /** 默认开启：备份很便宜，整理出错时能救回来 */
 const initialCompactBackup = (): boolean => read(KEYS.compactBackup) !== 'false'
-const initialDocumentBudget = (): number =>
-  clampDocumentBudget(readNumber(KEYS.documentBudget) || DOCUMENT_BUDGET_DEFAULT)
-
 /** 读取数字设置：没保存过时给 NaN，避免 Number(null) 被当成 0 而吃掉落默认值 */
 const readNumber = (key: string): number => {
   const raw = read(key)
@@ -242,6 +308,20 @@ const readNumber = (key: string): number => {
 const initialPercent = (key: string, fallback: number): number => {
   const value = readNumber(key)
   return Number.isFinite(value) && value > 0 && value <= 100 ? value : fallback
+}
+
+/** 读取整数设置，越界回落到默认 */
+const initialInt = (key: string, fallback: number, min: number, max: number): number => {
+  const value = readNumber(key)
+  return Number.isFinite(value) && value >= min && value <= max ? Math.round(value) : fallback
+}
+
+const COMPACT_SCOPES = ['keepRecent', 'all', 'earlier', 'nearer'] as const
+
+/** 压缩范围：非法值回落到「保留最近原文」 */
+const initialScope = (): string => {
+  const value = read(KEYS.compactScope)
+  return value && (COMPACT_SCOPES as readonly string[]).includes(value) ? value : 'keepRecent'
 }
 
 /** 未保存过时默认 1M：新对话按百万级窗口起步，超出才压缩或丢弃 */
@@ -275,11 +355,18 @@ export const useSettings = create<Settings>(() => {
     siderCollapsed: read(KEYS.siderCollapsed) === 'true',
     model: initialModel(),
     thinkingDepth,
+    activeChannel: read(KEYS.activeChannel) ?? 'deepseek',
     autoCollapseThinking: initialAutoCollapseThinking(),
+    sendClockTime: initialSendClockTime(),
+    fileStore: initialFileStore(),
+    bubbleUser: initialBubbleColor(KEYS.bubbleUser),
+    bubbleAi: initialBubbleColor(KEYS.bubbleAi),
+    bubbleUserAlpha: initialBubbleAlpha(KEYS.bubbleUserAlpha),
+    bubbleAiAlpha: initialBubbleAlpha(KEYS.bubbleAiAlpha),
+    aiBubble: read(KEYS.aiBubble) === 'true',
     resumeLastSession: initialResumeLastSession(),
     showMessageUsage: initialShowMessageUsage(),
     compactBackup: initialCompactBackup(),
-    documentBudget: initialDocumentBudget(),
     giteeOwner: read(KEYS.giteeOwner) ?? '',
     giteeRepo: read(KEYS.giteeRepo) ?? '',
     giteeToken: read(KEYS.giteeToken) ?? '',
@@ -290,8 +377,18 @@ export const useSettings = create<Settings>(() => {
     autoCompact: initialAutoCompact(),
     compactThreshold: initialPercent(KEYS.compactThreshold, 50),
     compactKeep: initialPercent(KEYS.compactKeep, 20),
+    compactScope: initialScope(),
+    compactKeepRounds: initialInt(KEYS.compactKeepRounds, 6, 1, 50),
+    compactChars: initialInt(KEYS.compactChars, 6000, 500, 200_000),
+    compactModel: read(KEYS.compactModel) ?? '',
+    compactSummaryChars: initialInt(KEYS.compactSummaryChars, 4096, 300, 20_000),
+    compactMaxOutput: initialInt(KEYS.compactMaxOutput, 0, 0, 64_000),
+    compactVerbatimUser: read(KEYS.compactVerbatimUser) === 'true',
+    compactTemplate: read(KEYS.compactTemplate) ?? 'general',
     temperature: initialTemperature(),
     globalPrompt: initialGlobalPrompt(),
+    userName: read(KEYS.userName) ?? '',
+    userAvatar: read(KEYS.userAvatar) ?? '',
     themeAccent: initialColor(KEYS.themeAccent),
     themeBackground: initialColor(KEYS.themeBackground),
     // 背景图体积大，放在 IndexedDB，启动后异步载入（见 loadBackgroundImage）
@@ -331,6 +428,11 @@ export const setApiKey = (apiKey: string | null) => {
   useSettings.setState({ apiKey })
 }
 
+export const setActiveChannel = (activeChannel: string) => {
+  write(KEYS.activeChannel, activeChannel)
+  useSettings.setState({ activeChannel })
+}
+
 export const setThinkingEffort = (thinkingDepth: ThinkingDepth) => {
   write(KEYS.thinkingDepth, thinkingDepth)
   // thinking 仍作为「是否开启思考」的快照，供消息记录使用
@@ -361,6 +463,43 @@ export const setSiderCollapsed = (siderCollapsed: boolean) => {
 export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
   write(KEYS.autoCollapseThinking, String(autoCollapseThinking))
   useSettings.setState({ autoCollapseThinking })
+}
+
+export const setFileStore = (fileStore: 'native' | 'idb') => {
+  write(KEYS.fileStore, fileStore)
+  useSettings.setState({ fileStore })
+}
+
+export const setSendClockTime = (sendClockTime: boolean) => {
+  write(KEYS.sendClockTime, String(sendClockTime))
+  useSettings.setState({ sendClockTime })
+}
+
+export const setBubbleUser = (bubbleUser: string) => {
+  write(KEYS.bubbleUser, normalizeColor(bubbleUser) || null)
+  useSettings.setState({ bubbleUser: normalizeColor(bubbleUser) })
+}
+
+export const setBubbleAi = (bubbleAi: string) => {
+  write(KEYS.bubbleAi, normalizeColor(bubbleAi) || null)
+  useSettings.setState({ bubbleAi: normalizeColor(bubbleAi) })
+}
+
+export const setBubbleUserAlpha = (bubbleUserAlpha: number) => {
+  const value = Math.min(100, Math.max(10, Math.round(bubbleUserAlpha)))
+  write(KEYS.bubbleUserAlpha, String(value))
+  useSettings.setState({ bubbleUserAlpha: value })
+}
+
+export const setBubbleAiAlpha = (bubbleAiAlpha: number) => {
+  const value = Math.min(100, Math.max(10, Math.round(bubbleAiAlpha)))
+  write(KEYS.bubbleAiAlpha, String(value))
+  useSettings.setState({ bubbleAiAlpha: value })
+}
+
+export const setAiBubble = (aiBubble: boolean) => {
+  write(KEYS.aiBubble, String(aiBubble))
+  useSettings.setState({ aiBubble })
 }
 
 export const setGiteeRepoConfig = (owner: string, repo: string) => {
@@ -431,12 +570,6 @@ const hydrateGiteeToken = async () => {
 
 void hydrateGiteeToken()
 
-export const setDocumentBudget = (documentBudget: number) => {
-  const value = clampDocumentBudget(documentBudget)
-  write(KEYS.documentBudget, String(value))
-  useSettings.setState({ documentBudget: value })
-}
-
 export const setCompactBackup = (compactBackup: boolean) => {
   write(KEYS.compactBackup, String(compactBackup))
   useSettings.setState({ compactBackup })
@@ -472,14 +605,63 @@ export const setCompactThreshold = (compactThreshold: number) => {
   useSettings.setState({ compactThreshold })
 }
 
+export const setCompactKeepRounds = (compactKeepRounds: number) => {
+  write(KEYS.compactKeepRounds, String(compactKeepRounds))
+  useSettings.setState({ compactKeepRounds })
+}
+
 export const setCompactKeep = (compactKeep: number) => {
   write(KEYS.compactKeep, String(compactKeep))
   useSettings.setState({ compactKeep })
 }
 
+export const setCompactPanel = (
+  patch: Partial<
+    Pick<
+      Settings,
+      | 'compactScope'
+      | 'compactKeepRounds'
+      | 'compactChars'
+      | 'compactModel'
+      | 'compactSummaryChars'
+      | 'compactMaxOutput'
+      | 'compactVerbatimUser'
+      | 'compactTemplate'
+    >
+  >
+) => {
+  const keys: Record<string, string> = {
+    compactScope: KEYS.compactScope,
+    compactKeepRounds: KEYS.compactKeepRounds,
+    compactChars: KEYS.compactChars,
+    compactModel: KEYS.compactModel,
+    compactSummaryChars: KEYS.compactSummaryChars,
+    compactMaxOutput: KEYS.compactMaxOutput,
+    compactVerbatimUser: KEYS.compactVerbatimUser,
+    compactTemplate: KEYS.compactTemplate,
+  }
+  for (const [field, value] of Object.entries(patch)) {
+    const key = keys[field]
+    if (key) {
+      write(key, String(value))
+    }
+  }
+  useSettings.setState(patch)
+}
+
 export const setTemperature = (temperature: number) => {
   write(KEYS.temperature, String(temperature))
   useSettings.setState({ temperature })
+}
+
+export const setUserName = (userName: string) => {
+  write(KEYS.userName, userName)
+  useSettings.setState({ userName })
+}
+
+export const setUserAvatar = (userAvatar: string) => {
+  write(KEYS.userAvatar, userAvatar)
+  useSettings.setState({ userAvatar })
 }
 
 export const setGlobalPrompt = (globalPrompt: string) => {

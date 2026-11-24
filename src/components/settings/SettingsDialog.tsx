@@ -12,14 +12,19 @@ import {
   IconLightOutline16,
   IconGlobeLanguageOutline14,
   IconInfoOutline16,
+  IconBrowseOutline16,
   IconLogoutOutline16,
   IconPersonalizeOutline16,
   IconPersonOutline20,
   IconVolumeOutline16,
   IconUploadOutline14,
+  IconRefreshOutline16,
+  IconNoteOutline16,
+  IconChannelOutline16,
 } from '../base/icons.js'
 import { BackupError, backupFileName, clearHistory } from '../../services/chat/backup.js'
 import { useIsMobile } from '../../app/viewport.js'
+import { usableCustomChannel } from '../../services/channels.js'
 import { useAndroidBackHandler } from '../../services/androidBack.js'
 import {
   maskApiKey,
@@ -35,6 +40,7 @@ import {
   setTtsVoice,
   setApiKey,
   setAutoCollapseThinking,
+  setSendClockTime,
   setResumeLastSession,
   setShowMessageUsage,
   useSettings,
@@ -45,9 +51,15 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
+import { ModelManager } from './ModelManager.js'
 import { WebsiteImportEntry } from './WebsiteImportEntry.js'
 /** 官网登录导入暂时下线：入口隐藏，组件与解析代码保留，需要时把开关改回 true */
 const WEBSITE_IMPORT_ENABLED = false
+
+/** 角色管理已放开（顶栏的角色切换也依赖它编辑「自定义」提示词） */
+const ROLE_ENABLED = true
+/** 记忆管理仍是占位：会话剧情还没做完，先只提示「敬请期待」 */
+const MEMORY_MANAGE_ENABLED = true
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
 import { ChatSettings } from './ChatSettings.js'
 import { LinkImportEntry } from './LinkImportEntry.js'
@@ -58,6 +70,12 @@ import { BackupGuide } from './BackupGuide.js'
 import { ApkDownloadDialog } from './ApkDownloadDialog.js'
 import { DEEPSEEK_TOP_UP_URL } from '../../services/platformLinks.js'
 import { exportSessionsToFile } from '../../services/chat/exportSession.js'
+import {
+  loadSessionsForTxt,
+  saveTxt,
+  sessionsToTxt,
+  txtFileName,
+} from '../../services/chat/exportTxt.js'
 import {
   BACKUP_REMINDER_DAYS,
   shouldRetryPersist,
@@ -78,8 +96,15 @@ import {
 } from '../../services/update.js'
 import { FontSizeSettings, fontSizeLabel } from './FontSizeSettings.js'
 import { ThemeSettings } from './ThemeSettings.js'
-import { ExportSelectDialog } from './ExportSelectDialog.js'
-import { logoutWebsite } from '../../services/chat/websiteImport.js'
+import { ExportSelectDialog, type ExportChoice } from './ExportSelectDialog.js'
+import { ChangelogPage } from './ChangelogPage.js'
+import { MemoryManager } from './MemoryManager.js'
+import { MemoryGuidePage } from './MemoryGuidePage.js'
+import { RoleSettings } from './RoleSettings.js'
+import { RoleGuidePage } from './RoleGuidePage.js'
+import { Tutorials } from './Tutorials.js'
+import { ScrollPane } from '../base/ScrollPane.js'
+import { logoutWebsite, websiteImportAvailable } from '../../services/chat/websiteImport.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 
@@ -106,6 +131,7 @@ const SettingsContent = () => {
   const themePreference = useSettings((state) => state.themePreference)
   const ttsVoice = useSettings((state) => state.ttsVoice)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
+  const sendClockTime = useSettings((state) => state.sendClockTime)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const showMessageUsage = useSettings((state) => state.showMessageUsage)
   const giteeLastSync = useSettings((state) => state.giteeLastSync)
@@ -164,7 +190,7 @@ const SettingsContent = () => {
   const historyBusy = historyDelete.busy || replacingHistory
   const titles: Record<SettingsSection, TranslationKey> = {
     general: 'settings',
-    api: 'settingsApiManage',
+    api: 'settingsModelManage',
     data: 'settingsDataManage',
     theme: 'avatarMenuSettingsDialogThemeItemLabel',
     locale: 'settingsLocalePreference',
@@ -175,6 +201,12 @@ const SettingsContent = () => {
     cost: 'settingsCost',
     backup: 'settingsBackup',
     backupGuide: 'backupGuideTitle',
+    tutorials: 'tutorialsTitle',
+    changelog: 'changelogPageTitle',
+    roles: 'roleTitle',
+    roleGuide: 'roleGuideTitle',
+    memoryManage: 'memoryManageTitle',
+    memoryGuide: 'memoryGuideTitle',
   }
 
   const themeLabels: Record<ThemePreference, TranslationKey> = {
@@ -184,6 +216,19 @@ const SettingsContent = () => {
   }
 
   const goBack = () => {
+    if (useSettingsDialog.getState().closeOnBack) {
+      // 从聊天页的「选择角色」跳进来：返回要回对话页，不要停在设置首页
+      closeSettings()
+      return
+    }
+    if (section === 'roleGuide') {
+      setSection('roles')
+      return
+    }
+    if (section === 'memoryGuide') {
+      setSection('memoryManage')
+      return
+    }
     if (section !== 'general') {
       setSection('general')
     } else if (!historyDelete.busy) {
@@ -196,6 +241,7 @@ const SettingsContent = () => {
     <>
       <div
         className={styles.page}
+        data-section={section}
         data-fullscreen-overlay
         onMouseDown={(event) => {
           // 桌面端的遮罩点击关闭；移动端整屏铺满，点不到这里
@@ -212,6 +258,24 @@ const SettingsContent = () => {
             </span>
           </button>
           <div className={styles.pageTitle}>{t(titles[section])}</div>
+          {section === 'memoryManage' ? (
+            <button
+              type="button"
+              className={styles.pageAction}
+              onClick={() => setSection('memoryGuide')}
+            >
+              {t('memoryGuideEntry')}
+            </button>
+          ) : null}
+          {section === 'roles' ? (
+            <button
+              type="button"
+              className={styles.pageAction}
+              onClick={() => setSection('roleGuide')}
+            >
+              {t('roleGuideEntry')}
+            </button>
+          ) : null}
           {section === 'backup' ? (
             <button
               type="button"
@@ -222,17 +286,37 @@ const SettingsContent = () => {
             </button>
           ) : null}
         </div>
-        <div role="tabpanel" className={styles.pageBody}>
+        <ScrollPane contentClassName={styles.pageBody} role="tabpanel">
           {section === 'general' ? (
             <>
               <div className={styles.group}>
                 <div className={styles.groupTitle}>{t('settingsGroupAccount')}</div>
                 <div className={styles.card}>
                   <NavRow
-                    icon={<IconPersonOutline20 />}
-                    label={t('settingsApiManage')}
-                    value={apiKey ? maskApiKey(apiKey) : t('settingsNoAccount')}
+                    icon={<IconChannelOutline16 />}
+                    label={t('settingsModelManage')}
+                    value={
+                      apiKey
+                        ? maskApiKey(apiKey)
+                        : (usableCustomChannel()?.name ?? t('settingsNoAccount'))
+                    }
                     onClick={() => setSection('api')}
+                  />
+                  <NavRow
+                    icon={<IconPersonOutline20 />}
+                    label={t('roleEntry')}
+                    value={ROLE_ENABLED ? '' : t('comingSoon')}
+                    onClick={() => (ROLE_ENABLED ? setSection('roles') : showToast(t('comingSoon')))}
+                  />
+                  <NavRow
+                    icon={<IconNoteOutline16 />}
+                    label={t('memoryManageEntry')}
+                    value={MEMORY_MANAGE_ENABLED ? '' : t('comingSoon')}
+                    onClick={() =>
+                      MEMORY_MANAGE_ENABLED
+                        ? setSection('memoryManage')
+                        : showToast(t('comingSoon'))
+                    }
                   />
                   <NavRow
                     icon={<IconDataOutline16 />}
@@ -313,12 +397,18 @@ const SettingsContent = () => {
                 </div>
               </div>
               <div className={styles.group}>
-                <div className={styles.groupTitle}>{t('settingsGroupAbout')}</div>
+                <div className={styles.groupTitle}>{t('settingsGroupApp')}</div>
                 <div className={styles.card}>
                   <NavRow
                     icon={<IconInfoOutline16 />}
                     label={t('settingsVersion')}
                     value={version ? `${version} · ${__BUILD_STAMP__}` : version}
+                  />
+                  <NavRow
+                    icon={<IconRefreshOutline16 />}
+                    label={t('changelogEntry')}
+                    value=""
+                    onClick={() => setSection('changelog')}
                   />
                   {updateAvailable() ? (
                     <NavRow
@@ -344,6 +434,18 @@ const SettingsContent = () => {
                   )}
                 </div>
               </div>
+              <div className={styles.group}>
+                <div className={styles.groupTitle}>{t('settingsGroupHelp')}</div>
+                <div className={styles.card}>
+                  <NavRow
+                    icon={<IconBrowseOutline16 />}
+                    label={t('tutorialsEntry')}
+                    value=""
+                    onClick={() => setSection('tutorials')}
+                  />
+                </div>
+                <div className={styles.settingDesc}>{t('settingsUnofficial')}</div>
+              </div>
               {apiKey ? (
                 <div className={styles.card}>
                   <button
@@ -368,17 +470,22 @@ const SettingsContent = () => {
               ) : null}
             </>
           ) : section === 'api' ? (
-            <>
-              <AccountCard apiKey={apiKey} />
-              <ApiKeyTutorial />
-              <ApiKeyField editor={apiKeyEditor} />
-              {isMobile ? <ApiKeyConfirm editor={apiKeyEditor} /> : null}
-            </>
+            <ModelManager
+              deepseek={
+                <>
+                  <AccountCard apiKey={apiKey} />
+                  <ApiKeyTutorial />
+                  <ApiKeyField editor={apiKeyEditor} />
+                  {isMobile ? <ApiKeyConfirm editor={apiKeyEditor} /> : null}
+                </>
+              }
+            />
           ) : section === 'data' ? (
             <>
               {isNativePlatform() ? null : <StorageCard />}
               {WEBSITE_IMPORT_ENABLED ? <WebsiteImportEntry disabled={historyBusy} /> : null}
-              <LinkImportEntry disabled={historyBusy} />
+              {/* 网页版拿不到预签名包体（OBS 不给跨域头），链接导入只在原生壳里出现 */}
+              {websiteImportAvailable() ? <LinkImportEntry disabled={historyBusy} /> : null}
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -407,6 +514,18 @@ const SettingsContent = () => {
             <ChatSettings />
           ) : section === 'backup' ? (
             <BackupSettings />
+          ) : section === 'tutorials' ? (
+            <Tutorials />
+          ) : section === 'roles' ? (
+            <RoleSettings />
+          ) : section === 'roleGuide' ? (
+            <RoleGuidePage />
+          ) : section === 'memoryManage' ? (
+            <MemoryManager />
+          ) : section === 'memoryGuide' ? (
+            <MemoryGuidePage />
+          ) : section === 'changelog' ? (
+            <ChangelogPage />
           ) : section === 'backupGuide' ? (
             <BackupGuide />
           ) : section === 'personalize' ? (
@@ -471,9 +590,29 @@ const SettingsContent = () => {
                 </button>
               </div>
               <div className={styles.settingDesc}>{t('personalizeShowUsageDesc')}</div>
+              <div className={styles.card}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={sendClockTime}
+                  className={clsx(styles.cell, styles.row, styles.navRow)}
+                  onClick={() => setSendClockTime(!sendClockTime)}
+                >
+                  <span className={clsx(styles.label, styles.labelGrow)}>
+                    {t('personalizeSendClockTime')}
+                  </span>
+                  <span
+                    className={clsx(styles.switch, sendClockTime && styles.switchOn)}
+                    aria-hidden="true"
+                  >
+                    <span className={styles.switchKnob} />
+                  </span>
+                </button>
+              </div>
+              <div className={styles.settingDesc}>{t('personalizeSendClockTimeDesc')}</div>
             </>
           ) : null}
-        </div>
+        </ScrollPane>
         </div>
       </div>
       {dialog === 'locale' ? (
@@ -1019,7 +1158,16 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
   const [selecting, setSelecting] = useState(false)
   const writtenRef = useRef(0)
 
-  const onExport = async (only?: Set<string>, includeImages = true) => {
+  const onExport = async (
+    only?: Set<string>,
+    choice: ExportChoice = {
+      includeImages: true,
+      format: 'zip',
+      includeThinking: false,
+      includeExtras: true,
+    }
+  ) => {
+    const includeImages = choice.includeImages
     setBusy(true)
     setStatus(null)
     setWritten(0)
@@ -1027,10 +1175,28 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
     /** 流式写入的分片很密，按 1MB 节流刷新进度 */
     let lastReport = 0
     try {
+      if (choice.format === 'txt') {
+        // 文本导出：按选中的会话逐条拼成一份可读文本（只导当前分支）
+        const ids = only ? [...only] : useChatStore.getState().sessions.map((item) => item.id)
+        const selected = await loadSessionsForTxt(ids)
+        if (selected.length === 0) {
+          return
+        }
+        const text = sessionsToTxt(selected, {
+          includeThinking: choice.includeThinking,
+          includeMeta: true,
+          includeFiles: true,
+        })
+        const fileName = txtFileName(selected.length === 1 ? selected[0].title : t('exportFormatTxt'))
+        await saveTxt(fileName, text, t('exportShareTitle'))
+        showToast({ key: 'exportTxtDone' })
+        return
+      }
       // 文件名与「导出当前对话」完全一致：deepseek_data-日期.zip
       const outcome = await exportSessionsToFile({
         only,
         includeImages,
+        includeExtras: choice.includeExtras,
         fileName: backupFileName(new Date()),
         shareTitle: t('exportShareTitle'),
         onProgress: (bytes) => {
@@ -1060,9 +1226,9 @@ const ExportHistory = ({ disabled }: { disabled: boolean }) => {
       {selecting ? (
         <ExportSelectDialog
           onClose={() => setSelecting(false)}
-          onConfirm={(ids, includeImages) => {
+          onConfirm={(ids, choice) => {
             setSelecting(false)
-            void onExport(ids, includeImages)
+            void onExport(ids, choice)
           }}
         />
       ) : null}

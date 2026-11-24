@@ -1,6 +1,8 @@
 import * as db from './db.js'
+import { loadIndexSnapshot, type SearchDoc } from './searchIndex.js'
+import { collapse, findRanges, fold, snippetAround, textMatches } from './searchText.js'
 import { useChatStore } from './store.js'
-import type { AssistantMessage, Message, SessionSummary, UserMessage } from './types.js'
+import type { Message, SessionSummary } from './types.js'
 
 /** 一条搜索命中：会话 + 片段来源 + 命中附近的上下文 */
 export type SessionSearchHit = {
@@ -13,6 +15,8 @@ export type SessionSearchHit = {
   messageId: string
   /** 命中处前后截取的片段，已折叠空白 */
   snippet: string
+  /** 片段里的命中区间（相对 snippet），供界面 <mark> 高亮；标题命中为空 */
+  ranges: { start: number; end: number }[]
 }
 
 /** 一轮搜索的结果：命中条数与「是否因为上限被截断」 */
@@ -22,68 +26,65 @@ export type SessionSearchResult = {
   truncated: boolean
 }
 
-const SNIPPET_BEFORE = 18
-const SNIPPET_AFTER = 34
 /**
- * 默认结果上限。实测 2000 会话 / 2 万命中全库扫描只要几十毫秒（内存存储），
- * 真正的代价在列表渲染，所以上限开到 3000，界面再分页渲染。
+ * 默认结果上限。真正的代价在列表渲染，所以上限开到 3000，界面再分页渲染。
  * 命中上限时返回 truncated，提示「细化关键词」，而不是静默截断。
  */
 export const DEFAULT_MAX_HITS = 3000
 
-/**
- * 助手消息的可读文本：正文 + 思考过程。
- * 思考也算「对话内容」——用户经常记得的是推理里出现过的说法；
- * 搜索/网页结果卡片的文字是外部资料，不参与匹配。
- */
-const assistantText = (message: AssistantMessage): string =>
-  message.blocks
-    .map((block) => {
-      if (block.type === 'text') {
-        return block.text
-      }
-      return block.type === 'thinking' ? block.thinking : ''
-    })
-    .filter(Boolean)
-    .join('\n')
+/** 兜底直读时的会话缓存：还没建索引的历史会话不会每换一个关键词就重读一遍 */
+const BODY_CACHE_LIMIT = 40
+const bodyCache = new Map<string, { updatedAt: number; session: Message[] }>()
 
-/**
- * 用户消息的可读文本：正文 + 手动压缩留下的摘要。
- * 压缩会把被替换掉的早期消息从 messages 里删掉，只剩摘要字符串；
- * 不读这里，压缩过的历史就彻底搜不到了。
- */
-const userText = (message: UserMessage): string =>
-  [message.content, message.summary].filter(Boolean).join('\n')
-
-const messageText = (message: Message): string =>
-  message.role === 'user' ? userText(message) : assistantText(message)
-
-const collapse = (text: string) => text.replace(/\s+/g, ' ').trim()
-
-/** 截取命中前后的上下文；两侧被截断时补省略号 */
-const snippetAround = (text: string, index: number, length: number) => {
-  const start = Math.max(0, index - SNIPPET_BEFORE)
-  const end = Math.min(text.length, index + length + SNIPPET_AFTER)
-  const body = collapse(text.slice(start, end))
-  return `${start > 0 ? '…' : ''}${body}${end < text.length ? '…' : ''}`
+const rememberBody = (id: string, updatedAt: number, messages: Message[]) => {
+  bodyCache.delete(id)
+  bodyCache.set(id, { updatedAt, session: messages })
+  while (bodyCache.size > BODY_CACHE_LIMIT) {
+    const oldest = bodyCache.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    bodyCache.delete(oldest)
+  }
 }
 
-const textMatches = (text: string, needle: string): { index: number } | null => {
-  const index = text.toLowerCase().indexOf(needle)
-  return index === -1 ? null : { index }
+/** 冒烟用 */
+export const clearSearchBodyCache = (): void => bodyCache.clear()
+
+/** 未打开的会话从 IndexedDB 读取一次；失败时跳过，不影响其它结果 */
+const loadSummarySession = async (summary: SessionSummary) => {
+  const cached = bodyCache.get(summary.id)
+  if (cached && cached.updatedAt === summary.updatedAt) {
+    // 命中过就把它挪到队尾（LRU）
+    rememberBody(summary.id, cached.updatedAt, cached.session)
+    return cached.session
+  }
+  try {
+    const session = await db.loadSession(summary.id)
+    if (session) {
+      rememberBody(summary.id, summary.updatedAt, session.messages)
+    }
+    return session?.messages
+  } catch {
+    return undefined
+  }
 }
 
 /**
  * 在本地全部会话里搜索标题与消息内容。
- * 逐条读取未加载的会话，命中即回调；返回的 cancel 用于中断（查询变化时），
- * done 解析为命中条数与是否被上限截断。
+ *
+ * 两条路径：
+ * 1. **索引**（`oxchat-search` 库）：会话有索引就直接在内存文档里找，搜索期间零 IO；
+ * 2. **兜底直读**：还没建好索引的会话照旧读库，保证结果不漏。
+ *
+ * 标题命中先整批发出去（不读库），界面能立刻看到东西，再慢慢补正文命中。
  */
 export const searchSessions = (
   query: string,
   onHit: (hit: SessionSearchHit) => void,
   options: { maxHits?: number } = {}
 ): { done: Promise<SessionSearchResult>; cancel: () => void } => {
-  const needle = collapse(query).toLowerCase()
+  const needle = fold(collapse(query))
   const maxHits = Math.max(1, options.maxHits ?? DEFAULT_MAX_HITS)
   let cancelled = false
 
@@ -94,6 +95,60 @@ export const searchSessions = (
     const { sessions, sessionCache } = useChatStore.getState()
     let hits = 0
     const seen = new Set<string>()
+    const emit = (hit: SessionSearchHit) => {
+      onHit(hit)
+      hits += 1
+    }
+
+    // 第一遍：只查标题（纯内存，不读库）
+    for (const summary of sessions) {
+      if (fold(summary.title).includes(needle)) {
+        seen.add(`${summary.id}|title`)
+        emit({
+          sessionId: summary.id,
+          title: summary.title,
+          updatedAt: summary.updatedAt,
+          source: 'assistant',
+          snippet: '',
+          ranges: [],
+          messageId: '',
+        })
+        if (hits >= maxHits) {
+          return { hits, truncated: true }
+        }
+      }
+    }
+
+    // 第二遍：正文。有索引走内存，没有就直读会话
+    const index = await loadIndexSnapshot()
+    const searchDocs = (summary: SessionSummary, docs: readonly SearchDoc[]): boolean => {
+      for (const doc of docs) {
+        const match = textMatches(doc.text, needle)
+        if (!match) {
+          continue
+        }
+        const snippet = snippetAround(doc.text, match.index, needle.length)
+        const key = `${summary.id}|${doc.role}|${snippet}`
+        if (seen.has(key)) {
+          continue
+        }
+        seen.add(key)
+        emit({
+          sessionId: summary.id,
+          title: summary.title,
+          updatedAt: summary.updatedAt,
+          source: doc.role,
+          snippet,
+          ranges: findRanges(snippet, needle),
+          messageId: doc.messageId,
+        })
+        if (hits >= maxHits) {
+          return true
+        }
+      }
+      return false
+    }
+
     for (const summary of sessions) {
       if (cancelled) {
         return { hits, truncated: false }
@@ -101,22 +156,29 @@ export const searchSessions = (
       if (hits >= maxHits) {
         return { hits, truncated: true }
       }
-      const base = { sessionId: summary.id, title: summary.title, updatedAt: summary.updatedAt }
-      // 标题命中：给出整条记录，不带片段
-      if (summary.title.toLowerCase().includes(needle)) {
-        seen.add(`${summary.id}|title`)
-        onHit({ ...base, source: 'assistant', snippet: '', messageId: '' })
-        hits += 1
+      const docs = index.byId.get(summary.id)
+      if (docs) {
+        if (searchDocs(summary, docs)) {
+          return { hits, truncated: true }
+        }
+        continue
       }
-      const session = Object.hasOwn(sessionCache, summary.id)
-        ? sessionCache[summary.id]
+      const messages = Object.hasOwn(sessionCache, summary.id)
+        ? sessionCache[summary.id].messages
         : await loadSummarySession(summary)
-      if (!session || cancelled) {
+      if (!messages || cancelled) {
         continue
       }
       // 搜全部消息：被切下去的分支也算「对话内容」，命中后跳转会先把分支切回来
-      for (const message of session.messages) {
-        const text = messageText(message)
+      for (const message of messages) {
+        const text = message.role === 'user'
+          ? [message.content, message.summary].filter(Boolean).join('\n')
+          : message.blocks
+              .map((block) =>
+                block.type === 'text' ? block.text : block.type === 'thinking' ? block.thinking : ''
+              )
+              .filter(Boolean)
+              .join('\n')
         if (!text) {
           continue
         }
@@ -130,8 +192,15 @@ export const searchSessions = (
           continue
         }
         seen.add(key)
-        onHit({ ...base, source: message.role, snippet, messageId: message.id })
-        hits += 1
+        emit({
+          sessionId: summary.id,
+          title: summary.title,
+          updatedAt: summary.updatedAt,
+          source: message.role,
+          snippet,
+          ranges: findRanges(snippet, needle),
+          messageId: message.id,
+        })
         if (hits >= maxHits) {
           return { hits, truncated: true }
         }
@@ -143,11 +212,4 @@ export const searchSessions = (
   return { done, cancel: () => (cancelled = true) }
 }
 
-/** 未打开的会话从 IndexedDB 读取一次；失败时跳过，不影响其它结果 */
-const loadSummarySession = async (summary: SessionSummary) => {
-  try {
-    return await db.loadSession(summary.id)
-  } catch {
-    return undefined
-  }
-}
+export { findRanges } from './searchText.js'

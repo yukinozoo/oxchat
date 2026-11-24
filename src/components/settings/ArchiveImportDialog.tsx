@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import clsx from 'clsx'
 import { useTranslate } from '../../i18n/index.js'
 import {
   importSelectedSessions,
   readArchiveIndex,
   requestImportCancel,
+  type ArchiveIndexItem,
 } from '../../services/chat/backup.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { BackupError } from '../../services/chat/history/errors.js'
@@ -14,9 +16,25 @@ import styles from './WebsiteImport.module.css'
 
 type Stage = 'loading' | 'list' | 'importing'
 
+/** ISO 时间 → 2026-11-15；解析不了就原样截前 10 位 */
+const dateOf = (iso: string): string => {
+  if (!iso) {
+    return ''
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return iso.slice(0, 10)
+  }
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 /**
  * 本地备份包导入：先解析压缩包里的对话索引，由用户勾选要导入的对话，
  * 只提取选中的会话写入本地；已存在的会话默认不勾选。
+ *
+ * 列表按参考稿排布：搜索（标题或日期）→ 全选/全不选 + 总数 → 卡片列表
+ * （每条带「N 条消息 · 日期」）→ 底部左侧已选计数与两个省空间开关、右侧按钮。
  */
 export const ArchiveImportDialog = ({
   file,
@@ -30,9 +48,11 @@ export const ArchiveImportDialog = ({
   const t = useTranslate()
   const localIds = useChatStore((state) => state.sessions.map((session) => session.id).join(','))
   const [stage, setStage] = useState<Stage>('loading')
-  const [sessions, setSessions] = useState<{ id: string; title: string }[]>([])
+  const [sessions, setSessions] = useState<ArchiveIndexItem[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [keyword, setKeyword] = useState('')
+  /** 只看还没导入过的（已存在的默认跳过） */
+  const [onlyNew, setOnlyNew] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** 默认跳过图片附件：几百兆的整包里图片通常占绝大部分 */
@@ -42,14 +62,15 @@ export const ArchiveImportDialog = ({
 
   const localIdOf = (id: string) => `website-${id}`
   const existing = new Set(localIds ? localIds.split(',') : [])
-  /** 本地是否已有该会话：备份包里的会话 id 与本地一致时视为已存在 */
   const isExisting = (id: string) => existing.has(id) || existing.has(localIdOf(id))
 
   useEffect(() => {
     void (async () => {
       try {
         const index = await readArchiveIndex(file)
-        setSessions(index.map((entry) => ({ id: entry.id, title: entry.title || '未命名对话' })))
+        setSessions(
+          index.map((entry) => ({ ...entry, title: entry.title || t('untitledChat') }))
+        )
         setSelected(new Set(index.filter((entry) => !isExisting(entry.id)).map((entry) => entry.id)))
         setStage('list')
       } catch (e) {
@@ -61,13 +82,22 @@ export const ArchiveImportDialog = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file])
 
-  const filtered = sessions.filter(
-    (item) => !keyword.trim() || item.title.toLowerCase().includes(keyword.trim().toLowerCase())
-  )
+  const haystack = (item: ArchiveIndexItem) =>
+    `${item.title} ${dateOf(item.updatedAt)}`.toLowerCase()
+  const filtered = sessions.filter((item) => {
+    if (onlyNew && isExisting(item.id)) {
+      return false
+    }
+    const text = keyword.trim().toLowerCase()
+    return !text || haystack(item).includes(text)
+  })
   const MAX_RENDER = 300
   const visible = filtered.slice(0, MAX_RENDER)
   /** 全选以筛选结果为准：列表只渲染前 300 条，但全选要覆盖全部匹配项 */
   const allChecked = filtered.length > 0 && filtered.every((item) => selected.has(item.id))
+  /** 底部「已选 x / N」按整包算 */
+  const total = sessions.length
+  const addable = sessions.filter((item) => !isExisting(item.id)).length
 
   const toggle = (id: string) => {
     setSelected((previous) => {
@@ -97,18 +127,17 @@ export const ArchiveImportDialog = ({
     })
   }
 
-  const runImport = async (preset?: Set<string>) => {
-    const ids = preset ?? selected
-    if (ids.size === 0) {
+  const runImport = async () => {
+    if (selected.size === 0) {
       return
     }
     setStage('importing')
-    setProgress({ done: 0, total: ids.size })
+    setProgress({ done: 0, total: selected.size })
     setError(null)
     try {
       // 走与本地文件导入同一条流式链路：暂存区写入、100ms 节流进度、可取消
-      const result = await importSelectedSessions(file, ids, {
-        onProgress: (done, total) => setProgress({ done, total }),
+      const result = await importSelectedSessions(file, selected, {
+        onProgress: (done, count) => setProgress({ done, total: count }),
         skipFiles,
         cleanMissing,
       })
@@ -133,36 +162,55 @@ export const ArchiveImportDialog = ({
     }
   }
 
-  const addable = sessions.filter((item) => !isExisting(item.id)).length
-
   return (
     <Modal
       title={t('archiveImportTitle')}
-      className={styles.dialog}
+      className={clsx(styles.dialog, styles.dialogFill)}
       overlayClassName={styles.overlay}
-      mainClassName={styles.body}
+      mainClassName={clsx(styles.body, styles.bodyFill)}
       closable
       // 导入改到后台：关掉对话框不中断任务，顶部进度条继续显示，可随时取消
       onClose={onClose}
       footer={
-        <div className={styles.actions}>
-          <Button variant="outlined" size="m" onClick={onClose}>
-            {t('websiteLater')}
-          </Button>
-          {stage === 'importing' ? (
-            <>
-              <Button size="m" disabled>
-                {progress ? t('historyImportCount', progress) : t('historyImport')}
-              </Button>
-              <Button variant="dangerOutlined" size="m" onClick={requestImportCancel}>
-                {t('historyImportStop')}
-              </Button>
-            </>
-          ) : (
-            <Button size="m" disabled={stage !== 'list' || selected.size === 0} onClick={() => void runImport()}>
-              {t('websiteImportAll', { count: selected.size })}
+        <div className={styles.footerGrid}>
+          <div className={styles.footerInfo}>
+            <label className={styles.inlineCheck}>
+              <input
+                type="checkbox"
+                checked={skipFiles}
+                disabled={stage === 'importing'}
+                onChange={() => setSkipFiles((value) => !value)}
+              />
+              <span>{t('importSkipFilesShort')}</span>
+            </label>
+            <label className={styles.inlineCheck}>
+              <input
+                type="checkbox"
+                checked={cleanMissing}
+                disabled={stage === 'importing'}
+                onChange={() => setCleanMissing((value) => !value)}
+              />
+              <span>{t('importCleanMissingShort')}</span>
+            </label>
+          </div>
+          <div className={styles.footerButtons}>
+            <Button variant="outlined" size="m" onClick={onClose}>
+              {t('cancel')}
             </Button>
-          )}
+            {stage === 'importing' ? (
+              <Button variant="dangerOutlined" size="m" onClick={requestImportCancel}>
+                {progress ? t('historyImportCount', progress) : t('historyImportStop')}
+              </Button>
+            ) : (
+              <Button
+                size="m"
+                disabled={stage !== 'list' || selected.size === 0}
+                onClick={() => void runImport()}
+              >
+                {t('archiveImportSelectedCount', { count: selected.size })}
+              </Button>
+            )}
+          </div>
         </div>
       }
     >
@@ -170,44 +218,56 @@ export const ArchiveImportDialog = ({
       {stage === 'loading' ? <div className={styles.spinner}>{t('archiveParsing')}</div> : null}
       {stage !== 'loading' ? (
         <>
-          <p className={styles.count}>
-            {t('archiveCount', { total: sessions.length, addable })}
-          </p>
-          <div className={styles.row}>
-            <button type="button" className={styles.checkAll} onClick={toggleAll}>
-              {allChecked ? t('unselectAll') : t('selectAll')}
-            </button>
-            <button
-              type="button"
-              className={styles.checkAll}
-              disabled={stage === 'importing' || sessions.length === 0}
-              onClick={() => {
-                const all = new Set(sessions.map((item) => item.id))
-                setSelected(all)
-                void runImport(all)
-              }}
-            >
-              {t('importAllLabel', { count: sessions.length })}
-            </button>
+          <div className={styles.searchRow}>
             <input
               className={styles.search}
               value={keyword}
-              placeholder={t('websiteSearch')}
+              placeholder={t('archiveSearchPlaceholder')}
               onChange={(event) => setKeyword(event.target.value)}
             />
+            <label className={styles.inlineCheck}>
+              <input
+                type="checkbox"
+                checked={onlyNew}
+                onChange={() => setOnlyNew((value) => !value)}
+              />
+              <span>{t('archiveOnlyNew')}</span>
+            </label>
           </div>
-          <div className={styles.list}>
+          <div className={styles.bulkRow}>
+            <button type="button" className={styles.checkAll} onClick={toggleAll}>
+              {allChecked ? t('unselectAll') : t('selectAll')}
+            </button>
+            <span className={styles.countBox}>
+              <span className={styles.totalCount}>{t('archiveCountTotal', { count: total })}</span>
+              <span className={styles.addableCount}>
+                {t('archiveAddableShort', { addable })}
+              </span>
+            </span>
+          </div>
+          <div className={styles.listCard}>
             {visible.map((item) => {
               const done = isExisting(item.id)
               return (
-                <label key={item.id} className={done ? `${styles.item} ${styles.itemDone}` : styles.item}>
+                <label
+                  key={item.id}
+                  className={done ? `${styles.listItem} ${styles.listItemDone}` : styles.listItem}
+                >
                   <input
                     type="checkbox"
                     checked={selected.has(item.id)}
                     disabled={stage === 'importing'}
                     onChange={() => toggle(item.id)}
                   />
-                  <span className={styles.itemTitle}>{item.title}</span>
+                  <span className={styles.listMain}>
+                    <span className={styles.listTitle}>{item.title}</span>
+                    <span className={styles.listMeta}>
+                      {t('archiveItemMeta', {
+                        count: item.messageCount,
+                        date: dateOf(item.updatedAt),
+                      })}
+                    </span>
+                  </span>
                   {done ? <span className={styles.badge}>{t('websiteExisting')}</span> : null}
                 </label>
               )
@@ -217,36 +277,13 @@ export const ArchiveImportDialog = ({
                 {t('websiteTooMany', { shown: visible.length, total: filtered.length })}
               </div>
             ) : null}
-            {visible.length === 0 ? <div className={styles.empty}>{t('websiteEmpty')}</div> : null}
+            {visible.length === 0 ? (
+              <div className={styles.empty}>
+                {keyword.trim() || onlyNew ? t('websiteEmpty') : t('archiveEmpty')}
+              </div>
+            ) : null}
           </div>
           {error ? <div className={styles.error}>{error}</div> : null}
-          <label className={styles.skip}>
-            <input
-              type="checkbox"
-              className={styles.skipCheck}
-              checked={skipFiles}
-              disabled={stage === 'importing'}
-              onChange={() => setSkipFiles((value) => !value)}
-            />
-            <span className={styles.skipText}>
-              <span className={styles.skipTitle}>{t('importSkipFiles')}</span>
-              <span className={styles.skipDesc}>{t('importSkipFilesDesc')}</span>
-            </span>
-          </label>
-          <label className={styles.skip}>
-            <input
-              type="checkbox"
-              className={styles.skipCheck}
-              checked={cleanMissing}
-              disabled={stage === 'importing'}
-              onChange={() => setCleanMissing((value) => !value)}
-            />
-            <span className={styles.skipText}>
-              <span className={styles.skipTitle}>{t('importCleanMissing')}</span>
-              <span className={styles.skipDesc}>{t('importCleanMissingDesc')}</span>
-            </span>
-          </label>
-          <div className={styles.skipDesc}>{t('importKeepForeground')}</div>
         </>
       ) : null}
     </Modal>

@@ -1,4 +1,6 @@
 import { IconMenuOutline20, IconNewChatOutline20 } from '../base/icons.js'
+import { useChatStore } from '../../services/chat/store.js'
+import { CharacterButton } from './CharacterPicker.js'
 import { useTranslate } from '../../i18n/index.js'
 import { newChat } from '../../services/chat/store.js'
 import { IconButton } from '../base/IconButton.js'
@@ -24,6 +26,7 @@ export const MobileHeader = ({
 }) => {
   const t = useTranslate()
   const onTitleClick = useTitleJump()
+  const sessionId = useChatStore((state) => state.activeId)
   const startNewChat = () => {
     newChat()
     closeMobileSider()
@@ -45,6 +48,7 @@ export const MobileHeader = ({
       >
         {title ?? ''}
       </div>
+      <CharacterButton sessionId={sessionId} />
       {hideNewChat ? null : (
         <IconButton
           size="xl"

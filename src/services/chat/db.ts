@@ -1,5 +1,15 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { cleanSessionText } from './clean.js'
 import { fromSettingRecord, toSettingRecord } from './settingsRecord.js'
+import { summarizeRows } from './summaryRows.js'
+import {
+  deleteNativeFile,
+  nativeFileIds,
+  nativeFilesAvailable,
+  readNativeFile,
+  writeNativeFile,
+} from './nativeFiles.js'
+import { fileStorePreference } from './fileStorePreference.js'
 import { toSessionSummary, type Session, type SessionSummary } from './types.js'
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
@@ -106,14 +116,35 @@ const getDB = () =>
     throw error
   }))
 
-export const loadSessionSummaries = async (): Promise<SessionSummary[]> =>
-  (await (await getDB()).getAll('sessionSummaries')).map(toSessionSummary)
+/**
+ * 读取会话列表。
+ *
+ * `getAll` 是整批反序列化：任意一条坏记录都会让整个读取 reject，界面表现为
+ * 「会话全没了」。所以失败时退化成按主键逐条读，坏的那条只丢自己。
+ */
+export const loadSessionSummaries = async (): Promise<SessionSummary[]> => {
+  const db = await getDB()
+  try {
+    return summarizeRows(await db.getAll('sessionSummaries'))
+  } catch {
+    const keys = await db.getAllKeys('sessionSummaries')
+    const rows = await Promise.all(
+      keys.map((key) => db.get('sessionSummaries', key).catch(() => undefined))
+    )
+    return summarizeRows(rows)
+  }
+}
 
-export const loadSession = async (id: string): Promise<Session | undefined> =>
-  (await getDB()).get('sessions', id)
+/** 读会话：顺手清洗文本，让已经写进库里的脏历史自愈（没有改动时返回原对象） */
+export const loadSession = async (id: string): Promise<Session | undefined> => {
+  const session = await (await getDB()).get('sessions', id)
+  return session === undefined ? undefined : cleanSessionText(session)
+}
 
 export const saveSession = async (session: Session, files: StoredFile[] = []): Promise<void> => {
-  const summary = storedSummary(session)
+  // 写库前清洗：协议标记与孤立代理不进库（thinking 原文保留，续写签名要用）
+  const cleaned = cleanSessionText(session)
+  const summary = storedSummary(cleaned)
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries', 'files'], 'readwrite')
   await Promise.all([
     (async () => {
@@ -121,7 +152,7 @@ export const saveSession = async (session: Session, files: StoredFile[] = []): P
         for (const file of files) {
           await tx.objectStore('files').put(file)
         }
-        await tx.objectStore('sessions').put(session)
+        await tx.objectStore('sessions').put(cleaned)
         await tx.objectStore('sessionSummaries').put(summary)
       } catch (error) {
         abortTransaction(tx)
@@ -187,6 +218,8 @@ export const setSessionPinned = async (id: string, pinned: boolean): Promise<voi
 
 /** 删除会话，仅清理已无会话引用的本地原件；远端文件不删。 */
 export const deleteSession = async (sessionId: string): Promise<void> => {
+  /** 事务里删掉的附件 id：事务结束后再删原生目录里的原件 */
+  const orphaned: string[] = []
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries', 'files'], 'readwrite')
   await Promise.all([
     (async () => {
@@ -198,6 +231,7 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
         for (const id of summary?.fileIds ?? []) {
           if ((await summaries.index('fileIds').count(id)) === 0) {
             await tx.objectStore('files').delete(id)
+            orphaned.push(id)
           }
         }
       } catch (error) {
@@ -209,15 +243,91 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
   ])
 }
 
+/**
+ * 附件原件是否走原生目录。
+ *
+ * 条件：插件存在（只在安卓壳里）+ 用户没显式选回 IndexedDB。
+ * 迁移没跑完时读路径仍然回退 IndexedDB，所以中途切换不会丢文件。
+ */
+export const useNativeFiles = (): boolean =>
+  nativeFilesAvailable() && fileStorePreference() !== 'idb'
+
 const putFiles = async (store: 'files' | 'filesStaging', files: StoredFile[]) => {
+  if (store === 'files' && useNativeFiles()) {
+    // 落原生目录：不进 IndexedDB，省掉 base64 与 Blob 双份内存
+    for (const file of files) {
+      await writeNativeFile(file, file.blob.type || 'application/octet-stream')
+    }
+    return
+  }
   const tx = (await getDB()).transaction(store, 'readwrite')
   await Promise.all([...files.map((file) => tx.store.put(file)), tx.done])
 }
 
 export const saveFiles = (files: StoredFile[]): Promise<void> => putFiles('files', files)
 
-export const loadFile = async (id: string): Promise<Blob | undefined> =>
-  (await (await getDB()).get('files', id))?.blob
+export const loadFile = async (id: string): Promise<Blob | undefined> => {
+  if (useNativeFiles()) {
+    const native = await readNativeFile(id)
+    if (native) {
+      return native
+    }
+    // 迁移前写入的旧附件还在 IndexedDB 里：读路径继续兜住
+  }
+  return (await (await getDB()).get('files', id))?.blob
+}
+
+/**
+ * 把 IndexedDB 里的附件一次性搬到原生目录。
+ *
+ * 顺序刻意保守：先写原生 → 逐条确认能读回同样大小 → 再删 IndexedDB 那一行。
+ * 中途失败可以直接重跑（原生写是覆盖写），不会留下"两边都没有"的窗口。
+ * 返回搬迁数量；没有插件或已搬过时返回 0。
+ */
+export const migrateFilesToNative = async (): Promise<number> => {
+  if (!useNativeFiles()) {
+    return 0
+  }
+  const db = await getDB()
+  const stored = await db.getAll('files')
+  let moved = 0
+  for (const file of stored) {
+    try {
+      await writeNativeFile(file, file.blob.type || 'application/octet-stream')
+      const back = await readNativeFile(file.id)
+      if (!back || back.size !== file.blob.size) {
+        continue
+      }
+      await (await getDB()).delete('files', file.id)
+      moved += 1
+    } catch {
+      // 单条失败就跳过，下次启动重试；不能因为一个坏文件卡住整次迁移
+    }
+  }
+  return moved
+}
+
+/** 反向：原生目录里多余的文件（会话已删但文件还在）清掉；返回清理数量 */
+export const pruneNativeFiles = async (): Promise<number> => {
+  if (!useNativeFiles()) {
+    return 0
+  }
+  const db = await getDB()
+  const referenced = new Set<string>()
+  for (const summary of await db.getAll('sessionSummaries')) {
+    for (const id of (summary as StoredSessionSummary).fileIds ?? []) {
+      referenced.add(id)
+    }
+  }
+  let removed = 0
+  for (const id of await nativeFileIds()) {
+    if (!referenced.has(id)) {
+      await deleteNativeFile(id)
+      removed += 1
+    }
+  }
+  return removed
+}
 
 /** 清空导入暂存：开始导入前清除上次中断（如关闭页面）遗留的数据，导入失败后清除本次写入。 */
 export const clearStaging = async (): Promise<void> => {
@@ -334,7 +444,20 @@ export const commitStaging = async (merge = false): Promise<SessionSummary[]> =>
       throw error
     }
   }
-  await Promise.all([move('sessionsStaging', 'sessions'), move('filesStaging', 'files'), tx.done])
+  if (useNativeFiles()) {
+    // 原生模式：暂存里的附件先落到私有目录，再清空暂存（不进 IndexedDB）
+    const staging = await (await getDB()).getAll('filesStaging')
+    for (const file of staging) {
+      await writeNativeFile(file, file.blob.type || 'application/octet-stream')
+    }
+    await Promise.all([
+      move('sessionsStaging', 'sessions'),
+      (await getDB()).clear('filesStaging'),
+      tx.done,
+    ])
+  } else {
+    await Promise.all([move('sessionsStaging', 'sessions'), move('filesStaging', 'files'), tx.done])
+  }
   // 直接返回本次提交的列表，调用方无需在替换成功后再发起可能失败的读取。
   return summaries
 }
@@ -385,7 +508,7 @@ export const deleteSetting = async (key: string): Promise<void> => {
   await store.delete(key)
 }
 
-/** 清理没有被任何会话引用的附件原件；返回清理数量与释放的字节数 */
+/** 清理没有被任何会话引用的附件原件（IndexedDB 与原生目录都扫一遍） */
 export const pruneFiles = async (): Promise<{ removed: number; bytes: number }> => {
   const db = await getDB()
   const tx = db.transaction(['files', 'sessionSummaries'], 'readwrite')
@@ -406,5 +529,6 @@ export const pruneFiles = async (): Promise<{ removed: number; bytes: number }> 
     })(),
     tx.done,
   ])
-  return { removed, bytes }
+  const nativeRemoved = await pruneNativeFiles()
+  return { removed: removed + nativeRemoved, bytes }
 }

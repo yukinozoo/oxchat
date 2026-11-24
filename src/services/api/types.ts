@@ -136,6 +136,8 @@ export type TextBlockParam = { type: 'text'; text: string }
 export type FileBlockParam = {
   type: 'image' | 'document'
   source: { type: 'file'; file_id: string }
+  /** 本地附件 id：自定义渠道（OpenAI 兼容）要把图片转成 base64 时用，DeepSeek 忽略 */
+  local_id?: string
 }
 
 /** 接口接受的调用块；历史只回传 kind 为 read_link 的调用 */
@@ -185,9 +187,12 @@ export type CreateMessageRequest = {
   output_config?: { effort: 'low' | 'high' | 'max' }
   /** 服务端工具；v4-pro 这类不支持的模型直接不带该字段 */
   tools?: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
-  safety_check: { level: 'high' }
+  /** 严格内容审查；声明 high 会把请求推进「扩展模式」（输入上限 32768），标准模式下省略 */
+  safety_check?: { level: 'high' }
   /** 采样温度 0–2；不传时服务端按官方默认 1.0 */
   temperature?: number
+  /** 输出 token 上限；不传时交给服务端默认 */
+  max_tokens?: number
   title?: { enabled: boolean }
 }
 

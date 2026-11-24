@@ -5,13 +5,13 @@
   overflow: hidden;
   box-sizing: border-box;
   /* 画到状态栏下方：这一段的底色就是页面底色，状态栏因此与应用顶栏同色 */
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--oxchat-safe-top);
   background-color: var(--oxchat-surface-base, var(--dsw-alias-bg-base));
 }
 
 /* 导入进行中：给顶部高 22px 的进度条让位，避免压住顶栏标题 */
 .frameWithBar {
-  padding-top: calc(env(safe-area-inset-top) + 22px);
+  padding-top: calc(var(--oxchat-safe-top) + 22px);
 }
 
 .main {
@@ -74,6 +74,6 @@
     position: fixed;
     top: var(--app-viewport-top, 0px);
     bottom: auto;
-    height: var(--app-viewport-height, 100dvh);
+    height: var(--app-viewport-height, var(--app-dvh, 100vh));
   }
 }

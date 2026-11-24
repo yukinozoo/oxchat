@@ -102,6 +102,15 @@ export const usePreventPageScroll = (enabled: boolean) => {
   }, [enabled])
 }
 
+/**
+ * 高度自愈的触发条件：自身高度是 0、但窗口高度正常。
+ *
+ * 荣耀/华为自带 WebView 不认识 dvh 时，用到它的声明会整条失效，页面高度塌成 0 ——
+ * 这时把视口变量直接写成像素，宁可少几像素也不能白屏。
+ */
+export const needsHeightGuard = (clientHeight: number, innerHeight: number): boolean =>
+  clientHeight === 0 && innerHeight > 0
+
 /** 移动端页面跟随视觉视口，键盘弹出后顶栏和输入框仍留在可见区域。 */
 export const useMobileViewport = (enabled: boolean) => {
   const frameRef = useRef<HTMLDivElement>(null)
@@ -118,7 +127,17 @@ export const useMobileViewport = (enabled: boolean) => {
       frame.style.removeProperty('--app-viewport-height')
       frame.style.removeProperty('--app-viewport-top')
     }
+    /** 兜底：量到高度为 0 就把视口变量补成真实像素（老内核 CSS 变量失效时靠它救场） */
+    const guardHeight = () => {
+      if (!needsHeightGuard(frame.clientHeight, window.innerHeight)) {
+        return
+      }
+      const height = `${window.innerHeight}px`
+      frame.style.setProperty('--app-vh', height)
+      frame.style.setProperty('--app-dvh', height)
+    }
     const update = () => {
+      guardHeight()
       // 双指缩放由浏览器处理，保持当前布局尺寸。
       if (viewport && viewport.scale !== 1) {
         return

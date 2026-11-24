@@ -35,7 +35,8 @@
   font-size: calc(16px * var(--oxchat-font-scale, 1));
   line-height: calc(24px * var(--oxchat-font-scale, 1));
   color: var(--dsw-alias-label-primary);
-  background-color: var(--dsw-specific-bubble);
+  /* 自定义气泡色优先；没设时回退到强调色派生的默认底色 */
+  background-color: var(--oxchat-bubble-user-bg, var(--dsw-specific-bubble));
   white-space: pre-wrap;
   word-break: break-word;
 }

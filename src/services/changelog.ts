@@ -1,0 +1,49 @@
+/**
+ * 版本更新记录（应用内「本版更新了什么」的数据源）。
+ *
+ * 规则：只写**用户可感知**的变化，一条一句话；新的版本放最前面。
+ * 与《OxChat-版本日志.md》同步维护（那边是完整流水，这里是给用户看的摘要）。
+ * `versionCode` 要与 `android/app/build.gradle` 对齐，弹窗按它判断「装的是哪一版」。
+ */
+export type ChangelogEntry = {
+  versionCode: number
+  versionName: string
+  /** YYYY-MM-DD */
+  date: string
+  items: string[]
+}
+
+export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    versionCode: 95,
+    versionName: '0.1.95',
+    date: '2026-11-24',
+    items: [
+      '新增角色管理：酒馆 v2 口径的角色卡，可以新建 / 编辑 / 复制，也能导入导出角色卡 JSON',
+      '新增记忆管理：记忆列表与筛选、笔记编辑、独立「资料记忆」（附件里的要点不会再被后续整理冲掉）、注入预览',
+      '大量细节修复与体验打磨：附件补传、配额提示、弹窗滑杆、长标题省略、输入框主题色、状态栏与安全区、导出选项',
+    ],
+  },
+  {
+    versionCode: 94,
+    versionName: '0.1.94',
+    date: '2026-11-22',
+    items: [
+      '侧栏的分组（文件夹）标题也会吸顶了：滚动时文件夹名与条数停在顶部，往下滚到下一个分组时由下一个标题顶上去',
+    ],
+  },
+]
+
+/** 最新一条（网页版没有原生版本号时用它） */
+export const latestEntry = (): ChangelogEntry => CHANGELOG[0]
+
+/**
+ * 按安装的 versionCode 找对应记录：取「不高于它」的最新一条。
+ * 找不到（装的是比记录更老的版本）时返回 null，不弹空弹窗。
+ */
+export const entryFor = (versionCode: number | null): ChangelogEntry | null => {
+  if (versionCode === null) {
+    return latestEntry()
+  }
+  return CHANGELOG.find((entry) => entry.versionCode <= versionCode) ?? null
+}

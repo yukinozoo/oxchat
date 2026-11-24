@@ -55,3 +55,12 @@
   width: 16px;
   height: 16px;
 }
+
+/* 减少透明度：胶囊不模糊，用实色 */
+@media (prefers-reduced-transparency: reduce) {
+  :global(body.has-bg-image) .badge {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--dsw-alias-bg-base, #fff);
+  }
+}

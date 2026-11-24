@@ -2,16 +2,39 @@
   display: flex;
   flex-direction: column;
   width: 480px;
-  max-height: calc(100dvh - 48px);
+  max-height: calc(var(--app-dvh, 100vh) - 32px);
+}
+
+/* 列表型弹窗：给一个确定高度，头部、选项行、底部按钮都固定住，
+   只有中间的对话列表滚动——否则列表一长就把按钮顶出屏幕（导出弹窗踩过）。 */
+.dialogFill {
+  height: min(760px, calc(var(--app-dvh, 100vh) - 32px));
 }
 
 /* 主体单独滚动：列表和两个勾选项变高时，底部按钮不会被挤出屏幕 */
 .body {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* 列表型弹窗：主体不滚动，滚动只发生在列表卡片里 */
+.bodyFill {
+  overflow: hidden;
+}
+
+/* 除列表以外的内容一律不压缩：搜索、全选行、说明永远留在可视区；
+   空间不够时先压列表，而不是把上面的内容挤走 */
+.bodyFill > :not(.list) {
+  flex-shrink: 0;
+}
+
+.bodyFill > .listCard {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .overlay {
@@ -93,8 +116,12 @@
   }
 }
 
+/* 列表高度跟着弹窗剩余空间走：以前写死 30vh，手机上只剩一行半。
+   min-height 保证小屏至少能看到四五行，不再被压成一条缝。 */
 .list {
-  max-height: 30vh;
+  flex: 1 1 auto;
+  /* 不给下限：展开「导入选项」时优先把空间让给选项，列表压到几行也能接受 */
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -201,6 +228,19 @@
   cursor: pointer;
 }
 
+/* 手机竖屏：两个勾选项压缩一点，给列表和说明多留空间 */
+@media (max-width: 420px) {
+  .skip {
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .skipDesc {
+    font-size: 12px;
+    line-height: 17px;
+  }
+}
+
 .skipCheck {
   flex-shrink: 0;
   width: 18px;
@@ -234,4 +274,156 @@
   flex: 1 1 100%;
   box-sizing: border-box;
   min-width: 0;
+}
+
+/* ── 导入/导出弹窗：参考稿排版 ── */
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchRow .search {
+  flex: 1;
+}
+
+.inlineCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.inlineCheck input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+
+.bulkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 6px;
+}
+
+.countBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.addableCount {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.totalCount {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 列表做成一张卡：条目之间细分割线，整体是唯一滚动区 */
+.listCard {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  cursor: pointer;
+}
+
+.listItem:last-child {
+  border-bottom: 0;
+}
+
+.listItem input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+
+.listItemDone {
+  opacity: 0.55;
+}
+
+.listMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listTitle {
+  overflow: hidden;
+  font-size: 15px;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.listMeta {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 底部：左边计数与省空间开关，右边按钮 */
+.footerGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* 开关单独一行，宽度不够时整体换行，不会钻到按钮下面 */
+.footerInfo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-width: 0;
+}
+
+.selectedCount {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.footerButtons {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 标签按词组换行：不会被挤成一字一行 */
+.inlineCheck span {
+  line-height: 18px;
+  word-break: keep-all;
 }

@@ -1,0 +1,61 @@
+/* 整页：宽度跟随设置页内容区，不再限制成弹窗宽度 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.note {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-skeleton);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}

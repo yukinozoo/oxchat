@@ -82,17 +82,19 @@
 
 .listWrap {
   position: relative;
+  /* 必须是 flex 容器：ScrollPane 的 .wrap 靠 flex:1 撑满，否则列表按内容高度长、
+     既不能滚动，还会把底部的设置/账户按钮顶出屏幕 */
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   margin-top: 24px;
 }
 
 .list {
-  height: 100%;
+  /* 滚动交给 ScrollPane：这里只负责内边距与内容排布 */
   margin: 0 -2px;
   padding: 0 2px;
-  overflow-y: auto;
-  scrollbar-color: var(--scroll-color) transparent;
 }
 
 .loadMore {
@@ -218,7 +220,7 @@
   left: 0;
   z-index: 800;
   /* 位移由 CSS 变量驱动：拖拽时 0ms，松手后按抽屉时长过渡 */
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--oxchat-safe-top);
   /* 横向拖动交给 JS 处理，纵向仍可滚动列表；否则滚动容器会吞掉横滑手势 */
   touch-action: pan-y;
   transform: translateX(calc(-100% + var(--drawer-offset, 0px)));
@@ -448,6 +450,14 @@
 
 .newFolder:hover {
   background: var(--dsw-specific-sidebar-nav-item-hover);
+}
+
+/* 分组标题吸顶：与时间分组标题同一层级、同样底色，滚过时不会透出下面的条目 */
+.folderHead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: var(--dsw-specific-sidebar-fill);
 }
 
 .folderRow {

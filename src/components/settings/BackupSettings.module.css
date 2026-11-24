@@ -16,6 +16,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-2);
 }
@@ -171,6 +172,31 @@
   cursor: pointer;
 }
 
+.logFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.logFilter,
+.logFilterActive {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-subtle, rgba(0, 0, 0, 0.08));
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.logFilterActive {
+  border-color: transparent;
+  background: var(--oxchat-accent-soft, rgba(57, 100, 254, 0.16));
+  color: var(--dsw-alias-label-primary);
+}
+
 .logList {
   display: flex;
   flex-direction: column;
@@ -185,6 +211,7 @@
   align-items: baseline;
   gap: 8px;
   padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
   font-size: 12px;

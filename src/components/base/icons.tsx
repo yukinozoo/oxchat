@@ -113,6 +113,32 @@ export const IconEditOutline16 = () => (
   </svg>
 )
 
+export const IconChannelOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* 层叠的通道：三片叠起来，比钥匙图标更贴近「渠道 / 模型来源」 */}
+    <rect x="2" y="2.4" width="12" height="4" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
+    <path d="M3.4 6.4v2.2c0 .8.6 1.4 1.4 1.4h6.4c.8 0 1.4-.6 1.4-1.4V6.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M3.4 10v1.6c0 .8.6 1.4 1.4 1.4h6.4c.8 0 1.4-.6 1.4-1.4V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+  </svg>
+)
+
+export const IconBranchOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* 分叉：一条主干在这里分成两支。端点用圆点，比箭头干净，16px 下也不糊 */}
+    <path
+      d="M4.15 8H7.4M7.4 8 10.43 5.38M7.4 8l3.03 2.62"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* 空心端点：r1.5 + 0.9 描边，16px 下能看出是「圈」而不是实心点 */}
+    <circle cx="2.2" cy="8" r="1.5" fill="none" stroke="currentColor" strokeWidth="0.9" />
+    <circle cx="11.9" cy="4.1" r="1.5" fill="none" stroke="currentColor" strokeWidth="0.9" />
+    <circle cx="11.9" cy="11.9" r="1.5" fill="none" stroke="currentColor" strokeWidth="0.9" />
+  </svg>
+)
+
 export const IconEllipsisOutline16 = () => (
   <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -779,5 +805,88 @@ export const IconFolderPlusOutline16 = () => (
       strokeLinejoin="round"
     />
     <path d="M8 7.2v3.2M6.4 8.8h3.2" stroke="currentColor" strokeWidth={1.25} strokeLinecap="round" />
+  </svg>
+)
+
+/** 钥匙：API Key 管理（与「角色管理」的人形图标区分开） */
+export const IconKeyOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="5.4" cy="10.6" r="3.1" stroke="currentColor" strokeWidth={1.5} />
+    <path
+      d="M7.7 8.3L13.3 2.7M11 5l1.7 1.7M12.6 3.4l1.6 1.6"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
+/** 便签：记忆管理（一条条笔记的意象） */
+export const IconNoteOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M3 3.2c0-.66.54-1.2 1.2-1.2h7.6c.66 0 1.2.54 1.2 1.2v9.6c0 .66-.54 1.2-1.2 1.2H4.2c-.66 0-1.2-.54-1.2-1.2V3.2z"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    />
+    <path d="M5.6 5.6h4.8M5.6 8h4.8M5.6 10.4h2.8" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+  </svg>
+)
+
+/** 星芒：自动压缩（自动触发、省心） */
+export const IconSparkleOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M7 2.2l1.15 3.05a2 2 0 0 0 1.2 1.2L12.4 7.6l-3.05 1.15a2 2 0 0 0-1.2 1.2L7 13l-1.15-3.05a2 2 0 0 0-1.2-1.2L1.6 7.6l3.05-1.15a2 2 0 0 0 1.2-1.2L7 2.2z"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinejoin="round"
+    />
+    <path d="M12.6 11.2l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5.5-1.3z" fill="currentColor" />
+  </svg>
+)
+
+/** 叠层：压缩上下文（把多层收成一层） */
+export const IconLayersOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M1.9 8.1l6.1 3.2 6.1-3.2M1.9 11.3l6.1 3.2 6.1-3.2"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M8 1.5l6.1 3.2L8 7.9 1.9 4.7 8 1.5z"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/** 放大编辑：四角朝外（全屏） */
+export const IconExpandOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6 2.75H2.75V6M10 2.75h3.25V6M2.75 10v3.25H6M13.25 10v3.25H10"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/** 收起：四角朝内（退出全屏） */
+export const IconCollapseOutline16 = () => (
+  <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M6 6H2.75M6 6V2.75M10 6h3.25M10 6V2.75M6 10H2.75M6 10v3.25M10 10h3.25M10 10v3.25"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 )

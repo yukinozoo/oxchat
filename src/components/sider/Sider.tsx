@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
+import { hasUsableChannel } from '../../services/channels.js'
 import {
   IconChevronDownOutline14,
   IconCloseOutline16,
@@ -31,6 +32,7 @@ import type { SessionSummary } from '../../services/chat/types.js'
 import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
 import { Menu } from '../base/Menu.js'
+import { ScrollPane } from '../base/ScrollPane.js'
 import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { backupFileName } from '../../services/chat/backup.js'
@@ -73,7 +75,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const [now, setNow] = useState(Date.now)
   /** 已发放的渲染配额：置顶 → 分组 → 未分组按顺序消耗，滚到底部再续一页 */
   const [limit, setLimit] = useState(SIDER_PAGE)
-  const listRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
   /** 滚动回调里读最新配额与「还有没有更多」，避免重复续载 */
   const limitRef = useRef(limit)
   limitRef.current = limit
@@ -157,23 +159,16 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const hasMoreRef = useRef(views.hasMore)
   hasMoreRef.current = views.hasMore
 
-  /** 滚到底部附近续一页；内容不足一屏时也自动补齐，避免首屏只剩几十条 */
-  useEffect(() => {
-    const element = listRef.current
-    if (!element) {
+  /** 滚到底部附近续一页；由 ScrollPane 的 onScroll 回调驱动 */
+  const growList = (element: HTMLDivElement) => {
+    listRef.current = element
+    if (!hasMoreRef.current) {
       return
     }
-    const grow = () => {
-      if (!hasMoreRef.current) {
-        return
-      }
-      if (element.scrollHeight - element.scrollTop - element.clientHeight < SIDER_LOAD_THRESHOLD) {
-        setLimit((current) => current + SIDER_PAGE)
-      }
+    if (element.scrollHeight - element.scrollTop - element.clientHeight < SIDER_LOAD_THRESHOLD) {
+      setLimit((current) => current + SIDER_PAGE)
     }
-    element.addEventListener('scroll', grow, { passive: true })
-    return () => element.removeEventListener('scroll', grow)
-  }, [])
+  }
 
   /** 列表首屏铺不满时继续补一页（最多补到内容超过一屏） */
   useEffect(() => {
@@ -374,7 +369,12 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         </button>
       )}
       <div className={styles.listWrap}>
-        <div ref={listRef} className={styles.list}>
+        {/* 列表用自绘滚动条：安卓 WebView 的原生条拖不动，长列表看不出位置 */}
+        <ScrollPane
+          contentClassName={styles.list}
+          scrollerRef={listRef}
+          onScroll={growList}
+        >
           {editing ? null : (
             <button
               type="button"
@@ -394,6 +394,9 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
           {views.folderViews.map(({ folder, items, folded: isCollapsed, total }) => {
             return (
               <div key={folder.id} className={styles.section}>
+                {/* 分组标题也吸顶：包一层 div 是必须的 —— Menu 的锚点是个 span，
+                    直接给里面的行加 sticky 会被 span 的高度框死，出不了标题行 */}
+                <div className={styles.folderHead}>
                 <Menu
                   open={folderMenu === folder.id}
                   onOpenChange={(open) => setFolderMenu(open ? folder.id : null)}
@@ -454,6 +457,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                     </div>
                   )}
                 </Menu>
+                </div>
                 {isCollapsed ? null : items.length > 0 ? (
                   items.map((session) => renderSession(session))
                 ) : (
@@ -478,7 +482,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
               {t('siderLoadMore', { count: views.total - views.shown })}
             </button>
           ) : null}
-        </div>
+        </ScrollPane>
       </div>
       <div className={styles.bottom}>
         {editing ? (
@@ -509,7 +513,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         ) : (
           <button type="button" className={styles.account} onClick={() => openSettings('general')}>
             <span className={styles.accountAvatar}>
-              {apiKey ? <IconPersonOutline20 /> : <IconSettingsOutline16 />}
+              {hasUsableChannel(apiKey) ? <IconPersonOutline20 /> : <IconSettingsOutline16 />}
             </span>
             <span className={styles.accountName}>
               {apiKey ? maskApiKey(apiKey) : t('settings')}

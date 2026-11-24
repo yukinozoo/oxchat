@@ -1,10 +1,22 @@
 import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
-import { memo } from 'react'
-import { IconRefreshOutline16, IconWarningOutline16 } from '../base/icons.js'
+import { memo, useState } from 'react'
+import {
+  IconBranchOutline16,
+  IconEditOutline16,
+  IconRefreshOutline16,
+  IconWarningOutline16,
+} from '../base/icons.js'
 import { describeReply } from '../../services/chat/describe.js'
 import { canContinueReply } from '../../services/chat/reply.js'
-import { continueReply, regenerateReply } from '../../services/chat/store.js'
+import {
+  branchSession,
+  continueReply,
+  editAssistantAsVersion,
+  regenerateReply,
+} from '../../services/chat/store.js'
+import { showToast } from '../base/toastState.js'
+import { TextEditPage } from '../base/TextEditPage.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import type { AssistantMessage as AssistantMessageType } from '../../services/chat/types.js'
 import { openSettings } from '../settings/settingsDialogState.js'
@@ -47,7 +59,9 @@ export const AssistantMessage = memo(function AssistantMessage({
 }) {
   const t = useTranslate()
   const showUsage = useSettings((state) => state.showMessageUsage)
+  const aiBubble = useSettings((state) => state.aiBubble)
   const view = useReplyView(message, streaming)
+  const [editing, setEditing] = useState(false)
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
   // 安全拒绝：已下发的思考与正文按协议丢弃，只显示模板答复。
@@ -70,14 +84,16 @@ export const AssistantMessage = memo(function AssistantMessage({
         />
       )}
       {answer ? (
-        <Markdown
-          className="ds-assistant-message-main-content"
-          content={answer.markdown}
-          loading={streaming}
-          cacheKey={message.id}
-          disableLink={false}
-          sources={view.sources}
-        />
+        <div className={aiBubble ? styles.bubble : undefined}>
+          <Markdown
+            className="ds-assistant-message-main-content"
+            content={answer.markdown}
+            loading={streaming}
+            cacheKey={message.id}
+            disableLink={false}
+            sources={view.sources}
+          />
+        </div>
       ) : null}
       {waiting ? (
         <div className={styles.waiting}>
@@ -159,6 +175,25 @@ export const AssistantMessage = memo(function AssistantMessage({
               <ReadAloudButton messageId={message.id} text={responseText} />
             ) : null}
             <IconButton
+              icon={<IconBranchOutline16 />}
+              tooltip={t('branchFromHere')}
+              tooltipPlacement="bottom"
+              disabled={busy || streaming}
+              onClick={() => {
+                const id = branchSession(sessionId, message.id)
+                if (id) {
+                  showToast(t('branchCreated'))
+                }
+              }}
+            />
+            <IconButton
+              icon={<IconEditOutline16 />}
+              tooltip={t('editReply')}
+              tooltipPlacement="bottom"
+              disabled={busy || streaming || refused}
+              onClick={() => setEditing(true)}
+            />
+            <IconButton
               icon={<IconRefreshOutline16 />}
               tooltip={t('regenerate')}
               tooltipPlacement="bottom"
@@ -169,7 +204,30 @@ export const AssistantMessage = memo(function AssistantMessage({
               }}
             />
           </div>
-          {isLast && canContinueReply(message) ? (
+          {editing ? (
+        <TextEditPage
+          title={t('editReplyTitle')}
+          initial={answer?.text ?? ''}
+          secondaryLabel={t('saveAndSend')}
+          onSecondary={(next) => {
+            const id = editAssistantAsVersion(sessionId, message.id, next)
+            if (id) {
+              showToast(t('editReplySent'))
+              stopReadAloud()
+              continueReply(sessionId, id)
+            }
+            setEditing(false)
+          }}
+          onSave={(next) => {
+            if (editAssistantAsVersion(sessionId, message.id, next)) {
+              showToast(t('editReplySaved'))
+            }
+            setEditing(false)
+          }}
+          onClose={() => setEditing(false)}
+        />
+      ) : null}
+      {isLast && canContinueReply(message) ? (
             <Button
               variant="outlined"
               size="s"

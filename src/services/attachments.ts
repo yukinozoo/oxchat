@@ -5,8 +5,10 @@ import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api
 import type { FilePurpose } from './api/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
 import { extractDocumentText, isExtractableDocument } from './documents/extract.js'
-import { truncateToBudget } from './documents/budget.js'
+import { documentBudgetFor, truncateToBudget } from './documents/budget.js'
 import { useSettings } from './settings.js'
+import { modelCaps } from './modelCaps.js'
+import { saveFileExcerpt } from './chat/fileText.js'
 
 /** 允许上传的扩展名，按扩展名白名单过滤，清单见 uploadExts.ts */
 export const ACCEPTED_EXTS = ACCEPT_FILE_EXTS
@@ -65,6 +67,7 @@ export const validateFiles = (files: File[], currentCount: number): TranslationM
  * 服务端原文多为英文且较长，不直接展示。
  */
 export const describeUploadError = (error: unknown): TranslationMessage => {
+  const info = getUploadErrorInfo(error)
   // 图片解码失败/格式不支持：不是网络问题，重试也不会成功
   if (error instanceof Error && error.message === 'unsupported image') {
     return { key: 'uploadUnsupportedImage' }
@@ -72,10 +75,33 @@ export const describeUploadError = (error: unknown): TranslationMessage => {
   if (classifyApiError(error) === 'serverBusy') {
     return { key: 'uploadServerBusy' }
   }
-  if (getUploadErrorInfo(error)?.code === 'parseFailed') {
+  // 配额类 400 以前会落进最后的「上传失败」，用户看不出该删文件还是等配额
+  if (info?.code === 'fileCountLimit') {
+    return { key: 'uploadFileCountLimitHint', params: { limit: info.limit ?? '' } }
+  }
+  if (info?.code === 'storageLimit') {
+    return { key: 'uploadStorageLimitHint', params: { limit: info.limit ?? '' } }
+  }
+  if (info?.code === 'parseFailed') {
     return { key: 'uploadParseFailed' }
   }
   return { key: 'uploadFileStatusFailed' }
+}
+
+/**
+ * 不可重试的上传错误：配额（文件数/存储空间）、格式/解析拒绝、鉴权与参数错误这一类，
+ * 再试一次也不会变好。供历史附件补传做「一次性跳过」，避免每次发送都重传同一批必然失败的文件。
+ */
+export const isNonRetryableUploadError = (error: unknown): boolean => {
+  if (getUploadErrorInfo(error) !== null) {
+    return true
+  }
+  return !isRetryableApiError(error)
+}
+
+/** 上传选项：`silent` 用于历史/导入附件的补传，失败不写全局任务态、不弹配额提示 */
+export type UploadOptions = {
+  silent?: boolean
 }
 
 type NoticeListener = (notice: LinkedMessage) => void
@@ -198,10 +224,16 @@ const enqueueUpload = (
             : new File([prepared.blob], prepared.name, { type: prepared.blob.type })
         // 文档类先本地抽文本：能截断、能告知比例，超大文件也不会把服务端解析撑爆
         let purpose = getUploadPurpose(prepared.name, isImage)
+        /** 给压缩摘要留的正文片段（原文本地留一段，压缩时拼进转录） */
+        let excerpt: string | null = null
         if (!isImage && isExtractableDocument(prepared.name)) {
           const text = await extractDocumentText(prepared.name, body)
           if (text) {
-            const budget = useSettings.getState().documentBudget
+            excerpt = text
+            const budget = documentBudgetFor(
+              useSettings.getState().contextWindow,
+              modelCaps(useSettings.getState().model).inputLimit
+            )
             const { text: kept, ratio } = truncateToBudget(text, budget)
             if (ratio < 1) {
               const notice: LinkedMessage = {
@@ -217,7 +249,11 @@ const enqueueUpload = (
             purpose = 'user_data'
           }
         }
-        resolve((await uploadFile(apiKey, body, purpose, signal)).id)
+        const uploaded = await uploadFile(apiKey, body, purpose, signal)
+        if (excerpt) {
+          void saveFileExcerpt(uploaded.id, excerpt)
+        }
+        resolve(uploaded.id)
       } catch (error) {
         reject(error)
       }
@@ -254,8 +290,10 @@ export const uploadAttachment = (
   id: string,
   blob: Blob,
   name: string,
-  isImage: boolean
+  isImage: boolean,
+  options: UploadOptions = {}
 ): Promise<string> => {
+  const silent = options.silent === true
   const current = pending.get(id)
   if (current) {
     return current.promise
@@ -268,7 +306,8 @@ export const uploadAttachment = (
       return serverId
     })
     .catch((error: unknown) => {
-      if (controller.signal.aborted) {
+      // 静默补传（历史/导入附件）失败只清掉「上传中」，不把旧消息标成「上传失败」、也不弹配额提示
+      if (controller.signal.aborted || silent) {
         setTask(id, null)
       } else {
         setTask(id, {

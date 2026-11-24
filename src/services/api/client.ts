@@ -1,6 +1,10 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
+import { safeTruncate } from '../../utils/safeText.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
+import { streamOpenAiChat } from './openaiAdapter.js'
+import { channelById } from '../channels.js'
+import { useSettings } from '../settings.js'
 import type {
   ApiErrorBody,
   CreateMessageRequest,
@@ -53,6 +57,49 @@ const isErrorBody = (value: unknown): value is ApiErrorBody =>
   'error' in value &&
   typeof (value as ApiErrorBody).error?.message === 'string'
 
+/** 错误正文里的信息最多展示这么多字：网关偶尔回一整页 HTML，原样塞进气泡会糊满屏 */
+const ERROR_TEXT_LIMIT = 300
+
+/** 网关/代理回的是网页而不是 JSON：取出标题当提示，比贴一整页标签有用 */
+const gatewayTitle = (text: string): string | null => {
+  if (!/^\s*<(?:!doctype|html)/i.test(text)) {
+    return null
+  }
+  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text)?.[1]?.trim()
+  return title || 'unexpected HTML response'
+}
+
+/** 兼容 FastAPI 风格的 `detail`：可能是字符串，也可能是 `[{ msg }]` 数组 */
+const detailMessage = (body: unknown): string | null => {
+  if (typeof body !== 'object' || body === null || !('detail' in body)) {
+    return null
+  }
+  const detail = (body as { detail: unknown }).detail
+  if (typeof detail === 'string') {
+    return detail
+  }
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) =>
+        typeof item === 'string'
+          ? item
+          : typeof item === 'object' && item && 'msg' in item
+            ? String((item as { msg: unknown }).msg)
+            : ''
+      )
+      .filter(Boolean)
+    return parts.length > 0 ? parts.join('; ') : null
+  }
+  return null
+}
+
+/**
+ * 解析失败响应。
+ *
+ * 依次尝试：`error.message` → `detail`（字符串或数组）→ 顶层 `message` → 原文。
+ * 网页响应（网关拦截、登录页、代理错误页）取 `<title>`，避免把整页 HTML 塞进聊天。
+ * 结果统一截到 300 字，长正文只留开头。
+ */
 const readErrorResponse = async (
   response: Response,
   kind: 'http' | 'protocol' = 'http',
@@ -60,15 +107,31 @@ const readErrorResponse = async (
 ): Promise<ApiError> => {
   const text = await response.text().catch(() => '')
   let message = text || fallback
-  try {
-    const body: unknown = JSON.parse(text)
-    if (isErrorBody(body)) {
-      message = body.error.message
+  const html = gatewayTitle(text)
+  if (html) {
+    message = html
+  } else {
+    try {
+      const body: unknown = JSON.parse(text)
+      if (isErrorBody(body)) {
+        message = body.error.message
+      } else {
+        const detail = detailMessage(body)
+        const top =
+          typeof body === 'object' && body !== null && 'message' in body
+            ? (body as { message: unknown }).message
+            : null
+        if (detail) {
+          message = detail
+        } else if (typeof top === 'string' && top) {
+          message = top
+        }
+      }
+    } catch {
+      // 非 JSON 响应体直接展示原文
     }
-  } catch {
-    // 非 JSON 响应体直接展示原文
   }
-  return new ApiError(kind, message, response.status)
+  return new ApiError(kind, safeTruncate(message, ERROR_TEXT_LIMIT), response.status)
 }
 
 export const request = async (url: string, init: RequestInit): Promise<Response> => {
@@ -144,6 +207,37 @@ export const fetchBalance = async (
   }
 }
 
+/** 按指定渠道拉模型列表（模型选择器展开某个渠道时用） */
+export const fetchModelsForChannel = async (
+  channel: { baseUrl: string; apiKey: string },
+  signal?: AbortSignal
+): Promise<string[]> => {
+  const origin = channel.baseUrl.replace(/\/+$/, '')
+  const response = await request(`${origin}/models`, {
+    method: 'GET',
+    headers: authHeaders(channel.apiKey),
+    signal,
+  })
+  const body: unknown = await response.json()
+  const ids = new Set<string>()
+  const push = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) {
+      ids.add(value.trim())
+    }
+  }
+  const record = body as { data?: unknown; models?: unknown }
+  if (Array.isArray(record.data)) {
+    for (const item of record.data) {
+      push((item as { id?: unknown })?.id)
+    }
+  }
+  if (Array.isArray(record.models)) {
+    record.models.forEach(push)
+  }
+  return [...ids]
+}
+
+/** 官方（DeepSeek）模型列表；自定义渠道用 fetchModelsForChannel */
 export const fetchModels = async (apiKey: string, signal?: AbortSignal): Promise<string[]> => {
   const response = await request(`${API_ORIGIN}/models`, {
     method: 'GET',
@@ -226,10 +320,46 @@ export async function* streamMessage(
   body: CreateMessageRequest,
   signal: AbortSignal
 ): AsyncGenerator<MessageStreamEvent> {
-  const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
+  /**
+   * 渠道分流：
+   * - deepseek：走官方 Anthropic 兼容端点（原样）；
+   * - 自定义 openai：交给适配层翻译成同一套事件；
+   * - 自定义 anthropic：用同一个路径拼渠道地址即可；
+   * - responses：暂不支持，直接报错而不是发一个对方不认识的结构。
+   */
+  const channel = channelById(useSettings.getState().activeChannel)
+  const channelKey = channel.id === 'deepseek' ? apiKey : channel.apiKey || apiKey
+  if (channel.id !== 'deepseek') {
+    if (channel.protocol === 'openai') {
+      // 思考强度映射到 OpenAI 的 reasoning_effort；关掉就不传（避免对方 400）
+      // 档位：off / low / mid / high → OpenAI 的 reasoning_effort（low / medium / high）
+      const depth = useSettings.getState().thinkingDepth
+      const effort =
+        depth === 'off' ? undefined : depth === 'low' ? 'low' : depth === 'mid' ? 'medium' : 'high'
+      yield* streamOpenAiChat({
+        baseUrl: channel.baseUrl,
+        apiKey: channelKey,
+        body,
+        signal,
+        ...(effort ? { reasoningEffort: effort } : {}),
+      })
+      return
+    }
+    if (channel.protocol === 'responses') {
+      throw new ApiError('protocol', 'Responses 协议暂不支持，请改用 OpenAI 兼容或 Anthropic')
+    }
+    if (!channel.baseUrl.trim()) {
+      throw new ApiError('protocol', '这个渠道还没填 Base URL')
+    }
+  }
+  const messagesUrl =
+    channel.id === 'deepseek'
+      ? `${ANTHROPIC_BASE_URL}/messages`
+      : `${channel.baseUrl.replace(/\/+$/, '')}/messages`
+  const response = await request(messagesUrl, {
     method: 'POST',
     headers: {
-      ...anthropicHeaders(apiKey, hasFile(body)),
+      ...anthropicHeaders(channelKey, hasFile(body)),
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     },

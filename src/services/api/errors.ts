@@ -6,6 +6,10 @@ import { ApiError } from './client.js'
  */
 export type ApiErrorCondition =
   | 'unauthorized'
+  | 'forbidden'
+  | 'badRequest'
+  | 'notFound'
+  | 'methodNotAllowed'
   | 'insufficientBalance'
   | 'tooLarge'
   | 'rateLimited'
@@ -13,13 +17,30 @@ export type ApiErrorCondition =
   | 'network'
   | 'other'
 
-/** 按 HTTP 状态码归类；没有状态码（请求没到达服务端）时按网络问题处理 */
+/**
+ * 按 HTTP 状态码归类；没有状态码（请求没到达服务端）时按网络问题处理。
+ *
+ * 400/403/404/405 以前都落进 `other`，界面只能显示服务端原文（常常是一大段英文），
+ * 现在单独分类，好让调用方给「输入过长 / Key 权限 / 地址不对 / 网关拦路」各自的话术。
+ */
 export const classifyStatus = (status: number | undefined): ApiErrorCondition => {
+  if (status === 400) {
+    return 'badRequest'
+  }
   if (status === 401) {
     return 'unauthorized'
   }
   if (status === 402) {
     return 'insufficientBalance'
+  }
+  if (status === 403) {
+    return 'forbidden'
+  }
+  if (status === 404) {
+    return 'notFound'
+  }
+  if (status === 405) {
+    return 'methodNotAllowed'
   }
   if (status === 413) {
     return 'tooLarge'

@@ -1,8 +1,26 @@
 :root {
+  /* 视口单位兜底：老内核（如荣耀/华为自带 WebView，Chromium < 108）不认识 dvh，
+     一旦某个声明里直接写了 100dvh，那条声明会整条失效 → 高度塌成 0 → 白屏。
+     所以默认只给 100vh，dvh 交给下面的 @supports 真检测后再定义。 */
+  --app-vh: 100vh;
+  --app-vw: 100vw;
+  /* 输入框离屏幕底部的固定间距：会话页与欢迎页共用，改这里两处一起变 */
+  --oxchat-composer-gap: 12px;
   --dsw-font-family:
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
     'Open Sans', 'Helvetica Neue', sans-serif;
   font-variant-ligatures: no-contextual;
+}
+
+/*
+ * 注意必须检测真实单位 100dvh。
+ * 写成 @supports (height: var(--app-dvh)) 是没用的：任何支持 CSS 变量的内核都会判定成立，
+ * 老内核反而会进入这条分支、拿到无效值，等于没修。
+ */
+@supports (height: 100dvh) {
+  :root {
+    --app-dvh: 100dvh;
+  }
 }
 
 body {

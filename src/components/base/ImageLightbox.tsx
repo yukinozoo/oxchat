@@ -26,11 +26,15 @@ export const useLightboxEscape = (active: boolean, onClose: () => void) => {
       return
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
+      if (event.key !== 'Escape' || event.defaultPrevented) {
+        return
       }
+      // 图片查看器在弹窗之上打开时，一次 Esc 不能把下面的设置弹窗也关掉：
+      // 用捕获阶段先吃掉这一次事件（弹窗的监听在冒泡阶段，收不到）。
+      event.stopPropagation()
+      onClose()
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [active, onClose])
 }

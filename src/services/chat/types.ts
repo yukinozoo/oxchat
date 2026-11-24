@@ -114,12 +114,20 @@ export type AssistantMessage = MessageBranch & {
 
 export type Message = UserMessage | AssistantMessage
 
-/** 长期记忆里的一条笔记；用户改过的（edited）在再次整理时会保留 */
+/** 长期记忆里的一条笔记；用户手写/手改过的（manual）在再次整理时会保留 */
 export type MemoryNote = {
   id: string
   text: string
-  /** 用户手写/手改过，整理时不被新摘要覆盖 */
+  /**
+   * 来源：manual = 用户手写或手改过（整理时原样保留、永不省略）；
+   * summary = 整理时模型生成的（下一次整理会被整体替换）。
+   * 老数据没有该字段，用 `edited: true` 视为 manual。
+   */
+  source?: 'manual' | 'summary'
+  /** 兼容字段：早期版本用它标记「用户改过」 */
   edited?: boolean
+  /** 停用：写了但这次不注入（不删，随时能开回来） */
+  disabled?: boolean
   createdAt: number
 }
 
@@ -127,12 +135,33 @@ export type MemoryNote = {
  * 会话的长期记忆：把早期的对话折叠成一组可读笔记。
  * 被折叠的消息仍留在会话里（可回看、可恢复），只是不再进入请求上下文。
  */
+/**
+ * 独立资料记忆：整理附件轮次时提炼出的资料摘要。
+ *
+ * 与 notes 的区别：notes 是覆盖式的（下次整理整体替换），这份单独存、单独注入，
+ * 删除或改长都由用户决定；不存原文，只存提炼后的摘要。
+ */
+export type AttachmentMemory = {
+  id: string
+  /** 附件原文件名（注入时标在摘要前面） */
+  name: string
+  /** 提炼出的核心资料摘要（一般 300~800 字） */
+  summary: string
+  /** 对应的本地附件 id，用于去重（同一份文件只提炼一次） */
+  fileId?: string
+  createdAt: number
+}
+
 export type SessionMemory = {
   notes: MemoryNote[]
+  /** 独立资料记忆；缺省表示这份会话还没提炼过附件 */
+  attachments?: AttachmentMemory[]
   /** 已折叠、不再进入上下文的消息 id */
   foldedIds: string[]
   /** 已折叠的轮次数，仅用于展示 */
   foldedRounds: number
+  /** 本会话的整理要求（用户自定义，例如「只保留技术细节」）；随摘要请求一起发 */
+  instruction?: string
   updatedAt: number
 }
 
@@ -149,6 +178,12 @@ export type Session = {
   pinned?: boolean
   /** 长期记忆（折叠 + 笔记）；没有则视为未整理过 */
   memory?: SessionMemory
+  /** 本会话的自动压缩开关；缺省时跟随全局默认（设置里的旧开关值） */
+  autoCompact?: boolean
+  /** 本会话使用的角色 id（见 chat/characters.ts）；缺省时跟随默认角色 */
+  characterId?: string
+  /** 本会话用第几条开场白（角色卡 greetings 的下标）；缺省按第 0 条 */
+  greetingIndex?: number
 }
 
 /** 会话列表元数据；消息只在打开会话时加载。 */

@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   background: var(--dsw-alias-bg-base, #fff);
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--oxchat-safe-top);
 }
 
 .topBar {
@@ -159,6 +159,48 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 8px 4px;
+}
+
+.groupTitle {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.groupCount {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-subtle);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* 命中高亮：强调色浅底，暗色模式自动反色 */
+.mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: var(--oxchat-accent-mark, rgba(57, 100, 254, 0.22));
+  color: inherit;
+}
+
+.snippetMuted {
+  display: block;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);

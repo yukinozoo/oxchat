@@ -60,10 +60,32 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/*
+ * 弹窗里的滑杆（裁剪缩放等）：横滑必须归滑杆自己，不能被页面滚动或 WebView 的
+ * 触摸手势抢走，否则手机上按下去拖不动（配合 Modal.tsx 的指针接管）。
+ */
+.content :global(input[type='range']) {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .footer {
   display: flex;
   flex-shrink: 0;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+/* 系统开启「减少透明度」：不模糊，遮罩用更实的黑 */
+@media (prefers-reduced-transparency: reduce) {
+  .overlay {
+    backdrop-filter: none;
+    background-color: rgba(0, 0, 0, 0.55);
+  }
+
+  [data-ds-dark-theme] .overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
 }

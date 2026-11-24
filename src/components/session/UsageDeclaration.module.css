@@ -4,7 +4,7 @@
 
 .dialog {
   width: 420px;
-  max-height: calc(100dvh - 48px);
+  max-height: calc(var(--app-dvh, 100vh) - 48px);
 }
 
 .main {

@@ -22,6 +22,8 @@ import {
   useSettings,
 } from '../../services/settings.js'
 import { Button } from '../base/Button.js'
+import { nativeFileStat, nativeFilesAvailable } from '../../services/chat/nativeFiles.js'
+import { setFileStore } from '../../services/settings.js'
 import { showToast } from '../base/toastState.js'
 import styles from './BackupSettings.module.css'
 
@@ -58,11 +60,25 @@ export const BackupSettings = () => {
   const lastSync = useSettings((state) => state.giteeLastSync)
   const autoSync = useSettings((state) => state.giteeAutoSync)
   const autoPull = useSettings((state) => state.giteeAutoPull)
+  const fileStore = useSettings((state) => state.fileStore)
+  /** 原生目录里附件占了多少（只在安卓壳里有值） */
+  const [nativeStat, setNativeStat] = useState<{ count: number; bytes: number } | null>(null)
+  const nativeFiles = nativeFilesAvailable()
+
+  useEffect(() => {
+    if (!nativeFiles) {
+      return
+    }
+    void nativeFileStat().then(setNativeStat)
+  }, [nativeFiles])
   const [ownerDraft, setOwnerDraft] = useState(owner)
   const [repoDraft, setRepoDraft] = useState(repo)
   const [tokenDraft, setTokenDraft] = useState(token)
   const [busy, setBusy] = useState<'push' | 'pull' | null>(null)
   const [log, setLog] = useState<GiteeLogEntry[]>(() => loadGiteeLog())
+  /** 日志筛选：全部 / 只上传 / 只拉取 / 只自动备份 */
+  const [logFilter, setLogFilter] = useState<'all' | GiteeLogEntry['action']>('all')
+  const visibleLog = logFilter === 'all' ? log : log.filter((entry) => entry.action === logFilter)
 
   // 加密存储里的令牌是异步补读的：读到之后回填输入框
   useEffect(() => {
@@ -249,11 +265,35 @@ export const BackupSettings = () => {
             </button>
           ) : null}
         </div>
+        <div className={styles.logFilters} role="radiogroup" aria-label={t('backupLogTitle')}>
+            {(
+              [
+                ['all', 'backupLogAll'],
+                ['upload', 'backupLogUpload'],
+                ['download', 'backupLogDownload'],
+                ['auto', 'backupLogAuto'],
+              ] as const
+            ).map(([value, key]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={logFilter === value}
+                disabled={log.length === 0}
+                className={logFilter === value ? styles.logFilterActive : styles.logFilter}
+                onClick={() => setLogFilter(value)}
+              >
+                {t(key)}
+              </button>
+            ))}
+        </div>
         {log.length === 0 ? (
           <p className={styles.status}>{t('backupLogEmpty')}</p>
+        ) : visibleLog.length === 0 ? (
+          <p className={styles.status}>{t('backupLogFilterEmpty')}</p>
         ) : (
           <ul className={styles.logList}>
-            {log.map((entry) => (
+            {visibleLog.map((entry) => (
               <li key={`${entry.at}-${entry.action}`} className={styles.logItem}>
                 <span className={entry.ok ? styles.logOk : styles.logFail}>
                   {t(
@@ -273,6 +313,43 @@ export const BackupSettings = () => {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+      <div className={styles.logSection}>
+        <div className={styles.logHead}>
+          <span className={styles.logTitle}>{t('fileStoreTitle')}</span>
+        </div>
+        {nativeFiles ? (
+          <>
+            <p className={styles.status}>
+              {t('fileStoreUsage', {
+                count: nativeStat?.count ?? 0,
+                size: formatSize(nativeStat?.bytes ?? 0),
+              })}
+            </p>
+            <div className={styles.logFilters}>
+              {(
+                [
+                  ['native', 'fileStoreNative'],
+                  ['idb', 'fileStoreIdb'],
+                ] as const
+              ).map(([value, key]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={fileStore === value}
+                  className={fileStore === value ? styles.logFilterActive : styles.logFilter}
+                  onClick={() => setFileStore(value)}
+                >
+                  {t(key)}
+                </button>
+              ))}
+            </div>
+            <p className={styles.status}>{t('fileStoreHint')}</p>
+          </>
+        ) : (
+          <p className={styles.status}>{t('fileStoreWebOnly')}</p>
         )}
       </div>
       <p className={styles.risk}>{t('backupTokenRisk')}</p>

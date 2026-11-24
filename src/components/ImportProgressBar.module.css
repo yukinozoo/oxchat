@@ -5,7 +5,7 @@
   right: 0;
   left: 0;
   z-index: 60;
-  padding: calc(env(safe-area-inset-top, 0px)) 12px 0;
+  padding: calc(var(--oxchat-safe-top)) 12px 0;
   background: var(--dsw-alias-bg-elevated, rgba(0, 0, 0, 0.02));
   backdrop-filter: blur(8px);
   pointer-events: none;
@@ -66,4 +66,12 @@
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+}
+
+/* 减少透明度：进度条用实底，避免半透明叠在内容上看不清 */
+@media (prefers-reduced-transparency: reduce) {
+  .wrap {
+    backdrop-filter: none;
+    background: var(--dsw-alias-bg-base, #fff);
+  }
 }

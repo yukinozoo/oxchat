@@ -1,5 +1,9 @@
 import { useIsMobile } from '../../app/viewport.js'
+import { useEffect, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
+import { characterById, defaultCharacterId } from '../../services/chat/characters.js'
+import { hasUsableChannel } from '../../services/channels.js'
+import { readGreetingDraft, writeGreetingDraft } from '../../services/chat/greetingDraft.js'
 import { useSettings } from '../../services/settings.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
 import { openSettings } from '../settings/settingsDialogState.js'
@@ -8,15 +12,30 @@ import { MobileHeader } from './MobileHeader.js'
 import { setSiderCollapsed } from '../../services/settings.js'
 import { IconButton } from '../base/IconButton.js'
 import { IconMenuOutline20, IconNewChatOutline20 } from '../base/icons.js'
+import { CharacterButton } from './CharacterPicker.js'
 import styles from './Welcome.module.css'
 import whaleUrl from '../../assets/whale-alpha.png'
 
 /** 新对话：问候语 + 输入框。桌面端居中；移动端输入框吸底 */
 export const Welcome = () => {
   const t = useTranslate()
+  const [greetingIndex, setGreetingIndex] = useState(0)
+  // 新对话用哪张卡：顶栏胶囊改了默认角色后，这里的预览也跟着变
+  const character = characterById(defaultCharacterId())
+  const greetings = character?.greetings ?? []
+  const total = greetings.length
+  const active = total > 0 ? greetingIndex % total : 0
+  const greetingText = total > 0 ? (greetings[active] ?? '').trim() : ''
   const isMobile = useIsMobile()
   // 未填写 API Key 时在输入框上方给出明确的登录入口
-  const needsApiKey = !useSettings((state) => state.apiKey)
+  // 有官方 Key 或有可用的自定义渠道，都算「能开聊」，不再催填 Key
+  const needsApiKey = !hasUsableChannel(useSettings((state) => state.apiKey))
+  const characterId = character?.id
+  useEffect(() => {
+    if (characterId) {
+      setGreetingIndex(readGreetingDraft(characterId))
+    }
+  }, [characterId])
   return (
     <div className={styles.container}>
       {isMobile ? (
@@ -32,6 +51,7 @@ export const Welcome = () => {
             onClick={() => setSiderCollapsed(false)}
           />
           <div className={styles.appTitle}>{t('appName')}</div>
+          <CharacterButton sessionId={null} />
           <IconButton
             size="xl"
             tone="primary"
@@ -56,6 +76,31 @@ export const Welcome = () => {
           />
           <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
         </div>
+        {greetingText ? (
+          <div className={styles.greetingCard}>
+            <div className={styles.greetingMeta}>
+              <span>
+                {t('welcomeGreetingLabel', { index: active + 1, total })}
+              </span>
+              {total > 1 ? (
+                <button
+                  type="button"
+                  className={styles.greetingNext}
+                  onClick={() => {
+                    const next = (active + 1) % total
+                    setGreetingIndex(next)
+                    if (character) {
+                      writeGreetingDraft(character.id, next)
+                    }
+                  }}
+                >
+                  {t('welcomeGreetingNext')}
+                </button>
+              ) : null}
+            </div>
+            <p className={styles.greetingText}>{greetingText}</p>
+          </div>
+        ) : null}
         {needsApiKey ? (
           <button
             type="button"

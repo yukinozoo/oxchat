@@ -5,8 +5,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
-    calc(env(safe-area-inset-bottom, 0px) + 16px);
+  padding: calc(var(--oxchat-safe-top) + 16px) 16px
+    calc(var(--oxchat-safe-bottom) + 16px);
   background: rgb(0 0 0 / 88%);
   cursor: zoom-out;
 }

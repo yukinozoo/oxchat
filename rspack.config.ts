@@ -5,7 +5,7 @@ import { defineConfig } from '@rspack/cli'
 import { rspack, type Configuration } from '@rspack/core'
 
 const dev = process.env.NODE_ENV !== 'production'
-const targets = ['chrome >= 90', 'edge >= 90', 'safari >= 15', 'firefox >= 102']
+const targets = ['chrome >= 87', 'edge >= 87', 'safari >= 15', 'firefox >= 102']
 const root = path.dirname(fileURLToPath(import.meta.url))
 /**
  * 版本号来源：优先 src/update.json（每次发布由 make-update.mjs 写入，与 APK 同步），

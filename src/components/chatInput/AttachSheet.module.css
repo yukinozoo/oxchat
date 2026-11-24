@@ -11,7 +11,7 @@
 
 .sheet {
   box-sizing: border-box;
-  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 12px 12px calc(12px + var(--oxchat-safe-bottom));
   border-radius: 20px 20px 0 0;
   background: var(--dsw-alias-bg-base);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
