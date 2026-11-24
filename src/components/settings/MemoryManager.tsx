@@ -33,6 +33,8 @@ type Row = {
   foldedRounds: number
   /** 这条会话还没有记忆（没压过）：也能点进去加第一条手写笔记 */
   hasMemory: boolean
+  /** 独立资料记忆条数：只有资料记忆、没有笔记时也能说清状态 */
+  attachments: number
   /** 笔记总字数（注入时按 24,000 字封顶，这里给个直观数字） */
   chars: number
   /** 标题 + 全部笔记正文，供搜索用 */
@@ -51,6 +53,8 @@ export const MemoryManager = () => {
   const [pickKeyword, setPickKeyword] = useState('')
   /** 会话筛选：全部 / 只看手写 / 只看压缩 */
   const [kind, setKind] = useState<'all' | 'manual' | 'summary'>('all')
+  /** 默认只列「有记忆」的会话；打开后把没有记忆的对话也列出来，方便直接挑一条去写笔记 */
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -70,20 +74,17 @@ export const MemoryManager = () => {
           const digest = (memory?.notes.length ?? 0) - manual
           const title = summary.title || t('untitledChat')
           const chars = memory?.notes.reduce((sum, note) => sum + note.text.length, 0) ?? 0
-          if (!memory) {
-            // 没记忆的会话不进列表：新增记忆走右上角「新增」→ 选对话
-            continue
-          }
           found.push({
             id: summary.id,
             title,
-            updatedAt: memory.updatedAt || summary.updatedAt,
+            updatedAt: memory?.updatedAt || summary.updatedAt,
             manual,
             summary: digest,
-            foldedRounds: memory.foldedRounds,
+            foldedRounds: memory?.foldedRounds ?? 0,
             chars,
-            hasMemory: true,
-            haystack: `${title}\n${memory.notes.map((note) => note.text).join('\n')}`,
+            attachments: memory?.attachments?.length ?? 0,
+            hasMemory: Boolean(memory),
+            haystack: `${title}\n${(memory?.notes ?? []).map((note) => note.text).join('\n')}`,
           })
         }
         if ((index + 1) % 20 === 0) {
@@ -119,10 +120,12 @@ export const MemoryManager = () => {
     [rows]
   )
 
+  const withMemory = rows.filter((row) => row.hasMemory)
+  const visible = showAll ? rows : withMemory
   const byKind =
     kind === 'all'
-      ? rows
-      : rows.filter((row) => (kind === 'manual' ? row.manual > 0 : row.summary > 0))
+      ? visible
+      : visible.filter((row) => (kind === 'manual' ? row.manual > 0 : row.summary > 0))
   const filtered = keyword.trim()
     ? byKind.filter((row) => row.haystack.toLowerCase().includes(keyword.trim().toLowerCase()))
     : byKind
@@ -163,11 +166,23 @@ export const MemoryManager = () => {
           <div className={styles.summaryRow}>
             <p className={styles.summary}>
               {t('memoryManageSummary', {
-                sessions: rows.length,
+                sessions: withMemory.length,
                 manual: totals.manual,
                 summary: totals.summary,
                 rounds: totals.folded,
               })}
+              {rows.length !== withMemory.length ? (
+                <button
+                  type="button"
+                  className={styles.summaryToggle}
+                  aria-pressed={showAll}
+                  onClick={() => setShowAll((value) => !value)}
+                >
+                  {showAll
+                    ? t('memoryManageOnlyWithMemory', { count: withMemory.length })
+                    : t('memoryManageShowAll', { count: rows.length })}
+                </button>
+              ) : null}
             </p>
             <button type="button" className={styles.addEntry} onClick={() => setPicking(true)}>
               ＋ {t('memoryAddEntry')}
@@ -199,7 +214,7 @@ export const MemoryManager = () => {
           {t('memoryManageScanning', { done: progress.done, total: progress.total })}
         </p>
       ) : null}
-      {!scanning && rows.length === 0 ? (
+      {!scanning && withMemory.length === 0 && !showAll ? (
         <p className={styles.status}>{t('memoryManageEmpty')}</p>
       ) : null}
       {!scanning && rows.length > 0 && filtered.length === 0 ? (
@@ -215,7 +230,11 @@ export const MemoryManager = () => {
                   ? t('memoryManageNoMemory')
                   : row.manual + row.summary > 0
                     ? t('memoryManageCount', { manual: row.manual, summary: row.summary })
-                    : t('memoryManageNoNotes')}
+                    : row.attachments > 0
+                      ? t('memoryManageOnlyAttachments', { count: row.attachments })
+                      : row.foldedRounds > 0
+                        ? t('memoryManageNoNotes')
+                        : t('memoryManageEmptyMemory')}
                 {row.foldedRounds > 0
                   ? ` · ${t('memoryManageFolded', { rounds: row.foldedRounds })}`
                   : ''}

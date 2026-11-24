@@ -15,6 +15,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 99,
+    versionName: '0.1.99',
+    date: '2026-11-25',
+    items: [
+      '记忆管理可以「显示全部对话」：没有记忆的对话也能直接挑一条开始写笔记',
+      '修正「只有资料记忆」时行的状态文案（之前会误写「只折叠过消息」）',
+    ],
+  },
+  {
     versionCode: 98,
     versionName: '0.1.98',
     date: '2026-11-25',
