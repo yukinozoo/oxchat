@@ -22,12 +22,29 @@ export const safeMatchMedia = (query: string): MediaQueryList | null => {
   }
 }
 
+/**
+ * 订阅媒体查询变化：iOS 13 及更早只有旧的 `addListener` / `removeListener`，
+ * 没有 `addEventListener`。这里两种都兜住，返回退订函数。
+ */
+export const onMediaChange = (query: MediaQueryList | null, listener: () => void): (() => void) => {
+  if (!query) {
+    return () => {}
+  }
+  if (typeof query.addEventListener === 'function') {
+    query.addEventListener('change', listener)
+    return () => query.removeEventListener('change', listener)
+  }
+  const legacy = query as unknown as {
+    addListener?: (handler: () => void) => void
+    removeListener?: (handler: () => void) => void
+  }
+  legacy.addListener?.(listener)
+  return () => legacy.removeListener?.(listener)
+}
+
 const mobileQuery = safeMatchMedia(MOBILE_QUERY)
 
-const subscribeMobile = (listener: () => void) => {
-  mobileQuery?.addEventListener('change', listener)
-  return () => mobileQuery?.removeEventListener('change', listener)
-}
+const subscribeMobile = (listener: () => void) => onMediaChange(mobileQuery, listener)
 
 /**
  * 手机上把浏览器切到「桌面版网站」时，布局视口会变成 980px 左右，

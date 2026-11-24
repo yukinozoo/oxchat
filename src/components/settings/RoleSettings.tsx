@@ -18,6 +18,7 @@ import { showToast } from '../base/toastState.js'
 import { CharacterAvatar } from '../session/CharacterAvatar.js'
 import { CharacterEditor } from './CharacterEditor.js'
 import styles from './RoleSettings.module.css'
+import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
 /**
  * 角色管理：上面是「我的角色」（只有头像和名字），下面是 AI 角色列表。
@@ -83,7 +84,7 @@ export const RoleSettings = () => {
               <input
                 ref={importRef}
                 type="file"
-                hidden
+                style={HIDDEN_FILE_INPUT_STYLE}
                 accept=".json,application/json"
                 onChange={(event) => {
                   const file = event.target.files?.[0]
@@ -259,7 +260,7 @@ const UserProfileDialog = ({ onClose }: { onClose: () => void }) => {
         <input
           ref={fileRef}
           type="file"
-          hidden
+          style={HIDDEN_FILE_INPUT_STYLE}
           accept="image/*"
           onChange={(event) => {
             void pickAvatar(event.target.files?.[0])

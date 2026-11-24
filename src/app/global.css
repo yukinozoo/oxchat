@@ -17,6 +17,19 @@
   }
 }
 
+/*
+ * iOS Safari：输入框字号小于 16px 时，聚焦会自动放大整个页面（页面「跳一下」且回不来）。
+ * 只在 iOS 上把表单控件的字号托到 16px 起；小屏 App 里视觉差异很小，但不会再缩放。
+ * 用 max() 而不是写死，跟随「设置 → 字体大小」放大的情况不受影响。
+ */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='range']):not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 body {
   overflow: hidden;
   margin: 0;

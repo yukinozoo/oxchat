@@ -107,6 +107,7 @@ import { ScrollPane } from '../base/ScrollPane.js'
 import { logoutWebsite, websiteImportAvailable } from '../../services/chat/websiteImport.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
+import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -1130,7 +1131,7 @@ const ImportHistory = ({
             ref={inputRef}
             type="file"
             accept=".zip,application/zip,application/x-zip-compressed"
-            hidden
+            style={HIDDEN_FILE_INPUT_STYLE}
             onChange={(event) => {
               const picked = event.target.files?.[0]
               event.target.value = ''

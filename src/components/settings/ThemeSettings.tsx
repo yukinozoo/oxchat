@@ -28,6 +28,7 @@ import { showToast } from '../base/toastState.js'
 import { ColorPickerDialog } from './ColorPickerDialog.js'
 import { ImageCropDialog } from './ImageCropDialog.js'
 import styles from './Appearance.module.css'
+import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
 /** 主题色预设：淡紫 / 蓝 / 青 / 绿 / 粉 */
 const ACCENTS: { hex: string; label: TranslationKey }[] = [
@@ -438,7 +439,7 @@ export const ThemeSettings = () => {
               ref={fileRef}
               type="file"
               accept="image/*"
-              hidden
+              style={HIDDEN_FILE_INPUT_STYLE}
               onChange={(event) => void chooseImage(event)}
             />
           </div>

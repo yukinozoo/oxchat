@@ -98,6 +98,8 @@ export const toggleReadAloud = (
   const { apiKey, ttsVoice } = useSettings.getState()
 
   const context = new AudioContext({ sampleRate: TTS_SAMPLE_RATE })
+  // iOS Safari：AudioContext 在异步请求之后常处于 suspended，不显式恢复就是「点了没声音」
+  void context.resume().catch(() => {})
   current = {
     controller,
     stop: () => {

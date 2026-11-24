@@ -47,6 +47,7 @@ import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
 import { insertNewline, resolveEnterAction, useImeGuard } from './enterKey.js'
 import styles from './ChatInput.module.css'
+import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
 /** 持久化存储只申请一次，避免每次发送都打扰浏览器 */
 let persistRequested = false
@@ -402,7 +403,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           <input
             ref={cameraInputRef}
             type="file"
-            hidden
+            style={HIDDEN_FILE_INPUT_STYLE}
             // capture 让 WebView 直接调起相机（Capacitor 只认单独的 image/*）
             accept="image/*"
             capture="environment"
@@ -415,7 +416,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             ref={galleryInputRef}
             type="file"
             multiple
-            hidden
+            style={HIDDEN_FILE_INPUT_STYLE}
             accept="image/*"
             onChange={(event) => {
               acceptFiles(Array.from(event.target.files ?? []))
@@ -426,7 +427,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             ref={fileInputRef}
             type="file"
             multiple
-            hidden
+            style={HIDDEN_FILE_INPUT_STYLE}
             accept={ACCEPT}
             onChange={(event) => {
               acceptFiles(Array.from(event.target.files ?? []))

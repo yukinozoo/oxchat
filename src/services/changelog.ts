@@ -15,6 +15,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 98,
+    versionName: '0.1.98',
+    date: '2026-11-25',
+    items: [
+      '修复 iOS 上点「上传」没反应（隐藏的文件选择框换了 iOS 兼容写法）',
+      '修复 iOS 朗读没声音（音频上下文补 resume）',
+      '修复 iOS 聚焦输入框时整页被放大（表单字号不低于 16px）',
+    ],
+  },
+  {
     versionCode: 97,
     versionName: '0.1.97',
     date: '2026-11-25',

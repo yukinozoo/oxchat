@@ -15,6 +15,7 @@ import { IconChevronRightOutline14 } from '../base/icons.js'
 import { ScrollPane } from '../base/ScrollPane.js'
 import { showToast } from '../base/toastState.js'
 import styles from './CharacterEditor.module.css'
+import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
 /**
  * 新建 / 编辑角色页（整屏）。
@@ -151,7 +152,7 @@ export const CharacterEditor = ({ id, onClose }: { id: string | null; onClose: (
               <input
                 ref={fileRef}
                 type="file"
-                hidden
+                style={HIDDEN_FILE_INPUT_STYLE}
                 accept="image/*"
                 onChange={(event) => {
                   void pickAvatar(event.target.files?.[0])
