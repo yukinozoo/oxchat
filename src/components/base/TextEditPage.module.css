@@ -4,7 +4,7 @@
   align-items: stretch;
   justify-content: stretch;
   padding: 0;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   backdrop-filter: none;
 }
 
@@ -18,7 +18,7 @@
     calc(var(--oxchat-safe-bottom) + 12px);
   border-radius: 0;
   box-shadow: none;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
 }
 
 .panelTitle {

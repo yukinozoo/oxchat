@@ -3,7 +3,7 @@
   align-items: stretch;
   justify-content: stretch;
   padding: 0;
-  background-color: var(--dsw-alias-bg-base);
+  background-color: var(--oxchat-page-base);
   backdrop-filter: none;
 }
 
@@ -17,7 +17,7 @@
     calc(var(--oxchat-safe-bottom) + 12px);
   border-radius: 0;
   box-shadow: none;
-  background-color: var(--dsw-alias-bg-base);
+  background-color: var(--oxchat-page-base);
 }
 
 .panelTitle {
@@ -165,7 +165,7 @@
   padding: 12px 14px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 15px;

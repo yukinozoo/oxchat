@@ -135,6 +135,12 @@ body[data-ds-dark-theme] {
 
 body {
   --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+  /*
+   * 整屏页面（设置子页、记忆/压缩面板、整页编辑器）的底色：**固定**纯白 / 最深，
+   * 不跟「自定义背景色」一起变 —— 否则用户设了背景色以后，设置页会整片偏灰、
+   * 和网页版对不上（2026-11-24 用户反馈）。
+   */
+  --oxchat-page-base: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-bg-subtle: var(--dsw-static-neutral-bluish-60);
   --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
   --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
@@ -189,6 +195,7 @@ body {
 
 body[data-ds-dark-theme] {
   --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+  --oxchat-page-base: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-bg-subtle: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
   --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);

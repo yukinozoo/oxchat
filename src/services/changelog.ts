@@ -15,14 +15,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 96,
+    versionName: '0.1.96',
+    date: '2026-11-24',
+    items: ['修复设置各个子页面背景色'],
+  },
+  {
     versionCode: 95,
     versionName: '0.1.95',
     date: '2026-11-24',
-    items: [
-      '新增角色管理：酒馆 v2 口径的角色卡，可以新建 / 编辑 / 复制，也能导入导出角色卡 JSON',
-      '新增记忆管理：记忆列表与筛选、笔记编辑、独立「资料记忆」（附件里的要点不会再被后续整理冲掉）、注入预览',
-      '大量细节修复与体验打磨：附件补传、配额提示、弹窗滑杆、长标题省略、输入框主题色、状态栏与安全区、导出选项',
-    ],
+    items: ['大量优化', '新增角色管理', '新增记忆管理'],
   },
   {
     versionCode: 94,

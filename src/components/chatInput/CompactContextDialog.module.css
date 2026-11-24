@@ -5,7 +5,7 @@
   align-items: stretch;
   justify-content: stretch;
   padding: 0;
-  background-color: var(--dsw-alias-bg-base);
+  background-color: var(--oxchat-page-base);
   backdrop-filter: none;
 }
 
@@ -20,7 +20,7 @@
     calc(var(--oxchat-safe-bottom) + 12px);
   border-radius: 0;
   box-shadow: none;
-  background-color: var(--dsw-alias-bg-base);
+  background-color: var(--oxchat-page-base);
 }
 
 /* 面板标题比弹窗标题大一号 */
@@ -249,7 +249,7 @@
   padding: 9px 10px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 10px;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 14px;
@@ -372,7 +372,7 @@
   padding: 10px 12px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 14px;

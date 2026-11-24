@@ -631,7 +631,7 @@
   flex-direction: column;
   /* 整页用底色（亮色＝白、暗色＝最深），卡片靠描边区分：
      原来用浅灰底衬白卡，内容少的页面（角色管理）会在上下各露一大片灰 */
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   padding-top: var(--oxchat-safe-top);
   padding-bottom: var(--oxchat-safe-bottom);
 }
@@ -687,7 +687,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   color: var(--dsw-alias-label-secondary);
   transform: translateY(-50%);
   cursor: pointer;
@@ -913,7 +913,7 @@
   padding: 0 12px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-base);
+  background: var(--oxchat-page-base);
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 14px;
