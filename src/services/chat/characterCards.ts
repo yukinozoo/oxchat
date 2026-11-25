@@ -35,6 +35,10 @@ export const characterToCardJson = (character: Character): string => {
     ...(character.style ? { style: character.style } : {}),
     ...(character.rules ? { rules: character.rules } : {}),
     ...(character.avatar ? { avatar: character.avatar } : {}),
+    // 人设延续用的三样：原话样例、剧情时间线、锁定模型
+    ...(character.styleSamples?.length ? { styleSamples: character.styleSamples } : {}),
+    ...(character.timeline ? { timeline: character.timeline } : {}),
+    ...(character.model ? { model: character.model } : {}),
   }
   const data = {
     name: character.name ?? '',
@@ -116,6 +120,18 @@ export const parseCharacterCard = (text: string): { ok: true; patch: CharacterPa
   const avatar = str(oxchat?.avatar)
   if (avatar) {
     patch.avatar = avatar
+  }
+  const samples = strArray(oxchat?.styleSamples).map((item) => item.trim()).filter(Boolean)
+  if (samples.length > 0) {
+    patch.styleSamples = samples
+  }
+  const timeline = str(oxchat?.timeline).trim()
+  if (timeline) {
+    patch.timeline = timeline
+  }
+  const model = str(oxchat?.model).trim()
+  if (model) {
+    patch.model = model
   }
   return { ok: true, patch }
 }

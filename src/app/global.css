@@ -7,6 +7,18 @@
    * 取 max() 避免「两个都有效」时叠加。
    */
   --oxchat-safe-top: max(env(safe-area-inset-top, 0px), var(--oxchat-status-inset, 0px));
+  /*
+   * 软键盘高度：**原生 IME 高度优先**，网页量测只做兜底。
+   *
+   * 试过三种组合，只有这个是稳的：
+   * ① 不补留白 → 键盘直接盖住输入框；
+   * ② 取 max(原生, 网页) → 两个通道各算一次，输入框离键盘多出一大截；
+   * ③ 只用网页量测（innerHeight - visualViewport.height - offsetTop）→ 浏览器为了露出光标
+   *    会把可视区平移，offsetTop 把差值抵掉，量出来是 0，输入框又被盖住。
+   * 原生 `WindowInsets.Type.ime()` 给的是真实键盘高度，不受平移影响。
+   * 原生还没注入过（网页版 / iOS Safari）时，才退回网页量到的值。
+   */
+  --oxchat-keyboard-inset: var(--oxchat-keyboard-native, var(--oxchat-keyboard-web, 0px));
   --oxchat-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--oxchat-nav-inset, 0px));
 }
 
@@ -28,6 +40,16 @@
   select {
     font-size: max(16px, 1em);
   }
+}
+
+/*
+ * 键盘弹出时：底部安全区归零（键盘已经盖住手势条），但**保留常规的 12px 间距** ——
+ * 收成 4px 会贴到键盘上，用户反馈「靠太近」。键盘高度本身由
+ * --oxchat-keyboard-inset 处理，这里只管输入框下面那一点点呼吸位。
+ */
+body[data-keyboard-open='1'] {
+  --oxchat-composer-gap: 14px;
+  --oxchat-safe-bottom: 0px;
 }
 
 body {

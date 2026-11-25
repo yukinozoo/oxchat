@@ -1,0 +1,244 @@
+/* 「接着聊」向导：整屏面板，与记忆/压缩面板同一套外壳 */
+.overlay {
+  z-index: 1300;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--dsw-alias-bg-base);
+  backdrop-filter: none;
+}
+
+.dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: var(--app-dvh, 100vh);
+  max-height: none;
+  padding: calc(var(--oxchat-safe-top) + 14px) 20px calc(var(--oxchat-safe-bottom) + 12px);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--oxchat-page-base);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  /* 内容长了要能滚：不滚会直接从底部按钮底下穿过去（第三步的文字遮挡就是这么来的） */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 底部留一点余量，滚到底时最后一行不会贴着按钮 */
+  padding-bottom: 4px;
+}
+
+.steps {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.step,
+.stepOn {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+}
+
+.stepOn {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-primary);
+}
+
+.lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.search,
+.input,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--oxchat-page-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+}
+
+.search:focus,
+.input:focus,
+.textarea:focus {
+  border-color: var(--dsw-alias-brand-primary);
+  outline: none;
+}
+
+.list {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.row,
+.rowOn {
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.rowOn {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--oxchat-accent-soft);
+}
+
+.rowTitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.rangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip,
+.chipOn {
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chipOn {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-primary);
+}
+
+.estimate,
+.count,
+.progress {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.samples {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sample {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.sample input {
+  margin: 2px 0 0;
+}
+
+.sampleText {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.sampleActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.previewBox {
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.previewTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  margin-bottom: 4px;
+}
+
+.previewText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.footerRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-state-error-primary);
+}

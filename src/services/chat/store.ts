@@ -23,8 +23,14 @@ import {
 import { canCompact, getCompactPlan, KEEP_TOKENS_MANUAL, type CompactScope } from './compact.js'
 import { renderTemplatePrompt, templateById } from './compactTemplates.js'
 import { loadFileExcerpts } from './fileText.js'
+import { effectiveApiKey } from '../apiKey.js'
 import { extractAttachmentMemories, readAttachmentText } from './attachmentMemory.js'
-import { characterById, defaultCharacterId, systemPromptOfSession } from './characters.js'
+import {
+  characterById,
+  characterIdOfSession,
+  defaultCharacterId,
+  systemPromptOfSession,
+} from './characters.js'
 import { readGreetingDraft } from './greetingDraft.js'
 import { appendClockRule, appendClockTime } from './clockTime.js'
 import { buildRequest, EXTENDED_INPUT_LIMIT_TOKENS } from './request.js'
@@ -87,6 +93,16 @@ import {
 
 /** 当前选中的模型（设置里可切换，未设置时用默认值） */
 const currentModel = (): ChatModel => useSettings.getState().model ?? DEFAULT_MODEL
+
+/**
+ * 会话实际该用的模型：角色卡上锁了模型就用角色的（换设备、换角色不用再手动切），
+ * 否则跟随全局设置。只在「新建回答」时取一次，流式过程中不再变。
+ */
+const modelForSession = (sessionId: string): ChatModel => {
+  const session = getSession(sessionId)
+  const locked = session ? characterById(characterIdOfSession(session))?.model : undefined
+  return (locked as ChatModel | undefined) || currentModel()
+}
 
 /** 当前思考强度：深度关掉时不发送该字段 */
 const currentEffort = () => effortOfDepth(useSettings.getState().thinkingDepth)
@@ -380,13 +396,13 @@ const saveBackupSession = async (session: Session): Promise<void> => {
 }
 
 /** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
-const createReply = (): AssistantMessage => {
+const createReply = (sessionId: string): AssistantMessage => {
   const { thinking, search } = useSettings.getState()
   return {
     id: createId(),
     role: 'assistant',
     createdAt: Date.now(),
-    model: currentModel(),
+    model: modelForSession(sessionId),
     thinking,
     search,
     prefix: true,
@@ -869,6 +885,8 @@ export type CompactOptions = {
   verbatimUser?: boolean
   /** true = 不折叠原会话，改成新建一个带摘要与保留原文的会话 */
   createNew?: boolean
+  /** 指定这次用哪个摘要模板（人设延续向导会强制用「角色扮演」）；不传跟随设置 */
+  templateId?: string
 }
 
 type CompactRun = {
@@ -898,7 +916,8 @@ const extractFoldedAttachments = async (
   if (!hasFiles) {
     return undefined
   }
-  const apiKey = useSettings.getState().apiKey ?? ''
+  // 自定义渠道也算：这里只用来发提炼请求，渠道分流在 streamMessage 里
+  const apiKey = effectiveApiKey()
   if (!apiKey) {
     return undefined
   }
@@ -963,7 +982,7 @@ const runCompactSummary = async (
   if (!canCompact(session, range)) {
     return { ok: false, result: { status: 'short' } }
   }
-  const apiKey = useSettings.getState().apiKey ?? ''
+  const apiKey = effectiveApiKey()
   if (!apiKey) {
     return { ok: false, result: { status: 'error', message: translate('apiKeyStart') } }
   }
@@ -1006,7 +1025,10 @@ const runCompactSummary = async (
       limitChars,
       // 「重点留下什么」= 用户自己的追加要求；模板是另一层（完整提示词）
       instruction: session.memory?.instruction,
-      templatePrompt: renderTemplatePrompt(templateById(prefs.compactTemplate).prompt, limitChars),
+      templatePrompt: renderTemplatePrompt(
+        templateById(options.templateId ?? prefs.compactTemplate).prompt,
+        limitChars
+      ),
       excerpts,
       onProgress: setCompactProgress,
       model: options.model || prefs.compactModel || undefined,
@@ -1181,7 +1203,7 @@ export const sendMessage = (targetSessionId: string | null) => {
     })),
     createdAt: now,
   }
-  const reply = createReply()
+  const reply = createReply(sessionId)
   updateSession(sessionId, (session) => ({
     ...appendBranch(session, history.at(-1)?.id ?? null, [question, reply]),
     updatedAt: now,
@@ -1215,7 +1237,7 @@ export const regenerateReply = (sessionId: string, messageId?: string) => {
     return
   }
   const history = path.slice(0, index - 1)
-  const reply = createReply()
+  const reply = createReply(sessionId)
   updateSession(sessionId, (s) => ({
     ...appendBranch(s, question.id, [reply]),
     updatedAt: Date.now(),
@@ -1250,7 +1272,7 @@ export const editMessage = (sessionId: string, messageId: string, content: strin
     ...(previous.summary ? { summary: previous.summary } : {}),
     ...(previous.summaryCount ? { summaryCount: previous.summaryCount } : {}),
   }
-  const reply = createReply()
+  const reply = createReply(sessionId)
   updateSession(sessionId, (s) => ({
     ...appendBranch(s, path[index - 1]?.id ?? null, [question, reply]),
     updatedAt: Date.now(),
@@ -1445,7 +1467,7 @@ export const generateMemoryNote = async (
   if (get().importingHistory || deletingSessions.has(sessionId) || getStreamController(sessionId)) {
     return { status: 'busy' }
   }
-  const apiKey = useSettings.getState().apiKey ?? ''
+  const apiKey = effectiveApiKey()
   if (!apiKey) {
     return { status: 'error', message: translate('apiKeyStart') }
   }
@@ -1938,7 +1960,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         updateReply(sessionId, reply)
         persist(sessionId)
         // 发送前按「对话设置」整理历史：必要时自动压缩，再按上下文窗口裁剪
-        const apiKey = useSettings.getState().apiKey ?? ''
+        // 自动压缩 / 两步法检索也走当前渠道：只填了自定义渠道时同样要能跑
+        const apiKey = effectiveApiKey()
         const context = await prepareContext(prepared.history, apiKey, controller.signal, {
           cacheKey: sessionId,
           autoCompact: getSession(sessionId)?.autoCompact,
@@ -1955,7 +1978,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         const clockTime = useSettings.getState().sendClockTime
         const locale = useSettings.getState().locale
         const messages = clockTime ? appendClockTime(rawMessages, new Date(), locale) : rawMessages
-        const model = initial.model ?? currentModel()
+        // 角色卡锁了模型就用角色的：重试/重新生成时 initial.model 已经是它
+        const model = initial.model ?? modelForSession(sessionId)
         const baseSystem = memoryAwareSystemPrompt(sessionId)
         const system = systemForRequest(
           clockTime ? appendClockRule(baseSystem, locale) : baseSystem,

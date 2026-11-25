@@ -53,6 +53,15 @@ export type Character = {
   greetings?: string[]
   /** 示例对话，每段用 <START> 开头 */
   mesExample?: string
+  /**
+   * 风格样例：角色自己的原话（6~12 条），挑自旧对话。
+   * 比 `mesExample` 好维护（逐条勾选/换一批），注入时排在「说话风格」后面。
+   */
+  styleSamples?: string[]
+  /** 剧情时间线：已发生的关键事件与未兑现的约定，可增量更新；压缩不会改写它 */
+  timeline?: string
+  /** 锁定模型：填了就用它发消息（换设备/换角色不用再手动切） */
+  model?: string
   /** 历史后指令：放在对话历史之后，用来防出戏 */
   postHistoryPrompt?: string
   /** 作者说明：给看卡的人，不进上下文 */
@@ -80,6 +89,9 @@ export type CharacterPatch = Partial<
     | 'version'
     | 'greetings'
     | 'mesExample'
+    | 'styleSamples'
+    | 'timeline'
+    | 'model'
     | 'postHistoryPrompt'
     | 'creatorNotes'
   >
@@ -102,6 +114,9 @@ const PATCH_KEYS = [
   'version',
   'greetings',
   'mesExample',
+  'styleSamples',
+  'timeline',
+  'model',
   'postHistoryPrompt',
   'creatorNotes',
 ] as const satisfies readonly (keyof CharacterPatch)[]
@@ -284,12 +299,26 @@ export const composeSystemPrompt = (
     blocks.push(substituteMacros(base, vars).trim())
   }
 
+  // 原话样例：逐条编号，标注「保持同样的语气」——摘要会丢语气，原话不会
+  const samples = (character?.styleSamples ?? [])
+    .map((sample) => sample.trim())
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((sample, index) => `${index + 1}. ${sample}`)
+    .join('\n')
   const sections: { title: string; text: string | undefined }[] = [
     { title: '角色设定', text: character?.description },
     { title: '性格', text: character?.personality },
     { title: '说话风格', text: character?.style },
+    {
+      title: '原话样例',
+      text: samples
+        ? `以下是这个角色说过的话，回复时保持同样的语气与用词：\n${samples}`
+        : undefined,
+    },
     { title: '行为准则', text: character?.rules },
     { title: '场景', text: character?.scenario },
+    { title: '剧情时间线', text: character?.timeline },
     { title: '对话示例', text: character?.mesExample },
     { title: '补充要求', text: character?.postHistoryPrompt },
   ]

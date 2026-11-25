@@ -4,6 +4,7 @@ import { CrashScreen } from './app/CrashScreen.js'
 import { setupAppearance } from './app/appearance.js'
 import { setupTheme } from './app/theme.js'
 import { ensureKatex } from './services/markdown/katex.js'
+import { setupKeyboardInset } from './app/viewport.js'
 import { registerServiceWorker } from './services/pwa.js'
 import './app/theme.css'
 import './app/global.css'
@@ -25,6 +26,7 @@ try {
   }
   ;(window as { __oxchatBooted?: boolean }).__oxchatBooted = true
   ensureKatex()
+  setupKeyboardInset()
   setupTheme()
   setupAppearance()
 

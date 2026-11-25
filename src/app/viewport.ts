@@ -124,6 +124,57 @@ const preventPageScroll = (event: TouchEvent) => {
   event.preventDefault()
 }
 
+/**
+ * 软键盘高度 → CSS 变量 `--oxchat-keyboard-inset`。
+ *
+ * 边到边之后系统不再替 WebView 让位（`adjustResize` 在边到边下不生效），
+ * 键盘会直接盖住输入框。原生侧会把 IME 高度写进同一个变量；这里再用
+ * `visualViewport` 兜一层，网页版（iOS Safari 等）同样受益。
+ *
+ * 只做「加上去」不做「减下去」：原生注入与这里谁大听谁的（取 max），
+ * 两个通道同时有效时也不会叠成双倍。
+ */
+const KEYBOARD_MIN = 60
+
+const measureKeyboard = (): number => {
+  const viewport = typeof window === 'undefined' ? null : window.visualViewport
+  if (!viewport) {
+    return 0
+  }
+  const covered = window.innerHeight - viewport.height - viewport.offsetTop
+  return covered > KEYBOARD_MIN ? Math.round(covered) : 0
+}
+
+export const setupKeyboardInset = (): void => {
+  const viewport = typeof window === 'undefined' ? null : window.visualViewport
+  if (!viewport) {
+    return
+  }
+  let frame = 0
+  const apply = () => {
+    const height = measureKeyboard()
+    document.documentElement.style.setProperty('--oxchat-keyboard-web', `${height}px`)
+    if (height > 0) {
+      document.body.setAttribute('data-keyboard-open', '1')
+    } else {
+      document.body.removeAttribute('data-keyboard-open')
+    }
+  }
+  const schedule = () => {
+    if (frame) {
+      return
+    }
+    frame = window.requestAnimationFrame(() => {
+      frame = 0
+      apply()
+    })
+  }
+  viewport.addEventListener('resize', schedule)
+  viewport.addEventListener('scroll', schedule)
+  window.addEventListener('orientationchange', schedule)
+  apply()
+}
+
 /** 阻止移动端整页滚动，保留内部可滚动区域的滚动和双指缩放。 */
 export const usePreventPageScroll = (enabled: boolean) => {
   useEffect(() => {

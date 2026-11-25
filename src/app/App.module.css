@@ -6,6 +6,8 @@
   box-sizing: border-box;
   /* 画到状态栏下方：这一段的底色就是页面底色，状态栏因此与应用顶栏同色 */
   padding-top: var(--oxchat-safe-top);
+  /* 键盘弹出时整块往上收，输入框才不会被盖住（边到边后系统不再自动让位） */
+  padding-bottom: var(--oxchat-keyboard-inset, 0px);
   background-color: var(--oxchat-surface-base, var(--dsw-alias-bg-base));
 }
 

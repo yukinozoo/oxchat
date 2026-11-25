@@ -16,6 +16,7 @@ import {
 import { listChannels } from '../../services/channels.js'
 import { IconCheckOutline16, IconChevronDownOutline14 } from '../base/icons.js'
 import styles from './composerSheet.module.css'
+import { Button } from '../base/Button.js'
 
 /** 模型名转显示名：deepseek-v4.1-flash → DeepSeek V4.1 Flash */
 export const prettyModelName = (id: string): string =>
@@ -42,6 +43,9 @@ export const ModelPicker = ({ onClose }: { onClose: () => void }) => {
   const channels = listChannels()
   const channelModels = useModels((state) => state.channelModels)
   const channelLoading = useModels((state) => state.channelLoading)
+  const channelErrors = useModels((state) => state.channelErrors)
+  /** 拉不到模型时允许手写模型名：不少中转/自建网关干脆没有 /models 接口 */
+  const [manual, setManual] = useState<{ channelId: string; value: string } | null>(null)
   /** 手风琴：默认只展开当前渠道 */
   const [expanded, setExpanded] = useState<string[]>([activeChannel])
   /** v4-pro 之类不支持服务端工具：开关留着只会让人以为开了就有用，直接不显示 */
@@ -102,7 +106,62 @@ export const ModelPicker = ({ onClose }: { onClose: () => void }) => {
                   {open ? (
                     <div className={styles.channelModels}>
                       {count === 0 ? (
-                        <p className={styles.channelEmpty}>{t('modelChannelNoModels')}</p>
+                        <>
+                          <p className={styles.channelEmpty}>
+                            {channelErrors[channel.id]
+                              ? t('modelChannelError', { message: channelErrors[channel.id] })
+                              : t('modelChannelNoModels')}
+                          </p>
+                          {channelErrors[channel.id] &&
+                          /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(
+                            channelErrors[channel.id]
+                          ) ? (
+                            <p className={styles.channelEmpty}>{t('modelChannelNetworkHint')}</p>
+                          ) : null}
+                          {channel.id !== 'deepseek' ? (
+                            manual?.channelId === channel.id ? (
+                              <div className={styles.manualRow}>
+                                <input
+                                  className={styles.manualInput}
+                                  value={manual.value}
+                                  placeholder={t('modelChannelManualPlaceholder')}
+                                  onChange={(event) =>
+                                    setManual({ channelId: channel.id, value: event.target.value })
+                                  }
+                                />
+                                <Button
+                                  size="s"
+                                  disabled={!manual.value.trim()}
+                                  onClick={() => {
+                                    setActiveChannel(channel.id)
+                                    setModel(manual.value.trim())
+                                    setThinkingEffort(channel.thinking ? 'high' : 'off')
+                                    onClose()
+                                  }}
+                                >
+                                  {t('modelChannelManualUse')}
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className={styles.manualRow}>
+                                <Button
+                                  variant="outlined"
+                                  size="s"
+                                  onClick={() => setManual({ channelId: channel.id, value: '' })}
+                                >
+                                  {t('modelChannelManual')}
+                                </Button>
+                                <Button
+                                  variant="outlined"
+                                  size="s"
+                                  onClick={() => void loadChannelModels(channel.id)}
+                                >
+                                  {t('modelChannelRetry')}
+                                </Button>
+                              </div>
+                            )
+                          ) : null}
+                        </>
                       ) : null}
                       {list.map((id) => {
                         const active = activeChannel === channel.id && id === selected

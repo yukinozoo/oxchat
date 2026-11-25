@@ -213,11 +213,38 @@ export const fetchModelsForChannel = async (
   signal?: AbortSignal
 ): Promise<string[]> => {
   const origin = channel.baseUrl.replace(/\/+$/, '')
-  const response = await request(`${origin}/models`, {
-    method: 'GET',
-    headers: authHeaders(channel.apiKey),
-    signal,
-  })
+  /**
+   * Base URL 填法各家不一：有的要带 `/v1`（OpenAI 系），有的本身就是完整前缀。
+   * 先按填的试，404/405 再补一次 `/v1/models` —— 不然用户少写一段就只能看到「0 个模型」。
+   */
+  const candidates = origin.endsWith('/v1') ? [`${origin}/models`] : [`${origin}/models`, `${origin}/v1/models`]
+  let response: Response | null = null
+  let lastError: unknown = null
+  for (const url of candidates) {
+    try {
+      const attempt = await request(url, {
+        method: 'GET',
+        headers: authHeaders(channel.apiKey),
+        signal,
+      })
+      if (attempt.ok) {
+        response = attempt
+        break
+      }
+      lastError = new Error(`HTTP ${attempt.status}`)
+    } catch (error) {
+      lastError = error
+      if (signal?.aborted) {
+        throw error
+      }
+    }
+  }
+  if (!response) {
+    // 把 HTTP 状态带进文案：只显示「0 个模型」用户不知道该改 Key 还是改地址
+    const status = (lastError as { status?: number } | undefined)?.status
+    const detail = lastError instanceof Error ? lastError.message : String(lastError ?? '')
+    throw new Error(status ? `HTTP ${status}${detail ? ` · ${detail}` : ''}` : detail || 'models request failed')
+  }
   const body: unknown = await response.json()
   const ids = new Set<string>()
   const push = (value: unknown) => {

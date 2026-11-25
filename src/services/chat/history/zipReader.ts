@@ -66,16 +66,20 @@ const openInflateSink = (id: string): InflateSink | null => {
 // 分片越大，主线程与 Worker 间的往返越少；64KB 在内存占用与通信开销间取平衡。
 const INFLATE_CHUNK_BYTES = 64 * 1024
 
-/** ZIP 结构损坏或使用了不支持的特性 */
+/**
+ * ZIP 结构损坏或使用了不支持的特性。
+ * `stage` 说明卡在哪一步（目录/条目/解压/校验），真机上报错文案会带出来，
+ * 不用再靠猜（0.1.102 上「别的工具生成的包导不进来」就吃过这个亏）。
+ */
 export class ArchiveError extends Error {
-  constructor() {
-    super('Invalid or unsupported history archive')
+  constructor(readonly stage: string = 'archive') {
+    super(`Invalid or unsupported history archive (${stage})`)
     this.name = 'ArchiveError'
   }
 }
 
-const invalid = (): never => {
-  throw new ArchiveError()
+const invalid = (stage: string = 'archive'): never => {
+  throw new ArchiveError(stage)
 }
 
 /** 本地文件头签名 PK\x03\x04，用于在解析前区分 ZIP 与其他文件。 */
@@ -106,6 +110,9 @@ const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
   }
   return crc >>> 0
 })
+
+/** 超过这个大小的 deflate 条目才交给 Worker，小条目主线程同步解压更稳 */
+const SYNC_INFLATE_LIMIT = 4 * 1024 * 1024
 
 /** 小文件整块缓存：手机 WebView 里每次 slice() 都是跨进程调用，270KB 的包整读一次最划算 */
 const SMALL_FILE_LIMIT = 4 * 1024 * 1024
@@ -215,9 +222,9 @@ const stripWrapperDir = (entries: Entry[]): Entry[] => {
     .map((entry) => ({ ...entry, path: entry.path.slice(wrapper.length) }))
 }
 
-const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
+const readDirectoryStrict = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
   if (file.size < 22) {
-    invalid()
+    invalid('too-small')
   }
   const tailStart = Math.max(0, file.size - 22 - 0xffff)
   const tail = await readBytes(file, tailStart, file.size - tailStart)
@@ -231,7 +238,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     end--
   }
   if (end < 0) {
-    invalid()
+    invalid('eocd')
   }
   const count = tailView.getUint16(end + 10, true)
   const size = tailView.getUint32(end + 12, true)
@@ -245,7 +252,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     offset === 0xffffffff ||
     offset + size !== tailStart + end
   ) {
-    invalid()
+    invalid('eocd-fields')
   }
   const entries: Entry[] = []
   const paths = new Set<string>()
@@ -256,10 +263,10 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
   let cursor = 0
   for (let index = 0; index < count; index++) {
     if (cursor + 46 > size) {
-      invalid()
+      invalid('entry-header')
     }
     if (view.getUint32(cursor, true) !== 0x02014b50) {
-      invalid()
+      invalid('entry-signature')
     }
     const flags = view.getUint16(cursor + 8, true)
     const method = view.getUint16(cursor + 10, true)
@@ -281,7 +288,7 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
       ((view.getUint32(cursor + 38, true) >>> 16) & 0xf000) === 0xa000 ||
       next > size
     ) {
-      invalid()
+      invalid('entry-flags')
     }
     const name = directory.subarray(cursor + 46, cursor + 46 + nameLength)
     const path = decodePath(name, flags)
@@ -305,9 +312,133 @@ const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: nu
     cursor = next
   }
   if (cursor !== size) {
-    invalid()
+    invalid('entry-trailing')
   }
   return { entries: stripWrapperDir(entries).sort((a, b) => a.offset - b.offset), offset }
+}
+
+/**
+ * 宽松解析：给「别的工具生成的包」兜底。
+ *
+ * 严格解析为了安全和省内存，会拒绝：未知标志位、ZIP64、额外字段、目录尾部多余字节等。
+ * 但用户从网盘/微信转存、用 Python 或系统压缩重新打过的包经常带这些特征 ——
+ * 0.1.102 上「别的工具做的备份导不进来」就是这么来的。
+ *
+ * 这里只保留**必需**的结构校验（签名、方法 0/8、路径安全、CRC 由调用方校验），
+ * 其余一律放行；ZIP64 的尺寸/偏移从 0x0001 扩展字段里补出来。
+ */
+const readDirectoryLenient = async (
+  file: File
+): Promise<{ entries: Entry[]; offset: number }> => {
+  if (file.size < 22) {
+    invalid('lenient-too-small')
+  }
+  const tailStart = Math.max(0, file.size - 22 - 0xffff)
+  const tail = await readBytes(file, tailStart, file.size - tailStart)
+  const tailView = viewOf(tail)
+  let end = tail.length - 22
+  // 允许 EOCD 后面跟注释（长度字段对不上也认），只要求签名存在
+  while (end >= 0 && tailView.getUint32(end, true) !== 0x06054b50) {
+    end--
+  }
+  if (end < 0) {
+    invalid('lenient-eocd')
+  }
+  const count = tailView.getUint16(end + 10, true)
+  const size = tailView.getUint32(end + 12, true)
+  const offset = tailView.getUint32(end + 16, true)
+  if (count === 0xffff || size === 0xffffffff || offset === 0xffffffff) {
+    invalid('lenient-zip64-directory')
+  }
+  const directory = await readBytes(file, offset, size)
+  const view = viewOf(directory)
+  const entries: Entry[] = []
+  const paths = new Set<string>()
+  let cursor = 0
+  for (let index = 0; index < count; index++) {
+    if (cursor + 46 > size || view.getUint32(cursor, true) !== 0x02014b50) {
+      invalid('lenient-entry')
+    }
+    const flags = view.getUint16(cursor + 8, true)
+    const method = view.getUint16(cursor + 10, true)
+    const nameLength = view.getUint16(cursor + 28, true)
+    const extraLength = view.getUint16(cursor + 30, true)
+    let compressedSize = view.getUint32(cursor + 20, true)
+    let entrySize = view.getUint32(cursor + 24, true)
+    let entryOffset = view.getUint32(cursor + 42, true)
+    const extra = directory.subarray(cursor + 46 + nameLength, cursor + 46 + nameLength + extraLength)
+    // ZIP64：0xffffffff 的字段按顺序落在 0x0001 扩展里
+    if (
+      compressedSize === 0xffffffff ||
+      entrySize === 0xffffffff ||
+      entryOffset === 0xffffffff
+    ) {
+      let at = 0
+      while (at + 4 <= extra.length) {
+        const id = extra[at] | (extra[at + 1] << 8)
+        const len = extra[at + 2] | (extra[at + 3] << 8)
+        if (id === 0x0001) {
+          let field = at + 4
+          const take = () => {
+            if (field + 8 > at + 4 + len) {
+              invalid('lenient-zip64-extra')
+            }
+            const view64 = viewOf(extra.subarray(field, field + 8))
+            const low = view64.getUint32(0, true)
+            const high = view64.getUint32(4, true)
+            field += 8
+            return high * 0x100000000 + low
+          }
+          if (entrySize === 0xffffffff) {
+            entrySize = take()
+          }
+          if (compressedSize === 0xffffffff) {
+            compressedSize = take()
+          }
+          if (entryOffset === 0xffffffff) {
+            entryOffset = take()
+          }
+          break
+        }
+        at += 4 + len
+      }
+    }
+    if (method !== 0 && method !== 8) {
+      invalid('lenient-method')
+    }
+    const name = directory.subarray(cursor + 46, cursor + 46 + nameLength)
+    // 名字解码仍然严格：路径要安全
+    const path = decodePath(name, flags | 0x800)
+    const identity = path.endsWith('/') ? path.slice(0, -1) : path
+    if (paths.has(identity)) {
+      invalid('lenient-duplicate')
+    }
+    paths.add(identity)
+    entries.push({
+      path,
+      name,
+      flags,
+      method,
+      crc: view.getUint32(cursor + 16, true),
+      compressedSize,
+      size: entrySize,
+      offset: entryOffset,
+    })
+    cursor += 46 + nameLength + extraLength + view.getUint16(cursor + 32, true)
+  }
+  return { entries: stripWrapperDir(entries).sort((a, b) => a.offset - b.offset), offset }
+}
+
+/** 先严格、失败再宽松；两者都失败时抛宽松那一侧的错误（stage 更具体） */
+const readDirectory = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
+  try {
+    return await readDirectoryStrict(file)
+  } catch (error) {
+    if (!(error instanceof ArchiveError)) {
+      throw error
+    }
+    return readDirectoryLenient(file)
+  }
 }
 
 /**
@@ -337,7 +468,7 @@ export const readEntryByPath = async (file: File, target: string): Promise<Blob 
   }
   const view = viewOf(head)
   if (view.getUint32(0, true) !== 0x04034b50) {
-    invalid()
+    invalid('local-header')
   }
   const start = entry.offset + 30 + view.getUint16(26, true) + view.getUint16(28, true)
   const parts: Uint8Array[] = []
@@ -358,7 +489,7 @@ export const readEntryByPath = async (file: File, target: string): Promise<Blob 
   }
   const data = entry.method === 8 ? inflateSync(compressed) : compressed
   if (data.length !== entry.size || crc32(data) !== entry.crc) {
-    invalid()
+    invalid('entry-crc')
   }
   return new Blob([data])
 }
@@ -507,7 +638,10 @@ export async function* readArchive(
           pending.push(chunk)
         }
       }
-      const sink = entry.method === 8 ? openInflateSink(`${entry.offset}`) : null
+      // 小条目直接主线程解压：Worker 在某些 WebView 里起不来/转移失败，
+      // 那会让整个包被判成「Invalid archive」，而小文件根本不需要 Worker
+      const useWorker = entry.method === 8 && entry.compressedSize > SYNC_INFLATE_LIMIT
+      const sink = useWorker ? openInflateSink(`${entry.offset}`) : null
       const inflate = entry.method === 8 && !sink ? new Inflate(append) : null
       for (let offset = 0; offset < entry.compressedSize; offset += READ_CHUNK_BYTES) {
         const chunk = await readBytes(

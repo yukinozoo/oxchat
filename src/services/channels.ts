@@ -1,3 +1,4 @@
+import { create } from 'zustand'
 /**
  * 模型渠道：DeepSeek 官方 + 用户自建（OpenAI 兼容 / Anthropic / Responses）。
  *
@@ -64,12 +65,24 @@ const parse = (raw: string | null): Channel[] => {
   }
 }
 
+/**
+ * 渠道存在 localStorage 里（不是 zustand），改了以后界面不会自动重渲染。
+ * 这里用一个版本号把「渠道有变化」广播出去：保存 / 删除 / 切换渠道都会 +1，
+ * 关心它的组件（欢迎页按钮、侧栏图标、模型面板）订阅它就能立刻更新。
+ */
+export const useChannelsVersion = create<{ version: number }>(() => ({ version: 0 }))
+
+const bumpChannels = () => {
+  useChannelsVersion.setState((state) => ({ version: state.version + 1 }))
+}
+
 const write = (list: Channel[]): void => {
   try {
     storage()?.setItem(KEY, JSON.stringify(list))
   } catch {
     // 存不下只影响下次打开
   }
+  bumpChannels()
 }
 
 /** 全部渠道：官方永远排第一，且不可删除 */
@@ -130,3 +143,12 @@ export const usableCustomChannel = (): Channel | null =>
 /** 能不能直接开聊：有官方 Key，或有可用的自定义渠道 */
 export const hasUsableChannel = (deepseekKey: string | null): boolean =>
   Boolean(deepseekKey?.trim()) || usableCustomChannel() !== null
+
+/**
+ * 组件里用的版本：渠道存在 localStorage，保存/删除后不会自动重渲染，
+ * 订阅版本号后 `hasUsableChannel` 的结果才会跟着变（欢迎页按钮、侧栏图标、设置副标题都靠它）。
+ */
+export const useHasUsableChannel = (deepseekKey: string | null): boolean => {
+  useChannelsVersion((state) => state.version)
+  return hasUsableChannel(deepseekKey)
+}

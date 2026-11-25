@@ -15,6 +15,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 103,
+    versionName: '0.1.103',
+    date: '2026-11-25',
+    items: [
+      '新增「接着聊」：从一条很长的旧对话里抽出人设与语气样例，建卡、绑定、压缩一条龙（角色管理 → 接着聊）',
+      '角色卡新增剧情时间线、原话样例、锁定模型三项，随卡片导入导出',
+      '只有自定义渠道 Key 时，压缩 / 生成笔记 / 接续抽取也能用，不再提示「输入 API Key」',
+      '自定义渠道支持 http:// 地址（局域网中转），模型列表拉不到会显示原因，并可手动填模型名',
+      '修复别的工具生成的备份包导不进来（宽松解析 ZIP / ZIP64）',
+      '键盘弹出时输入框正确顶起，间距不再过大或贴住键盘',
+    ],
+  },
+  {
     versionCode: 102,
     versionName: '0.1.102',
     date: '2026-11-25',

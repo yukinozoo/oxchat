@@ -17,6 +17,7 @@ import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { CharacterAvatar } from '../session/CharacterAvatar.js'
 import { CharacterEditor } from './CharacterEditor.js'
+import { ContinuationWizard } from './ContinuationWizard.js'
 import styles from './RoleSettings.module.css'
 import { HIDDEN_FILE_INPUT_STYLE } from '../../utils/hiddenFileInput.js'
 
@@ -36,6 +37,8 @@ export const RoleSettings = () => {
     null | { kind: 'user' } | { kind: 'character'; id: string | null }
   >(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  /** 「接着聊」向导：从旧会话抽人设建卡 */
+  const [wizardOpen, setWizardOpen] = useState(false)
   /** 导入后靠它触发重渲染（角色列表不是响应式 store） */
   const [version, setVersion] = useState(0)
   const importRef = useRef<HTMLInputElement>(null)
@@ -74,6 +77,13 @@ export const RoleSettings = () => {
         <span className={styles.headTools}>
           {CUSTOM_ROLES_ENABLED ? (
             <>
+              <button
+                type="button"
+                className={styles.actionText}
+                onClick={() => setWizardOpen(true)}
+              >
+                {t('continuationEntry')}
+              </button>
               <button
                 type="button"
                 className={styles.actionText}
@@ -183,6 +193,7 @@ export const RoleSettings = () => {
         })}
       </div>
 
+      {wizardOpen ? <ContinuationWizard onClose={() => setWizardOpen(false)} /> : null}
       {editing?.kind === 'user' ? (
         <UserProfileDialog onClose={() => setEditing(null)} />
       ) : null}

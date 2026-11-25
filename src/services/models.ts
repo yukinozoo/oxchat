@@ -15,6 +15,8 @@ type ModelsState = {
   /** 每个自定义渠道各自拉到的模型列表（展开时才拉） */
   channelModels: Record<string, string[]>
   channelLoading: Record<string, boolean>
+  /** 每个渠道最近一次拉取失败的原因（HTTP 状态 / 网络 / 跨域），面板里直接显示 */
+  channelErrors: Record<string, string>
 }
 
 export const useModels = create<ModelsState>(() => ({
@@ -23,12 +25,15 @@ export const useModels = create<ModelsState>(() => ({
   loadedFor: null,
   channelModels: {},
   channelLoading: {},
+  channelErrors: {},
 }))
 
 /** 按渠道拉模型（展开某个自定义渠道时调用，同一个渠道只拉一次） */
 export const loadChannelModels = async (channelId: string): Promise<void> => {
   const state = useModels.getState()
-  if (channelId === 'deepseek' || state.channelModels[channelId] || state.channelLoading[channelId]) {
+  const cached = state.channelModels[channelId]
+  // 已经拿到模型就复用；之前失败（结果为空）允许重试，方便改完 Key 再点一次
+  if (channelId === 'deepseek' || state.channelLoading[channelId] || (cached && cached.length > 0)) {
     return
   }
   const channel = channelById(channelId)
@@ -41,10 +46,15 @@ export const loadChannelModels = async (channelId: string): Promise<void> => {
     useModels.setState((current) => ({
       channelModels: { ...current.channelModels, [channelId]: models },
       channelLoading: { ...current.channelLoading, [channelId]: false },
+      channelErrors: { ...current.channelErrors, [channelId]: '' },
     }))
-  } catch {
+  } catch (error) {
     useModels.setState((current) => ({
       channelLoading: { ...current.channelLoading, [channelId]: false },
+      channelErrors: {
+        ...current.channelErrors,
+        [channelId]: error instanceof Error ? error.message : String(error),
+      },
     }))
   }
 }

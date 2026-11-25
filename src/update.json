@@ -1,9 +1,9 @@
 {
-  "versionCode": 102,
-  "versionName": "0.1.102",
-  "size": 5817127,
-  "sha256": "9f4ea91b2c0ed279eeea979e58da963e38359eb799a0796a006f937dd6fd8460",
-  "notes": "壁纸铺到状态栏 + 状态栏图标跟随壁纸明暗；侧栏与顶栏对齐；填 Key 返回回对话页；修复导入大备份失败",
+  "versionCode": 103,
+  "versionName": "0.1.103",
+  "size": 5827115,
+  "sha256": "2e48fd5b82f3cd150499efa32ee5a569227265bc5cbbd1bf3a26e496780a3dc2",
+  "notes": "新增「接着聊」从旧对话接人设；角色卡支持时间线/原话样例/锁定模型；自定义渠道可用性修复；ZIP 兼容与键盘适配",
   "sources": [
     "https://yukinozoo.github.io/oxchat/OxChat-latest.apk",
     "https://github.com/yukinozoo/oxchat/releases/latest/download/OxChat-latest.apk"

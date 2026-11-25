@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { hasUsableChannel } from '../../services/channels.js'
+import { useHasUsableChannel } from '../../services/channels.js'
 import {
   IconChevronDownOutline14,
   IconCloseOutline16,
@@ -213,6 +213,8 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const [deletePending, setDeletePending] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const apiKey = useSettings((state) => state.apiKey)
+  // 订阅渠道变化：保存渠道后图标与副标题才会跟着变
+  const usableForIcon = useHasUsableChannel(apiKey)
   const balance = useAccount((state) => state.balance)
   const balanceLabel = formatBalance(balance)
 
@@ -513,7 +515,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         ) : (
           <button type="button" className={styles.account} onClick={() => openSettings('general')}>
             <span className={styles.accountAvatar}>
-              {hasUsableChannel(apiKey) ? <IconPersonOutline20 /> : <IconSettingsOutline16 />}
+              {usableForIcon ? <IconPersonOutline20 /> : <IconSettingsOutline16 />}
             </span>
             <span className={styles.accountName}>
               {apiKey ? maskApiKey(apiKey) : t('settings')}

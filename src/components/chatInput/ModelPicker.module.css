@@ -1,0 +1,28 @@
+
+/* 拉不到模型时的手动输入行：输入框 + 「用这个」/「重试」 */
+.manualRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 2px;
+}
+
+.manualInput {
+  flex: 1 1 160px;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--oxchat-page-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.manualInput:focus {
+  border-color: var(--dsw-alias-brand-primary);
+  outline: none;
+}

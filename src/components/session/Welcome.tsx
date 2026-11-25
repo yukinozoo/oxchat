@@ -2,7 +2,7 @@ import { useIsMobile } from '../../app/viewport.js'
 import { useEffect, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { characterById, defaultCharacterId } from '../../services/chat/characters.js'
-import { hasUsableChannel } from '../../services/channels.js'
+import { useHasUsableChannel } from '../../services/channels.js'
 import { readGreetingDraft, writeGreetingDraft } from '../../services/chat/greetingDraft.js'
 import { useSettings } from '../../services/settings.js'
 import { ChatInput } from '../chatInput/ChatInput.js'
@@ -29,7 +29,9 @@ export const Welcome = () => {
   const isMobile = useIsMobile()
   // 未填写 API Key 时在输入框上方给出明确的登录入口
   // 有官方 Key 或有可用的自定义渠道，都算「能开聊」，不再催填 Key
-  const needsApiKey = !hasUsableChannel(useSettings((state) => state.apiKey))
+  const apiKeyValue = useSettings((state) => state.apiKey)
+  // 填完 Key / 建好渠道回到对话页时，这个按钮要立刻消失（hook 内部订阅了渠道变化）
+  const needsApiKey = !useHasUsableChannel(apiKeyValue)
   const characterId = character?.id
   useEffect(() => {
     if (characterId) {
