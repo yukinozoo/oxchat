@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
-import { loadArchiveFromUrl } from '../../services/chat/linkImport.js'
+import { ArchiveLinkError, loadArchiveFromUrl } from '../../services/chat/linkImport.js'
 import { Button } from '../base/Button.js'
 import { showToast } from '../base/toastState.js'
 import { ArchiveImportDialog } from './ArchiveImportDialog.js'
@@ -28,9 +28,19 @@ export const LinkImportEntry = ({ disabled }: { disabled: boolean }) => {
       setArchive(file)
       setUrl('')
     } catch (error) {
+      const hint =
+        error instanceof ArchiveLinkError
+          ? t(
+              error.kind === 'cors'
+                ? 'websiteLinkCorsHint'
+                : error.kind === 'notZip'
+                  ? 'websiteLinkNotZipHint'
+                  : 'websiteLinkHttpHint'
+            )
+          : ''
       showToast(
         t('websiteLinkFailed', {
-          message: error instanceof Error ? error.message : String(error),
+          message: `${error instanceof Error ? error.message : String(error)}${hint ? ` · ${hint}` : ''}`,
         })
       )
     } finally {

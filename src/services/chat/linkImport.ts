@@ -7,7 +7,7 @@ import { createNativeArchiveFile } from './nativeArchive.js'
  * - http：服务端明确返回了非 2xx（签名过期 403、链接被删 404 等）。
  * 网页版只能走 fetch，跨域这一关是浏览器拦的，改不了；原生壳走插件下载没有这个问题。
  */
-export type ArchiveLinkFailure = 'cors' | 'http'
+export type ArchiveLinkFailure = 'cors' | 'http' | 'notZip'
 
 export class ArchiveLinkError extends Error {
   constructor(
@@ -23,17 +23,32 @@ export class ArchiveLinkError extends Error {
  * 按下载链接取回整包：App 内交给原生插件下载（避免 WebView 跨域），
  * 网页版直接 fetch。两条路径都返回可直接交给归档导入流程的 File。
  */
+/** 头 4 字节是不是 ZIP 的本地文件头：很多「下载链接」实际返回的是网页/登录页 */
+const looksLikeZip = async (file: File): Promise<boolean> => {
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+    return head.length === 4 && head[0] === 0x50 && head[1] === 0x4b && head[2] === 3 && head[3] === 4
+  } catch {
+    return false
+  }
+}
+
 export const loadArchiveFromUrl = async (url: string): Promise<File> => {
   if (websiteImportAvailable()) {
+    let file: File
     try {
       const { path } = await downloadExportArchive(url)
-      return await createNativeArchiveFile(path)
+      file = await createNativeArchiveFile(path)
     } catch (error) {
       throw new ArchiveLinkError(
         'http',
         error instanceof Error ? error.message : String(error)
       )
     }
+    if (!(await looksLikeZip(file))) {
+      throw new ArchiveLinkError('notZip', `size=${file.size}`)
+    }
+    return file
   }
   let response: Response
   try {
@@ -49,5 +64,9 @@ export const loadArchiveFromUrl = async (url: string): Promise<File> => {
   if (blob.size === 0) {
     throw new ArchiveLinkError('http', 'empty archive')
   }
-  return new File([blob], 'deepseek_export.zip', { type: 'application/zip' })
+  const file = new File([blob], 'deepseek_export.zip', { type: 'application/zip' })
+  if (!(await looksLikeZip(file))) {
+    throw new ArchiveLinkError('notZip', `size=${blob.size}`)
+  }
+  return file
 }

@@ -222,24 +222,49 @@ const stripWrapperDir = (entries: Entry[]): Entry[] => {
     .map((entry) => ({ ...entry, path: entry.path.slice(wrapper.length) }))
 }
 
+/**
+ * 找 EOCD（中央目录结尾记录）。
+ *
+ * 先在尾部窗口里找（大包只读尾巴，省内存）；小包或窗口里没找到时**整文件扫一遍** ——
+ * 有些工具会在归档后面追加自己的尾巴、或者把注释写得很长，只看最后 64KB 会误判成
+ * 「不是 ZIP」（真机上报 `lenient-eocd` 就是这种情况）。
+ */
+type Eocd = { view: DataView; end: number; base: number }
+
+const findEocd = async (file: File): Promise<Eocd | null> => {
+  if (file.size === 0) {
+    invalid('empty')
+  }
+  const signature = 0x06054b50
+  const tailStart = Math.max(0, file.size - 22 - 0xffff)
+  const tail = await readBytes(file, tailStart, file.size - tailStart)
+  const tailView = viewOf(tail)
+  for (let end = tail.length - 22; end >= 0; end--) {
+    if (tailView.getUint32(end, true) === signature) {
+      return { view: tailView, end, base: tailStart }
+    }
+  }
+  if (file.size > tail.length) {
+    const whole = await readBytes(file, 0, file.size)
+    const view = viewOf(whole)
+    for (let end = whole.length - 22; end >= 0; end--) {
+      if (view.getUint32(end, true) === signature) {
+        return { view, end, base: 0 }
+      }
+    }
+  }
+  return null
+}
+
 const readDirectoryStrict = async (file: File): Promise<{ entries: Entry[]; offset: number }> => {
   if (file.size < 22) {
     invalid('too-small')
   }
-  const tailStart = Math.max(0, file.size - 22 - 0xffff)
-  const tail = await readBytes(file, tailStart, file.size - tailStart)
-  const tailView = viewOf(tail)
-  let end = tail.length - 22
-  while (
-    end >= 0 &&
-    (tailView.getUint32(end, true) !== 0x06054b50 ||
-      end + 22 + tailView.getUint16(end + 20, true) !== tail.length)
-  ) {
-    end--
-  }
-  if (end < 0) {
+  const found = await findEocd(file)
+  if (found === null) {
     invalid('eocd')
   }
+  const { view: tailView, end, base: tailStart } = found as Eocd
   const count = tailView.getUint16(end + 10, true)
   const size = tailView.getUint32(end + 12, true)
   const offset = tailView.getUint32(end + 16, true)
@@ -333,17 +358,11 @@ const readDirectoryLenient = async (
   if (file.size < 22) {
     invalid('lenient-too-small')
   }
-  const tailStart = Math.max(0, file.size - 22 - 0xffff)
-  const tail = await readBytes(file, tailStart, file.size - tailStart)
-  const tailView = viewOf(tail)
-  let end = tail.length - 22
-  // 允许 EOCD 后面跟注释（长度字段对不上也认），只要求签名存在
-  while (end >= 0 && tailView.getUint32(end, true) !== 0x06054b50) {
-    end--
-  }
-  if (end < 0) {
+  const found = await findEocd(file)
+  if (found === null) {
     invalid('lenient-eocd')
   }
+  const { view: tailView, end } = found as Eocd
   const count = tailView.getUint16(end + 10, true)
   const size = tailView.getUint32(end + 12, true)
   const offset = tailView.getUint32(end + 16, true)

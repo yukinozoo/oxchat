@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { useTranslate } from '../../i18n/index.js'
+import { translate, useTranslate } from '../../i18n/index.js'
 import {
   importSelectedSessions,
   readArchiveIndex,
@@ -15,6 +15,24 @@ import { showToast } from '../base/toastState.js'
 import styles from './WebsiteImport.module.css'
 
 type Stage = 'loading' | 'list' | 'importing'
+
+/**
+ * 把 `Invalid or unsupported history archive (stage)` 翻成人话。
+ * 真机上用户看到纯英文只会以为是 App 坏了，其实大多是「文件没传完整」。
+ */
+const describeArchiveError = (error: unknown): string => {
+  const text = error instanceof Error ? error.message : String(error)
+  if (!text.startsWith('Invalid or unsupported history archive')) {
+    return text
+  }
+  if (/empty|too-small|eocd/.test(text)) {
+    return `${text} · ${translate('archiveBrokenTruncated')}`
+  }
+  if (/method|flags|zip64|entry/.test(text)) {
+    return `${text} · ${translate('archiveBrokenUnsupported')}`
+  }
+  return `${text} · ${translate('archiveBrokenGeneric')}`
+}
 
 /** ISO 时间 → 2026-11-15；解析不了就原样截前 10 位 */
 const dateOf = (iso: string): string => {
@@ -74,7 +92,7 @@ export const ArchiveImportDialog = ({
         setSelected(new Set(index.filter((entry) => !isExisting(entry.id)).map((entry) => entry.id)))
         setStage('list')
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(describeArchiveError(e))
         setStage('list')
       }
     })()
@@ -155,7 +173,7 @@ export const ArchiveImportDialog = ({
         setError(null)
         showToast({ key: 'historyImportCancelled' })
       } else {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(describeArchiveError(e))
       }
     } finally {
       setProgress(null)

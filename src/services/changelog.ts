@@ -15,6 +15,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 104,
+    versionName: '0.1.104',
+    date: '2026-11-25',
+    items: [
+      '导入报错看得懂了：文件不完整 / 压缩方式不支持 / 链接过期 / 链接返回的是网页，各给一句人话和下一步',
+      '修复尾巴被改过的备份包被误判为「不是 ZIP」（改成整文件查找目录）',
+      '链接导入会先校验是不是压缩包，避免拿网页去解析',
+    ],
+  },
+  {
     versionCode: 103,
     versionName: '0.1.103',
     date: '2026-11-25',
