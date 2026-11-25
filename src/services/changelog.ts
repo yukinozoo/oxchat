@@ -15,6 +15,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 101,
+    versionName: '0.1.101',
+    date: '2026-11-25',
+    items: [
+      '网页版主脚本下载卡住时（网络慢/被中转拦）6 秒自动重试一次',
+      '白屏兜底页点明「页面还没加载完」，不再笼统说「没渲染出内容」',
+    ],
+  },
+  {
     versionCode: 100,
     versionName: '0.1.100',
     date: '2026-11-25',

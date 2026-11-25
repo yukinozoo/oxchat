@@ -231,6 +231,9 @@
             '\n存储: localStorage ' + storage + ' / indexedDB ' + typeof w.indexedDB +
             ' / matchMedia ' + typeof w.matchMedia +
             '\n页面状态: ' + document.readyState +
+            (document.readyState === 'interactive'
+              ? '（主脚本可能还没下载完：网络慢或被中转卡住）'
+              : '') +
             '\n根节点高度: ' + rootHeight() + 'px'
           )
         }
@@ -347,6 +350,25 @@
           var reason = event.reason
           add('Promise 拒绝：' + (reason && reason.stack ? reason.stack : String(reason)))
         })
+
+        // 主脚本 6 秒还没跑起来（下载被卡住/中断）时自动重试一次：
+        // 动态插入的 script 是 async 的，不受 CSS 或解析阻塞；带 ?r= 绕开可能的中转缓存。
+        // 双保险：main.tsx 里用 window.__oxchatBooted 做了幂等，重复执行不会挂两次 React。
+        var retried = false
+        setTimeout(function () {
+          if (retried || rendered()) return
+          retried = true
+          var list = document.getElementsByTagName('script')
+          for (var i = 0; i < list.length; i += 1) {
+            var src = list[i].src
+            if (!src || src.indexOf('static/js/main.') < 0) continue
+            var again = document.createElement('script')
+            again.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'r=' + Date.now()
+            document.body.appendChild(again)
+            add('主脚本 6 秒未执行，已自动重试一次：' + again.src)
+            break
+          }
+        }, 6000)
 
         // 连 fetch / indexedDB 都没有：不用等 15 秒，3 秒后直接铺屏
         setTimeout(function () {

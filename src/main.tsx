@@ -16,7 +16,14 @@ const reportFatal = (error: unknown) => {
   }
 }
 
+/** 兜底页可能在主脚本卡住时重试一次：重复执行时只挂一次 React 根 */
+const booted = (window as { __oxchatBooted?: boolean }).__oxchatBooted === true
+
 try {
+  if (booted) {
+    throw new Error('__oxchatSkipBoot')
+  }
+  ;(window as { __oxchatBooted?: boolean }).__oxchatBooted = true
   ensureKatex()
   setupTheme()
   setupAppearance()
@@ -57,6 +64,10 @@ try {
   // 网页版注册 Service Worker（原生壳里自动跳过）：离线打开 + 二次启动更快
   registerServiceWorker()
 } catch (error) {
-  reportFatal(error)
-  throw error
+  if (error instanceof Error && error.message === '__oxchatSkipBoot') {
+    // 第二次执行：上一次已经挂上了，什么都不做
+  } else {
+    reportFatal(error)
+    throw error
+  }
 }
