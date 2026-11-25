@@ -219,8 +219,16 @@
   bottom: 0;
   left: 0;
   z-index: 800;
-  /* 位移由 CSS 变量驱动：拖拽时 0ms，松手后按抽屉时长过渡 */
+  /*
+   * 抽屉是绝对定位，原点是 frame 的 padding 盒上沿（= 屏幕最顶），
+   * 所以状态栏这段必须自己让出来，否则「OxChat」会压到时间/电量上。
+   * 让出的量跟对话页顶栏一致，首行才能和左上角那颗汉堡图标对齐：
+   *   对话页：frame padding-top(safe-top) + MobileHeader 内 12px
+   *   抽屉：  padding-top(safe-top) + .sider 6px + .top 15px ≈ 同一基线
+   * 底部同样让出导航栏，否则「设置」会贴到系统手势条上。
+   */
   padding-top: var(--oxchat-safe-top);
+  padding-bottom: var(--oxchat-safe-bottom);
   /* 横向拖动交给 JS 处理，纵向仍可滚动列表；否则滚动容器会吞掉横滑手势 */
   touch-action: pan-y;
   transform: translateX(calc(-100% + var(--drawer-offset, 0px)));

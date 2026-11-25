@@ -95,6 +95,46 @@ const clearVars = (style: CSSStyleDeclaration, names: readonly string[]) => {
   }
 }
 
+/**
+ * 壁纸亮不亮：状态栏图标（时间 / 电量）要跟着它翻色。
+ *
+ * 只把图片缩到 32×32 取平均亮度，够用且几乎不花时间；结果按 data URL 前缀缓存，
+ * 同一张图只算一次。返回 null 表示量不出来（解码失败等），调用方退回按主题判断。
+ */
+const wallpaperTone = new Map<string, boolean>()
+
+export const wallpaperIsDark = async (dataUrl: string): Promise<boolean | null> => {
+  const key = dataUrl.slice(0, 96)
+  const cached = wallpaperTone.get(key)
+  if (cached !== undefined) {
+    return cached
+  }
+  try {
+    const image = new Image()
+    image.src = dataUrl
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = 32
+    canvas.height = 32
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return null
+    }
+    context.drawImage(image, 0, 0, 32, 32)
+    const { data } = context.getImageData(0, 0, 32, 32)
+    let total = 0
+    for (let index = 0; index < data.length; index += 4) {
+      // 亮度按人眼权重
+      total += 0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2]
+    }
+    const dark = total / (data.length / 4) < 128
+    wallpaperTone.set(key, dark)
+    return dark
+  } catch {
+    return null
+  }
+}
+
 export const applyAppearance = () => {
   const body = document.body
   if (!body) {

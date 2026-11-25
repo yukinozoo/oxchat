@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { useSettings, type ThemePreference } from '../services/settings.js'
-import { applyAppearance } from './appearance.js'
+import { applyAppearance, wallpaperIsDark } from './appearance.js'
 import { onMediaChange, safeMatchMedia } from './viewport.js'
 
 export type Theme = 'light' | 'dark'
@@ -30,14 +30,16 @@ const syncPageBackground = () => {
 }
 
 /**
- * 把页面底色与深浅同步给原生壳（`AppThemePlugin`）。
+ * 把「顶部实际是什么颜色」与「图标该浅还是该深」同步给原生壳（`AppThemePlugin`）。
  *
- * Android 15+ 强制边到边以后，状态栏/导航栏区域露出来的是原生窗口背景色，
- * 网页改不了；`setStatusBarColor` 也会被系统忽略。所以每次主题或底色变化都要告诉原生一侧，
- * 让它把窗口/DecorView 的底色一起刷掉，并切状态栏图标的明暗。
- * 网页版没有这个插件，静默跳过。
+ * - 颜色取**最外层 frame 的真实底色**（不是 body）：设了壁纸时 frame 是 transparent，
+ *   这时要告诉原生用透明系统栏，让壁纸一直铺到时间/电量后面，而不是盖一条实色带子；
+ * - 图标深浅：跟随主题；有壁纸时改看壁纸明暗（量不出来就退回主题）。
+ *
+ * Android 15+ 强制边到边，状态栏区域露的是原生窗口背景，`setStatusBarColor` 会被忽略，
+ * 所以原生侧要连窗口/DecorView 的底色一起刷。网页版没有这个插件，静默跳过。
  */
-const syncNativeBars = (color: string) => {
+const syncNativeBars = (fallbackColor: string) => {
   const plugin = (
     window as unknown as {
       Capacitor?: { Plugins?: { AppTheme?: { set: (options: { dark: boolean; color: string }) => Promise<unknown> } } }
@@ -46,11 +48,35 @@ const syncNativeBars = (color: string) => {
   if (!plugin) {
     return
   }
-  void plugin
-    .set({ dark: document.body.classList.contains('dark'), color })
-    .catch(() => {
+  const frame = document.querySelector<HTMLElement>('[data-app-frame]')
+  const frameColor = frame ? getComputedStyle(frame).backgroundColor : ''
+  const wallpapered = document.body.classList.contains('has-bg-image')
+  const transparent =
+    wallpapered || frameColor === 'transparent' || frameColor === 'rgba(0, 0, 0, 0)'
+  const color = transparent ? 'transparent' : frameColor || fallbackColor
+  const themeDark = document.body.classList.contains('dark')
+  const send = (dark: boolean) =>
+    void plugin.set({ dark, color }).catch(() => {
       // 原生侧失败不影响网页
     })
+  if (!wallpapered || !bgImageOf()) {
+    send(themeDark)
+    return
+  }
+  // 有壁纸：先按主题发一次，量出壁纸明暗后再校正一次（两帧内完成，不会闪）
+  send(themeDark)
+  void wallpaperIsDark(bgImageOf()).then((dark) => {
+    if (dark !== null && dark !== themeDark) {
+      send(dark)
+    }
+  })
+}
+
+/** 当前壁纸的 data URL（没有就空串） */
+const bgImageOf = (): string => {
+  const value = getComputedStyle(document.body).getPropertyValue('--oxchat-bg-image').trim()
+  const match = /url\(["']?(.*?)["']?\)/.exec(value)
+  return match ? match[1] : ''
 }
 
 /** 同步页面主题、根画布背景和支持 theme-color 的浏览器栏。 */
@@ -92,6 +118,18 @@ const syncTheme = () => {
 /** 首屏渲染前同步应用一次，之后随主题设置与系统深浅色变化更新 */
 export const setupTheme = () => {
   syncTheme()
+  // 换壁纸 / 改不透明度 / 改气泡都不会走主题切换，但顶部底色变了：
+  // 这里跟着外观 store 再同步一次，否则状态栏会一直留着上一次的颜色（白条就是这么来的）
+  let scheduled = 0
+  useSettings.subscribe(() => {
+    if (scheduled) {
+      return
+    }
+    scheduled = window.requestAnimationFrame(() => {
+      scheduled = 0
+      syncNativeBars(getComputedStyle(document.body).backgroundColor)
+    })
+  })
   if (document.readyState !== 'complete') {
     window.addEventListener('load', syncPageBackground, { once: true })
   }

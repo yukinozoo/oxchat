@@ -154,6 +154,7 @@ export const App = () => {
       <ChangelogDialog />
       <div
         ref={frameRef}
+        data-app-frame
         className={importingHistory ? `${styles.frame} ${styles.frameWithBar}` : styles.frame}
       >
         {isMobile ? <MobileSider /> : siderCollapsed ? null : <Sider />}

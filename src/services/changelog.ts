@@ -15,6 +15,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 102,
+    versionName: '0.1.102',
+    date: '2026-11-25',
+    items: [
+      '修复聊天壁纸到不了状态栏后面（WebView 全屏 + 系统栏透明），状态栏图标跟着壁纸明暗翻色',
+      '修复侧边栏顶部压到状态栏、底部「设置」贴手势条，首行与对话页汉堡图标对齐',
+      '修复「填写 API Key」进去后返回落到设置首页，现在直接回对话页',
+      '修复导入大备份时报「transaction has finished」失败',
+    ],
+  },
+  {
     versionCode: 101,
     versionName: '0.1.101',
     date: '2026-11-25',

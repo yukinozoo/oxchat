@@ -412,6 +412,21 @@ export const updateStagingFileTypes = async (
  */
 export const commitStaging = async (merge = false): Promise<SessionSummary[]> => {
   const summaries: SessionSummary[] = []
+  /**
+   * 原生附件模式：**先把暂存附件落到私有目录，再开事务搬会话**。
+   *
+   * 反过来的话（先开事务、再 await 原生写），事务在等待期间没有任何请求，
+   * 浏览器会认为它已经结束 —— 之后 `tx.objectStore(...)` 直接抛
+   * 「Failed to execute 'objectStore' on 'IDBTransaction': The transaction has finished.」，
+   * 导入大包（附件多、原生写慢）时必现。
+   */
+  const nativeFiles = useNativeFiles()
+  if (nativeFiles) {
+    const staging = await (await getDB()).getAll('filesStaging')
+    for (const file of staging) {
+      await writeNativeFile(file, file.blob.type || 'application/octet-stream')
+    }
+  }
   const tx = (await getDB()).transaction(
     ['sessions', 'sessionSummaries', 'files', 'sessionsStaging', 'filesStaging'],
     'readwrite'
@@ -444,12 +459,8 @@ export const commitStaging = async (merge = false): Promise<SessionSummary[]> =>
       throw error
     }
   }
-  if (useNativeFiles()) {
-    // 原生模式：暂存里的附件先落到私有目录，再清空暂存（不进 IndexedDB）
-    const staging = await (await getDB()).getAll('filesStaging')
-    for (const file of staging) {
-      await writeNativeFile(file, file.blob.type || 'application/octet-stream')
-    }
+  if (nativeFiles) {
+    // 原生附件已经在上面落盘了：这里只搬会话、清暂存（不进 IndexedDB）
     await Promise.all([
       move('sessionsStaging', 'sessions'),
       (await getDB()).clear('filesStaging'),

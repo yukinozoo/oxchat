@@ -40,6 +40,7 @@ export const ensureApiKey = () => {
   if (useSettings.getState().apiKey) {
     return true
   }
-  openSettings('api')
+  // 从对话页被拦下来（发消息没 Key）：返回要回对话，不要停在设置首页
+  openSettings('api', { closeOnBack: true })
   return false
 }

@@ -105,7 +105,7 @@ export const Welcome = () => {
           <button
             type="button"
             className={styles.signIn}
-            onClick={() => openSettings('api')}
+            onClick={() => openSettings('api', { closeOnBack: true })}
           >
             {t('welcomeSignInCta')}
           </button>
