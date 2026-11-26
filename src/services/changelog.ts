@@ -15,6 +15,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    versionCode: 105,
+    versionName: '0.1.105',
+    date: '2026-11-26',
+    items: [
+      '新增「回复篇幅」：设置 → 个性化里选默认 / 详细 / 简略，防止长对话越聊越短',
+      '修复 iOS 网页版键盘弹出后输入框被推到屏幕顶部（键盘留白算了两遍）',
+    ],
+  },
+  {
     versionCode: 104,
     versionName: '0.1.104',
     date: '2026-11-25',

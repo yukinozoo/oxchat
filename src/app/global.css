@@ -18,7 +18,14 @@
    * 原生 `WindowInsets.Type.ime()` 给的是真实键盘高度，不受平移影响。
    * 原生还没注入过（网页版 / iOS Safari）时，才退回网页量到的值。
    */
-  --oxchat-keyboard-inset: var(--oxchat-keyboard-native, var(--oxchat-keyboard-web, 0px));
+  /*
+   * 只用**原生**注入的键盘高度。
+   * iOS Safari 那边靠 `--app-viewport-height`（visualViewport 高度）已经把主区域缩短了，
+   * 再叠一层 padding 会把输入框推到屏幕最上面（用户 2026-11-26 遇到的正是这个）。
+   * 网页版量到的 `--oxchat-keyboard-web` 只用来打 `data-keyboard-open` 标记（收紧间距），
+   * 不再参与高度计算。
+   */
+  --oxchat-keyboard-inset: var(--oxchat-keyboard-native, 0px);
   --oxchat-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--oxchat-nav-inset, 0px));
 }
 

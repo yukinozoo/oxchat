@@ -6,6 +6,9 @@ import * as db from './chat/db.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
+/** 回复篇幅偏好：默认 / 偏详尽 / 偏精简 */
+export type ReplyLength = 'default' | 'detailed' | 'concise'
+
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
@@ -28,6 +31,8 @@ type Settings = {
   autoCollapseThinking: boolean
   /** 是否在提问尾部附带极小的时间标记（`[环境时钟: HH:mm]`），规则句另有一句静态进 system */
   sendClockTime: boolean
+  /** 回复篇幅偏好：default 不干预 / detailed 偏详尽 / concise 偏精简（静态写进 system，不伤前缀缓存） */
+  replyLength: ReplyLength
   /** 附件原件存哪：native = App 私有目录（安卓），idb = WebView 的 IndexedDB（网页版/逃生） */
   fileStore: 'native' | 'idb'
   /** 我的气泡底色（#rrggbb）；空串表示跟随强调色 */
@@ -128,6 +133,7 @@ const KEYS = {
   activeChannel: 'oxchat:active-channel',
   autoCollapseThinking: 'oxchat:auto-collapse-thinking',
   sendClockTime: 'oxchat:send-clock-time',
+  replyLength: 'oxchat:reply-length',
   fileStore: 'oxchat:file-store',
   bubbleUser: 'oxchat:bubble-user',
   bubbleAi: 'oxchat:bubble-ai',
@@ -278,6 +284,11 @@ const initialAutoCollapseThinking = (): boolean => read(KEYS.autoCollapseThinkin
 /** 具体时刻默认开启：off 才算关闭（用户问「现在几点」时模型才有据可依） */
 const initialSendClockTime = (): boolean => read(KEYS.sendClockTime) !== 'false'
 
+const initialReplyLength = (): ReplyLength => {
+  const saved = read(KEYS.replyLength)
+  return saved === 'detailed' || saved === 'concise' ? saved : 'default'
+}
+
 /** 附件存储位置：只有显式选过 IndexedDB 才算 idb；网页版由调用方判断插件是否存在 */
 const initialFileStore = (): 'native' | 'idb' =>
   read(KEYS.fileStore) === 'idb' ? 'idb' : 'native'
@@ -358,6 +369,7 @@ export const useSettings = create<Settings>(() => {
     activeChannel: read(KEYS.activeChannel) ?? 'deepseek',
     autoCollapseThinking: initialAutoCollapseThinking(),
     sendClockTime: initialSendClockTime(),
+    replyLength: initialReplyLength(),
     fileStore: initialFileStore(),
     bubbleUser: initialBubbleColor(KEYS.bubbleUser),
     bubbleAi: initialBubbleColor(KEYS.bubbleAi),
@@ -468,6 +480,11 @@ export const setAutoCollapseThinking = (autoCollapseThinking: boolean) => {
 export const setFileStore = (fileStore: 'native' | 'idb') => {
   write(KEYS.fileStore, fileStore)
   useSettings.setState({ fileStore })
+}
+
+export const setReplyLength = (replyLength: ReplyLength) => {
+  write(KEYS.replyLength, replyLength)
+  useSettings.setState({ replyLength })
 }
 
 export const setSendClockTime = (sendClockTime: boolean) => {

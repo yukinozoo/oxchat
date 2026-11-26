@@ -388,6 +388,33 @@ const memoryAwareSystemPrompt = (sessionId: string): string => {
 }
 
 
+/**
+ * 回复篇幅偏好：一句静态规则，拼在 system 末尾。
+ * 不干预时不加任何内容；切换档位才会让前缀缓存失效一次。
+ */
+const REPLY_LENGTH_RULES: Record<'detailed' | 'concise', Record<'zh-CN' | 'en-US', string>> = {
+  detailed: {
+    'zh-CN': '【回复篇幅】请保持充分、详尽、有细节的回复，不要因为对话轮数变多而逐渐变短或敷衍。',
+    'en-US': '[Reply length] Keep replies thorough, detailed and well-developed; do not gradually shorten them as the conversation grows.',
+  },
+  concise: {
+    'zh-CN': '【回复篇幅】请保持简洁精炼，直奔重点，避免冗长的铺垫与重复。',
+    'en-US': '[Reply length] Keep replies concise and to the point; avoid padding and repetition.',
+  },
+}
+
+const withReplyLength = (
+  system: string,
+  length: 'default' | 'detailed' | 'concise',
+  locale: 'zh-CN' | 'en-US'
+): string => {
+  if (length === 'default') {
+    return system
+  }
+  const rule = REPLY_LENGTH_RULES[length][locale === 'en-US' ? 'en-US' : 'zh-CN']
+  return system ? `${system}\n\n${rule}` : rule
+}
+
 /** 整理前备份：写库并把摘要加到列表最前面，不占详情缓存 */
 const saveBackupSession = async (session: Session): Promise<void> => {
   const backup = createBackupSession(session)
@@ -1981,10 +2008,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         // 角色卡锁了模型就用角色的：重试/重新生成时 initial.model 已经是它
         const model = initial.model ?? modelForSession(sessionId)
         const baseSystem = memoryAwareSystemPrompt(sessionId)
-        const system = systemForRequest(
-          clockTime ? appendClockRule(baseSystem, locale) : baseSystem,
-          caps
-        )
+        const withClock = clockTime ? appendClockRule(baseSystem, locale) : baseSystem
+        // 回复篇幅偏好：静态一句，切换时才变，不影响前缀缓存
+        const system = systemForRequest(withReplyLength(withClock, useSettings.getState().replyLength, locale), caps)
         // 预算口径与圆环一致：历史 + 本轮提问（含附件）+ system
         const budget =
           context.reduce((total, message) => total + messageTokens(message), 0) +

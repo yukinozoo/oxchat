@@ -40,6 +40,7 @@ import {
   setTtsVoice,
   setApiKey,
   setAutoCollapseThinking,
+  setReplyLength,
   setSendClockTime,
   setResumeLastSession,
   setShowMessageUsage,
@@ -133,6 +134,7 @@ const SettingsContent = () => {
   const ttsVoice = useSettings((state) => state.ttsVoice)
   const autoCollapseThinking = useSettings((state) => state.autoCollapseThinking)
   const sendClockTime = useSettings((state) => state.sendClockTime)
+  const replyLength = useSettings((state) => state.replyLength)
   const resumeLastSession = useSettings((state) => state.resumeLastSession)
   const showMessageUsage = useSettings((state) => state.showMessageUsage)
   const giteeLastSync = useSettings((state) => state.giteeLastSync)
@@ -611,6 +613,40 @@ const SettingsContent = () => {
                 </button>
               </div>
               <div className={styles.settingDesc}>{t('personalizeSendClockTimeDesc')}</div>
+              <div className={styles.card}>
+                <div className={styles.cell}>
+                  <span className={styles.label}>{t('settingsReplyLength')}</span>
+                  <div
+                    className={styles.segmented}
+                    role="radiogroup"
+                    aria-label={t('settingsReplyLength')}
+                  >
+                    {(
+                      [
+                        ['default', 'replyLengthDefault'],
+                        ['detailed', 'replyLengthDetailed'],
+                        ['concise', 'replyLengthConcise'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={replyLength === value}
+                        className={
+                          replyLength === value
+                            ? `${styles.segment} ${styles.segmentActive}`
+                            : styles.segment
+                        }
+                        onClick={() => setReplyLength(value)}
+                      >
+                        {t(label)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.settingDesc}>{t('replyLengthHint')}</div>
             </>
           ) : null}
         </ScrollPane>

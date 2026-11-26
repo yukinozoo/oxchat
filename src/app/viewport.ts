@@ -220,10 +220,22 @@ export const useMobileViewport = (enabled: boolean) => {
       frame.style.setProperty('--app-vh', height)
       frame.style.setProperty('--app-dvh', height)
     }
+    /** 原生壳（安卓）已经把键盘高度注入 CSS：那边别再缩主区域，否则会缩两次 */
+    const nativeKeyboard = (): boolean => {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(
+        '--oxchat-keyboard-native'
+      )
+      return Number.parseFloat(raw) > 0
+    }
     const update = () => {
       guardHeight()
       // 双指缩放由浏览器处理，保持当前布局尺寸。
       if (viewport && viewport.scale !== 1) {
+        return
+      }
+      if (document.activeElement?.matches(inputSelector) && nativeKeyboard()) {
+        // 安卓：键盘留白交给 `--oxchat-keyboard-inset`，这里只保证不清掉全高
+        reset()
         return
       }
       // 失焦后直接恢复 CSS 的全高布局，不等 Safari 收键盘后的 resize。
